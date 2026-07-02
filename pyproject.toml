@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-literature-workflow"
+version = "0.1.0"
+description = "Local research literature workflow tools."
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2", "pypdf>=5"]
+
+[project.scripts]
+litflow = "litflow.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

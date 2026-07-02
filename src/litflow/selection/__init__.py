@@ -1,0 +1,2 @@
+"""Manual candidate selection helpers."""
+
