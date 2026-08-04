@@ -158,6 +158,7 @@ python -m litflow.cli apply-obsidian-update `
 - [快速开始](docs/QUICKSTART.zh-CN.md)
 - [核心概念](docs/CONCEPTS.zh-CN.md)
 - [常见问题排查](docs/TROUBLESHOOTING.md)
+- [最小 FastAPI wrapper](docs/API.md)
 - [架构说明](ARCHITECTURE.md)
 - [完整命令链](docs/END_TO_END_WORKFLOW.md)
 - [项目状态](PROJECT_STATUS.md)
