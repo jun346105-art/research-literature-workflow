@@ -1,8 +1,8 @@
 # Research Literature Workflow
 
-A local-first research literature workflow connecting `paper-search-pro`, Zotero, Obsidian, and OpenAI-compatible LLMs for structured, evidence-grounded paper reading.
+[中文说明](README.zh-CN.md) | English
 
-中文定位：一个本地优先的科研文献工作流工具，用于连接 paper-search-pro、Zotero、Obsidian 与兼容 OpenAI API 的大模型，实现可审计、可人工确认、证据可回溯的结构化文献精读。
+A local-first research literature workflow connecting `paper-search-pro`, Zotero, Obsidian, and OpenAI-compatible LLMs for structured, evidence-grounded paper reading.
 
 ## What It Does
 
@@ -24,7 +24,7 @@ paper-search-pro results
 -> approved marker-region apply
 ```
 
-The important design choice: LLM text is not trusted directly. Evidence snippets are anchored back to source chunks and validated before they can enter an Obsidian note.
+The key design choice: LLM text is not trusted directly. Evidence snippets are anchored back to source chunks and validated before they can enter an Obsidian note.
 
 ## Core Capabilities
 
@@ -94,17 +94,13 @@ python -m litflow.cli apply-obsidian-update `
   --approved
 ```
 
-## End-to-End Workflow
+## Documentation
 
-Full command chain: [docs/END_TO_END_WORKFLOW.md](docs/END_TO_END_WORKFLOW.md)
-
-Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
-
-Status: [PROJECT_STATUS.md](PROJECT_STATUS.md)
-
-paper-search-pro local skill workflow: [docs/PAPER_SEARCH_PRO_SKILL_WORKFLOW.md](docs/PAPER_SEARCH_PRO_SKILL_WORKFLOW.md)
-
-Open-source sample data: [examples/README.md](examples/README.md)
+- Full command chain: [docs/END_TO_END_WORKFLOW.md](docs/END_TO_END_WORKFLOW.md)
+- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Status: [PROJECT_STATUS.md](PROJECT_STATUS.md)
+- paper-search-pro local skill workflow: [docs/PAPER_SEARCH_PRO_SKILL_WORKFLOW.md](docs/PAPER_SEARCH_PRO_SKILL_WORKFLOW.md)
+- Open-source sample data: [examples/README.md](examples/README.md)
 
 ## Environment
 
@@ -123,10 +119,9 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 ## Current Status
 
 - `v0.1-small-batch-e2e`: completed and tagged.
-- Phase 5 anchored evidence pipeline: implemented locally after v0.1.
+- `v0.1.1-anchored-evidence-pipeline`: pushed with anchored evidence pipeline and sanitized examples.
 - 8-paper small-batch workflow validated.
 - 4-paper LLM reading workflow validated.
-- Anchored evidence pipeline generated candidate banks, grounded notes, and previews for remaining batch papers.
 - Current test count: 97 passed.
 
 ## Limitations
