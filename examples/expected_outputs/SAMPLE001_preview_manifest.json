@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "structured_note": "examples\\structured_reading_notes\\SAMPLE001_structured_reading_note.json",
+    "vault": "examples\\obsidian_vault",
+    "inbox": "00_Inbox/LiteratureReview",
+    "preview_count": 1,
+    "missing_target_count": 0,
+    "warnings_count": 0
+  },
+  "items": [
+    {
+      "zotero_key": "SAMPLE001",
+      "citation_key": "chen2026samplepackage",
+      "title": "Sample Paper on Package Surface Defect Detection",
+      "target_note_path": "examples\\obsidian_vault\\00_Inbox\\LiteratureReview\\@chen2026samplepackage.md",
+      "preview_path": "examples\\expected_outputs\\SAMPLE001_preview.md",
+      "status": "preview_created",
+      "warnings": []
+    }
+  ],
+  "warnings": []
+}
