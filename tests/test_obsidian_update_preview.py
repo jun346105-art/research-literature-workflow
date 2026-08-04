@@ -55,7 +55,7 @@ def test_preview_obsidian_update_creates_markdown_and_manifest(tmp_path):
     text = out.read_text(encoding="utf-8")
     assert "# Obsidian Update Preview: Paper" in text
     assert str(note) in text
-    assert "Exact evidence\n> with newline." in text
+    assert "```text\nExact evidence\nwith newline.\n```" in text
     assert "`P1_chunk_0001`, pp. 1-2" in text
     assert note.read_text(encoding="utf-8") == original_note
     assert manifest["metadata"]["preview_count"] == 1

@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "zotero_key": "SAMPLE001",
+    "citation_key": "chen2026samplepackage",
+    "title": "Sample Paper on Package Surface Defect Detection",
+    "authors": ["Alex Chen", "Rui Zhang"],
+    "year": 2026,
+    "doi": "10.0000/example.sample001",
+    "pdf_attachment_path": "examples/sample_papers/SAMPLE001.pdf"
+  },
+  "cleaning": {
+    "original_char_count": 832,
+    "cleaned_char_count": 832,
+    "page_count": 2,
+    "warnings": []
+  },
+  "sections": [
+    {
+      "section_guess": "abstract",
+      "page_start": 1,
+      "page_end": 1,
+      "heading_text": "Abstract"
+    },
+    {
+      "section_guess": "method",
+      "page_start": 2,
+      "page_end": 2,
+      "heading_text": "Method"
+    }
+  ],
+  "chunks": [
+    {
+      "chunk_id": "SAMPLE001_chunk_0001",
+      "zotero_key": "SAMPLE001",
+      "citation_key": "chen2026samplepackage",
+      "title": "Sample Paper on Package Surface Defect Detection",
+      "text": "Abstract\nLogistics package inspection requires reliable detection of surface defects before parcels enter sorting systems. The sample method focuses on visible box damage such as stains, dents, and scratches without assuming that these categories match any downstream project dataset.",
+      "char_count": 278,
+      "page_start": 1,
+      "page_end": 1,
+      "section_guess": "abstract",
+      "source_page_numbers": [1],
+      "contains_annotation": false,
+      "annotation_ids": []
+    },
+    {
+      "chunk_id": "SAMPLE001_chunk_0002",
+      "zotero_key": "SAMPLE001",
+      "citation_key": "chen2026samplepackage",
+      "title": "Sample Paper on Package Surface Defect Detection",
+      "text": "Method\nThe pipeline extracts local texture cues, merges them with lightweight visual features, and produces a package-level defect decision. Evaluation uses a small toy dataset and reports that texture-aware features improve recall for subtle surface marks.",
+      "char_count": 247,
+      "page_start": 2,
+      "page_end": 2,
+      "section_guess": "method",
+      "source_page_numbers": [2],
+      "contains_annotation": false,
+      "annotation_ids": []
+    }
+  ],
+  "annotations": {
+    "aligned_count": 0,
+    "unaligned_count": 0,
+    "items": []
+  },
+  "quality": {
+    "status": "ready_for_llm",
+    "warnings": ["sample context is intentionally short"],
+    "errors": []
+  }
+}

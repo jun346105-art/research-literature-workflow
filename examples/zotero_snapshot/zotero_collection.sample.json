@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "collection": "sample_collection",
+    "total_items": 1
+  },
+  "papers": [
+    {
+      "zotero_key": "SAMPLE001",
+      "citation_key": "chen2026samplepackage",
+      "citation_key_source": "sample",
+      "title": "Sample Paper on Package Surface Defect Detection",
+      "authors": ["Alex Chen", "Rui Zhang"],
+      "year": 2026,
+      "venue": "Example Conference",
+      "doi": "10.0000/example.sample001",
+      "url": "https://example.org/sample001",
+      "abstract": "This toy paper studies package surface defect detection with lightweight visual inspection.",
+      "item_type": "conferencePaper",
+      "collection": "sample_collection",
+      "tags": ["sample", "package-defect"],
+      "pdf_attachment_path": "examples/sample_papers/SAMPLE001.pdf",
+      "pdf_exists": false,
+      "attachment_count": 0
+    }
+  ]
+}

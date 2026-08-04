@@ -16,6 +16,8 @@ from litflow.obsidian.reconcile import plan_citekey_note_migration
 from litflow.obsidian.update_preview import preview_obsidian_update
 from litflow.obsidian.apply_update import apply_obsidian_update
 from litflow.llm.client import LLMError
+from litflow.llm.evidence_bank_note import generate_note_from_evidence_bank
+from litflow.llm.evidence_candidates import build_evidence_candidate_bank
 from litflow.llm.structured_reader import read_paper_with_llm
 from litflow.reading_context import build_reading_contexts
 from litflow.selection.export import export_zotero_import
@@ -93,6 +95,19 @@ def main(argv: list[str] | None = None) -> int:
     llm_read.add_argument("--clean-context", required=True, type=Path)
     llm_read.add_argument("--out", required=True, type=Path)
     llm_read.add_argument("--max-chunks", type=int)
+
+    evidence_bank = subparsers.add_parser("build-evidence-candidate-bank")
+    evidence_bank.add_argument("--clean-context", required=True, type=Path)
+    evidence_bank.add_argument("--out", required=True, type=Path)
+    evidence_bank.add_argument("--report", required=True, type=Path)
+
+    bank_note = subparsers.add_parser("generate-note-from-evidence-bank")
+    bank_note.add_argument("--candidate-bank", required=True, type=Path)
+    bank_note.add_argument("--clean-context", required=True, type=Path)
+    bank_note.add_argument("--out", required=True, type=Path)
+    bank_note.add_argument("--zotero-key", required=True)
+    bank_note.add_argument("--citation-key", required=True)
+    bank_note.add_argument("--title", required=True)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -211,6 +226,28 @@ def main(argv: list[str] | None = None) -> int:
             note = read_paper_with_llm(args.clean_context, args.out, max_chunks=args.max_chunks)
             print(f"Wrote structured reading note: {args.out}")
             print(f"zotero_key: {note.zotero_key}")
+            return 0
+
+        if args.command == "build-evidence-candidate-bank":
+            report = build_evidence_candidate_bank(args.clean_context, args.out, args.report)
+            print(f"Chunks: {report['metadata']['chunk_count']}")
+            print(f"Anchored candidates: {report['metadata']['anchored_count']}")
+            print(f"Failed candidates: {report['metadata']['failed_count']}")
+            print(f"Output: {args.out}")
+            print(f"Report: {args.report}")
+            return 0
+
+        if args.command == "generate-note-from-evidence-bank":
+            note = generate_note_from_evidence_bank(
+                args.candidate_bank,
+                args.clean_context,
+                args.out,
+                zotero_key=args.zotero_key,
+                citation_key=args.citation_key,
+                title=args.title,
+            )
+            print(f"Wrote structured reading note: {args.out}")
+            print(f"Evidence links: {len(note.evidence_links)}")
             return 0
 
         if args.command == "preview-obsidian-update":

@@ -4,7 +4,7 @@ import pytest
 
 from litflow.llm.client import LLMError, OpenAICompatibleClient
 from litflow.llm.prompts import build_structured_reading_prompt
-from litflow.llm.structured_reader import build_llm_input, read_paper_with_llm
+from litflow.llm.structured_reader import _anchor_quote_hint, build_llm_input, read_paper_with_llm
 
 
 class FakeLLM:
@@ -85,6 +85,7 @@ def test_clean_context_converts_to_llm_input_and_prompt_has_chunk_pages():
     assert "P1_chunk_0001" in prompt
     assert "page_start" in prompt
     assert "Do not use external knowledge" in prompt
+    assert "quote_hint" in prompt
 
 
 def test_mock_llm_valid_json_writes_structured_note(tmp_path):
@@ -95,7 +96,9 @@ def test_mock_llm_valid_json_writes_structured_note(tmp_path):
     note = read_paper_with_llm(clean, out, client=FakeLLM([json.dumps(_valid_note())]))
 
     assert note.zotero_key == "P1"
-    assert json.loads(out.read_text(encoding="utf-8"))["evidence_links"][0]["chunk_id"] == "P1_chunk_0001"
+    saved = json.loads(out.read_text(encoding="utf-8"))
+    assert saved["evidence_links"][0]["chunk_id"] == "P1_chunk_0001"
+    assert saved["evidence_links"][0]["evidence_text"] in _clean_context()["chunks"][0]["text"]
 
 
 def test_invalid_json_retries_and_succeeds(tmp_path):
@@ -131,7 +134,7 @@ def test_evidence_error_retries_with_specific_reason(tmp_path):
     read_paper_with_llm(clean, out, client=client)
 
     assert client.calls == 2
-    assert "evidence_error_type=evidence_text_not_found" in client.prompts[1]
+    assert "evidence_anchor_error_type=evidence_anchor_not_found" in client.prompts[1]
 
 
 def test_invalid_json_after_retry_saves_error(tmp_path):
@@ -158,7 +161,7 @@ def test_evidence_link_unknown_chunk_fails(tmp_path):
         read_paper_with_llm(clean, out, client=FakeLLM([json.dumps(bad), json.dumps(bad)]))
 
 
-def test_evidence_text_must_come_from_chunk(tmp_path):
+def test_unanchorable_evidence_fails_and_saves_anchor_error(tmp_path):
     clean = tmp_path / "clean.json"
     out = tmp_path / "note.json"
     clean.write_text(json.dumps(_clean_context()), encoding="utf-8")
@@ -169,12 +172,12 @@ def test_evidence_text_must_come_from_chunk(tmp_path):
         read_paper_with_llm(clean, out, client=FakeLLM([json.dumps(bad), json.dumps(bad)]))
 
     error = json.loads(out.with_suffix(".error.json").read_text(encoding="utf-8"))
-    assert error["evidence_error_type"] == "evidence_text_not_found"
+    assert error["evidence_error_type"] == "evidence_anchor_not_found"
     assert error["failed_chunk_id"] == "P1_chunk_0001"
-    assert error["candidate_chunk_id"] is None
+    assert error["anchor_failures"][0]["quote_hint"] == "not in the chunk"
 
 
-def test_wrong_chunk_id_is_reported(tmp_path):
+def test_anchor_does_not_auto_fix_wrong_chunk_id(tmp_path):
     clean = tmp_path / "clean.json"
     out = tmp_path / "note.json"
     clean.write_text(json.dumps(_clean_context()), encoding="utf-8")
@@ -185,9 +188,9 @@ def test_wrong_chunk_id_is_reported(tmp_path):
         read_paper_with_llm(clean, out, client=FakeLLM([json.dumps(bad), json.dumps(bad)]))
 
     error = json.loads(out.with_suffix(".error.json").read_text(encoding="utf-8"))
-    assert error["evidence_error_type"] == "wrong_chunk_id"
+    assert error["evidence_error_type"] == "evidence_anchor_not_found"
     assert error["failed_chunk_id"] == "P1_chunk_0001"
-    assert error["candidate_chunk_id"] == "P1_chunk_0002"
+    assert error["anchor_failures"][0]["chunk_id"] == "P1_chunk_0001"
 
 
 def test_page_range_mismatch_is_reported(tmp_path):
@@ -203,6 +206,53 @@ def test_page_range_mismatch_is_reported(tmp_path):
     error = json.loads(out.with_suffix(".error.json").read_text(encoding="utf-8"))
     assert error["evidence_error_type"] == "page_range_mismatch"
     assert error["failed_chunk_id"] == "P1_chunk_0001"
+
+
+def test_anchor_quote_hint_exact_match():
+    result = _anchor_quote_hint("proposes a method", "The paper proposes a method.")
+
+    assert result["status"] == "ok"
+    assert result["method"] == "exact_match"
+    assert result["evidence_text"] == "proposes a method"
+
+
+def test_anchor_quote_hint_normalized_whitespace_returns_original_span():
+    chunk = "The paper proposes\na method with exact evidence."
+    result = _anchor_quote_hint("paper proposes a method", chunk)
+
+    assert result["status"] == "ok"
+    assert result["method"] == "normalized_whitespace_match"
+    assert result["evidence_text"] == "paper proposes\na method"
+    assert result["evidence_text"] in chunk
+
+
+def test_anchor_quote_hint_ambiguous_does_not_guess():
+    result = _anchor_quote_hint("same phrase", "same phrase appears twice: same phrase")
+
+    assert result["status"] == "error"
+    assert result["error_type"] == "evidence_anchor_ambiguous"
+
+
+def test_anchor_quote_hint_not_found():
+    result = _anchor_quote_hint("missing phrase", "The paper proposes a method.")
+
+    assert result["status"] == "error"
+    assert result["error_type"] == "evidence_anchor_not_found"
+
+
+def test_unanchorable_too_few_valid_links_saves_error(tmp_path):
+    clean = tmp_path / "clean.json"
+    out = tmp_path / "note.json"
+    clean.write_text(json.dumps(_clean_context()), encoding="utf-8")
+    bad = _valid_note()
+    bad["evidence_links"][0]["evidence_text"] = "missing phrase"
+
+    with pytest.raises(LLMError):
+        read_paper_with_llm(clean, out, client=FakeLLM([json.dumps(bad), json.dumps(bad)]))
+
+    error = json.loads(out.with_suffix(".error.json").read_text(encoding="utf-8"))
+    assert error["error_type"] == "EvidenceAnchoringError"
+    assert error["anchor_failures"][0]["error_type"] == "evidence_anchor_not_found"
 
 
 def test_missing_api_key_has_clear_error(monkeypatch):

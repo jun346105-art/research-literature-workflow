@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "source": "examples/clean_context/SAMPLE001.json",
+    "generated_at": "2026-08-04T00:00:00",
+    "chunk_count": 2,
+    "llm_call_count": 2,
+    "candidate_count": 3,
+    "anchored_count": 3,
+    "failed_count": 0
+  },
+  "candidates": [
+    {
+      "candidate_id": "SAMPLE001_ev_0001",
+      "claim": "The sample paper focuses on package surface inspection before sorting.",
+      "evidence_type": "background",
+      "quote_hint": "Logistics package inspection requires reliable detection of surface defects before parcels enter sorting systems.",
+      "chunk_id": "SAMPLE001_chunk_0001",
+      "page_start": 1,
+      "page_end": 1,
+      "evidence_text": "Logistics package inspection requires reliable detection of surface defects before parcels enter sorting systems.",
+      "anchoring_method": "exact_match",
+      "status": "anchored"
+    },
+    {
+      "candidate_id": "SAMPLE001_ev_0002",
+      "claim": "The method combines texture cues with lightweight visual features.",
+      "evidence_type": "method",
+      "quote_hint": "The pipeline extracts local texture cues, merges them with lightweight visual features",
+      "chunk_id": "SAMPLE001_chunk_0002",
+      "page_start": 2,
+      "page_end": 2,
+      "evidence_text": "The pipeline extracts local texture cues, merges them with lightweight visual features",
+      "anchoring_method": "exact_match",
+      "status": "anchored"
+    },
+    {
+      "candidate_id": "SAMPLE001_ev_0003",
+      "claim": "The evaluation reports improved recall for subtle marks.",
+      "evidence_type": "result",
+      "quote_hint": "texture-aware features improve recall for subtle surface marks",
+      "chunk_id": "SAMPLE001_chunk_0002",
+      "page_start": 2,
+      "page_end": 2,
+      "evidence_text": "texture-aware features improve recall for subtle surface marks",
+      "anchoring_method": "exact_match",
+      "status": "anchored"
+    }
+  ],
+  "failures": []
+}

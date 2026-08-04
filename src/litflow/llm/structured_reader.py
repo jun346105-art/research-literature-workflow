@@ -27,6 +27,15 @@ class EvidenceValidationError(ValueError):
         self.candidate_chunk_id = candidate_chunk_id
 
 
+class EvidenceAnchoringError(ValueError):
+    def __init__(self, message: str, failures: list[dict[str, Any]]) -> None:
+        super().__init__(message)
+        self.evidence_error_type = failures[0]["error_type"] if failures else "evidence_anchor_failed"
+        self.failed_chunk_id = failures[0].get("chunk_id") if failures else None
+        self.candidate_chunk_id = None
+        self.anchor_failures = failures
+
+
 def build_llm_input(clean_context: dict[str, Any], max_chunks: int | None = None) -> dict[str, Any]:
     chunks = clean_context.get("chunks", [])
     if max_chunks is not None:
@@ -68,6 +77,7 @@ def read_paper_with_llm(
         try:
             data = _parse_json_response(raw_response)
             note = StructuredReadingNote.model_validate(data)
+            _anchor_evidence_links(note, allowed_chunks)
             _validate_evidence_links(note, allowed_chunks)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             output_path.write_text(note.model_dump_json(indent=2) + "\n", encoding="utf-8")
@@ -118,6 +128,74 @@ def _validate_evidence_links(note: StructuredReadingNote, allowed_chunks: dict[s
             )
 
 
+def _anchor_evidence_links(note: StructuredReadingNote, allowed_chunks: dict[str, dict]) -> None:
+    anchored = []
+    failures = []
+    for link in note.evidence_links:
+        chunk = allowed_chunks.get(link.chunk_id)
+        if not chunk:
+            failures.append(_anchor_failure(link, "wrong_chunk_id", "declared chunk_id does not exist"))
+            continue
+        if link.page_start != chunk["page_start"] or link.page_end != chunk["page_end"]:
+            failures.append(_anchor_failure(link, "page_range_mismatch", "page range does not match declared chunk"))
+            continue
+        result = _anchor_quote_hint(link.evidence_text, chunk.get("text") or "")
+        if result["status"] == "ok":
+            link.evidence_text = result["evidence_text"]
+            anchored.append(link)
+            note.warnings.append(f"evidence_anchor_method={result['method']}; chunk_id={link.chunk_id}")
+        else:
+            failures.append(_anchor_failure(link, result["error_type"], result["message"]))
+    if failures:
+        note.warnings.append(f"evidence_anchor_failed_count={len(failures)}")
+        note.warnings.append(json.dumps({"evidence_anchor_failures": failures}, ensure_ascii=False))
+    if failures and len(anchored) < 3:
+        raise EvidenceAnchoringError("too few evidence links could be anchored", failures)
+    note.evidence_links = anchored
+
+
+def _anchor_quote_hint(quote_hint: str, chunk_text: str) -> dict[str, str]:
+    if not quote_hint:
+        return {"status": "error", "error_type": "evidence_anchor_not_found", "message": "empty quote_hint"}
+    exact_count = chunk_text.count(quote_hint)
+    if exact_count == 1:
+        return {"status": "ok", "method": "exact_match", "evidence_text": quote_hint}
+    if exact_count > 1:
+        return {"status": "error", "error_type": "evidence_anchor_ambiguous", "message": "quote_hint has multiple exact matches"}
+    matches = _normalized_span_matches(quote_hint, chunk_text)
+    if len(matches) == 1:
+        start, end = matches[0]
+        return {"status": "ok", "method": "normalized_whitespace_match", "evidence_text": chunk_text[start:end]}
+    if len(matches) > 1:
+        return {"status": "error", "error_type": "evidence_anchor_ambiguous", "message": "quote_hint has multiple normalized matches"}
+    return {"status": "error", "error_type": "evidence_anchor_not_found", "message": "quote_hint not found in declared chunk"}
+
+
+def _normalized_span_matches(quote_hint: str, chunk_text: str) -> list[tuple[int, int]]:
+    hint_tokens = [m.group(0).casefold() for m in re.finditer(r"\S+", quote_hint)]
+    chunk_tokens = [(m.group(0).casefold(), m.start(), m.end()) for m in re.finditer(r"\S+", chunk_text)]
+    if not hint_tokens or len(hint_tokens) > len(chunk_tokens):
+        return []
+    matches = []
+    width = len(hint_tokens)
+    for index in range(len(chunk_tokens) - width + 1):
+        if [token for token, _, _ in chunk_tokens[index : index + width]] == hint_tokens:
+            matches.append((chunk_tokens[index][1], chunk_tokens[index + width - 1][2]))
+    return matches
+
+
+def _anchor_failure(link: Any, error_type: str, message: str) -> dict[str, Any]:
+    return {
+        "claim": link.claim,
+        "chunk_id": link.chunk_id,
+        "page_start": link.page_start,
+        "page_end": link.page_end,
+        "quote_hint": link.evidence_text,
+        "error_type": error_type,
+        "message": message,
+    }
+
+
 def _parse_json_response(raw_response: str) -> Any:
     text = raw_response.strip()
     fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.IGNORECASE | re.DOTALL)
@@ -148,6 +226,7 @@ def _write_error(output_path: Path, raw_response: str, error: Exception) -> None
                 "evidence_error_type": getattr(error, "evidence_error_type", None),
                 "failed_chunk_id": getattr(error, "failed_chunk_id", None),
                 "candidate_chunk_id": getattr(error, "candidate_chunk_id", None),
+                "anchor_failures": getattr(error, "anchor_failures", None),
                 "raw_response": raw_response,
             },
             ensure_ascii=False,
@@ -169,6 +248,12 @@ def _find_chunk_containing_text(evidence_text: str, allowed_chunks: dict[str, di
 def _format_error_summary(error: Exception | None) -> str:
     if not error:
         return ""
+    if isinstance(error, EvidenceAnchoringError):
+        first = error.anchor_failures[0] if error.anchor_failures else {}
+        return (
+            f"evidence_anchor_error_type={first.get('error_type')}; "
+            f"chunk_id={first.get('chunk_id')}; {error}"
+        )
     if isinstance(error, EvidenceValidationError):
         parts = [f"evidence_error_type={error.evidence_error_type}", str(error)]
         if error.failed_chunk_id:

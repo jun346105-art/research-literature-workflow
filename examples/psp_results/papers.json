@@ -1,0 +1,18 @@
+{
+  "papers": [
+    {
+      "title": "Sample Paper on Package Surface Defect Detection",
+      "authors": ["Alex Chen", "Rui Zhang"],
+      "year": 2026,
+      "venue": "Example Conference",
+      "doi": "10.0000/example.sample001",
+      "url": "https://example.org/sample001",
+      "abstract": "This toy paper studies package surface defect detection with lightweight visual inspection.",
+      "source": "sample",
+      "citation_count": 0,
+      "relevance_score": 0.95,
+      "search_query": "package surface defect detection",
+      "source_id": "SAMPLE001"
+    }
+  ]
+}

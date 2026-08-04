@@ -71,7 +71,7 @@ def _render_preview(note: StructuredReadingNote, target_note: Path) -> str:
     evidence = "\n\n".join(
         [
             f"- Claim: {link.claim}\n"
-            f"- Evidence:\n> {link.evidence_text.replace(chr(10), chr(10) + '> ')}\n"
+            f"- Evidence:\n```text\n{link.evidence_text}\n```\n"
             f"- Source: `{link.chunk_id}`, pp. {link.page_start}-{link.page_end}"
             for link in note.evidence_links
         ]
