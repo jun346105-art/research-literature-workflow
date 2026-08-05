@@ -162,6 +162,7 @@ python -m litflow.cli apply-obsidian-update `
 - [常见问题排查](docs/TROUBLESHOOTING.md)
 - [最小 FastAPI wrapper](docs/API.md)
 - [API sample 调用示例](docs/API_DEMO.md)
+- [评估与验收指标](docs/EVALUATION.zh-CN.md)
 - [架构说明](ARCHITECTURE.md)
 - [完整命令链](docs/END_TO_END_WORKFLOW.md)
 - [项目状态](PROJECT_STATUS.md)
@@ -187,7 +188,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1-small-batch-e2e`：已完成并打 tag。
 - `v0.1.1-anchored-evidence-pipeline`：已加入 anchored evidence pipeline 和脱敏 examples。
 - 已用本地 Zotero、PDF、Obsidian 和兼容 OpenAI API 的 LLM 验证小批量工作流。
-- 当前测试：97 passed。
+- 当前测试：101 passed。
 
 ## 当前限制
 

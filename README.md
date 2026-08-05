@@ -138,6 +138,7 @@ python -m litflow.cli apply-obsidian-update `
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Minimal FastAPI wrapper](docs/API.md)
 - [API demo with sample data](docs/API_DEMO.md)
+- [Evaluation and acceptance metrics](docs/EVALUATION.md)
 - [Architecture](ARCHITECTURE.md)
 - [End-to-end workflow](docs/END_TO_END_WORKFLOW.md)
 - [Project status](PROJECT_STATUS.md)
@@ -163,7 +164,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1-small-batch-e2e`: completed and tagged.
 - `v0.1.1-anchored-evidence-pipeline`: anchored evidence pipeline and sanitized examples.
 - Small-batch workflow validated with local Zotero, PDFs, Obsidian, and OpenAI-compatible LLM calls.
-- Current test count: 97 passed.
+- Current test count: 101 passed.
 
 ## Limitations
 

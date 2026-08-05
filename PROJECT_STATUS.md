@@ -2,9 +2,9 @@
 
 ## Current Milestone
 
-- Last pushed/tagged release: `v0.1-small-batch-e2e`
-- Current local state: Phase 5 anchored evidence pipeline completed
-- Suggested next tag after review: `v0.1.1-anchored-evidence-pipeline`
+- Last pushed/tagged release: `v0.1.1-anchored-evidence-pipeline`
+- Current state: `v0.1.1+` showcase-ready local-first MVP
+- Latest additions after `v0.1.1`: minimal FastAPI wrapper, API demo, bilingual README, and README architecture diagrams.
 
 ## Completed
 
@@ -15,53 +15,61 @@
 - Phase 4A-mini/4B/4C: single-paper structured reading, preview, approved Obsidian marker-region apply.
 - v0.1+ small-batch E2E: 8 papers processed through Zotero, Obsidian notes, reading context, clean context, and quality gate.
 - Phase 5A-5O: evidence audit, strict validation diagnosis, programmatic anchoring, chunk-constrained evidence extraction, evidence-bank grounded notes, anchored previews, and one anchored apply replacement pilot.
+- Open-source presentation: sanitized examples, English/Chinese README, API demo, and architecture diagrams.
+- Minimal FastAPI wrapper: safe HTTP endpoints for health check, evidence candidate bank generation, evidence-bank note generation, and Obsidian preview generation.
 
 ## Validated Results
 
-- paper-search-pro candidates: 50
-- selected papers: 8
-- Zotero collection snapshot: 8 papers
-- `pdf_exists=true`: 8 papers
-- Obsidian inbox notes: 8
-- reading_context: 8
-- clean_reading_context: 8
-- quality gate `ready_for_llm`: 8
-- original LLM structured reading: 4
-- anchored evidence candidate banks: 4
-- anchored final structured notes: 4
-- anchored previews ready: 4
-- anchored apply replacement: 1 paper
-- latest pytest result: 97 passed
+| Metric | Result |
+| --- | ---: |
+| paper-search-pro candidates | 50 |
+| selected papers | 8 |
+| Zotero collection snapshot | 8 papers |
+| `pdf_exists=true` | 8 / 8 |
+| Obsidian inbox notes | 8 |
+| reading_context files | 8 |
+| clean_reading_context files | 8 |
+| quality gate `ready_for_llm` | 8 / 8 |
+| original LLM structured reading | 4 |
+| anchored evidence candidate banks | 4 |
+| anchored final structured notes | 4 |
+| anchored previews ready | 4 |
+| anchored apply replacement | 1 paper |
+| latest pytest result | 101 passed |
 
 ## Current Technical Level
 
-The project is a working local-first MVP, not a hosted product. It demonstrates:
+The project is a working local-first MVP, not a hosted SaaS product. It demonstrates:
 
 - backend-style file pipeline orchestration;
+- CLI workflow boundaries;
+- minimal FastAPI wrapper and Swagger UI demo;
 - data model validation with Pydantic;
 - OpenAI-compatible JSON-mode LLM calls;
 - retry/error artifact handling;
 - local PDF extraction and chunking;
+- clean-context quality gate;
 - strict evidence validation;
-- evidence anchoring;
+- programmatic evidence anchoring;
+- evidence-bank grounded structured notes;
 - Obsidian preview/apply safety boundaries;
 - pytest coverage for the core trust boundaries.
 
 ## Known Limitations
 
-- No FastAPI wrapper yet.
-- No Web UI.
+- No Web UI yet.
 - No Docker packaging.
 - No OCR for scanned PDFs.
 - No automatic PDF download.
 - No automatic literature review generation.
 - No automatic tag governance.
 - No Zotero writes.
+- No public hosted deployment.
 - No production job queue or database-backed task state.
 
 ## Recommended Next Steps
 
-1. Finish open-source cleanup and sanitized examples.
-2. Commit Phase 5 anchored evidence pipeline.
-3. Tag `v0.1.1-anchored-evidence-pipeline`.
-4. Add a minimal FastAPI wrapper only after the CLI project is clean and documented.
+1. Add GitHub Actions CI for `python -m pytest -q`.
+2. Add a short demo script for interviews and GitHub visitors.
+3. Keep the FastAPI wrapper minimal until the CLI pipeline stabilizes further.
+4. Consider a thin UI only after the API demo and CI are clean.
