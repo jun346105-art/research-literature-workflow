@@ -135,6 +135,7 @@ python -m litflow.cli apply-obsidian-update `
 - [Concepts](docs/CONCEPTS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Minimal FastAPI wrapper](docs/API.md)
+- [API demo with sample data](docs/API_DEMO.md)
 - [Architecture](ARCHITECTURE.md)
 - [End-to-end workflow](docs/END_TO_END_WORKFLOW.md)
 - [Project status](PROJECT_STATUS.md)
