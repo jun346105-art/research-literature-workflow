@@ -8,6 +8,7 @@ __pycache__/
 pytest_tmp*/
 .mypy_cache/
 .ruff_cache/
+.local/
 
 outputs/
 paper-search-results/
