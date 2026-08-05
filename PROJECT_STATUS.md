@@ -18,24 +18,11 @@
 - Open-source presentation: sanitized examples, English/Chinese README, API demo, and architecture diagrams.
 - Minimal FastAPI wrapper: safe HTTP endpoints for health check, evidence candidate bank generation, evidence-bank note generation, and Obsidian preview generation.
 
-## Validated Results
+For detailed acceptance metrics, see:
 
-| Metric | Result |
-| --- | ---: |
-| paper-search-pro candidates | 50 |
-| selected papers | 8 |
-| Zotero collection snapshot | 8 papers |
-| `pdf_exists=true` | 8 / 8 |
-| Obsidian inbox notes | 8 |
-| reading_context files | 8 |
-| clean_reading_context files | 8 |
-| quality gate `ready_for_llm` | 8 / 8 |
-| original LLM structured reading | 4 |
-| anchored evidence candidate banks | 4 |
-| anchored final structured notes | 4 |
-| anchored previews ready | 4 |
-| anchored apply replacement | 1 paper |
-| latest pytest result | 101 passed |
+- [Evaluation and acceptance metrics](docs/EVALUATION.md)
+- [评估与验收指标](docs/EVALUATION.zh-CN.md)
+- [DOGFOOD_RUN_001](docs/DOGFOOD_RUN_001.md)
 
 ## Current Technical Level
 
