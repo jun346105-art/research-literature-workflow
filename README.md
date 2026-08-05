@@ -8,6 +8,33 @@ Turn scattered papers into evidence-grounded Obsidian reading notes.
 
 `litflow` is a local-first literature workflow for students and researchers who use Zotero, Obsidian, PDFs, and OpenAI-compatible LLMs. It is not another one-shot AI paper summarizer. It helps you build reusable, reviewable, source-grounded reading notes for long-running research projects.
 
+## What Problem Does This Solve?
+
+When writing a thesis or research report, the hard part is rarely "getting an AI summary." The hard part is keeping a trustworthy chain from paper discovery to notes you can actually reuse.
+
+Before `litflow`, a common workflow looks like this:
+
+```text
+search papers
+-> save some PDFs
+-> ask an LLM for summaries
+-> copy useful text into notes
+-> later wonder where a claim came from
+```
+
+With `litflow`, the workflow becomes:
+
+```text
+Zotero metadata + local PDF
+-> chunked reading context
+-> evidence candidate bank
+-> structured reading note
+-> Obsidian preview
+-> manual approval before writing
+```
+
+This is useful when you need literature notes that are not only readable, but also traceable: each important claim can point back to a source chunk, page range, and exact evidence text.
+
 ## Why This Exists
 
 Typical AI paper summarizers are fast, but they are weak at the parts that matter during thesis writing:

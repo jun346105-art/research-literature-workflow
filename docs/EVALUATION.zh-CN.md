@@ -20,35 +20,27 @@
 logistics package defect detection RGB-D geometric verification YOLO
 ```
 
-| 类别 | 指标 | 结果 |
-| --- | --- | ---: |
-| 文献发现 | candidates_found | 50 |
-| 人工筛选 | selected_papers | 8 |
-| Zotero | zotero_snapshot_items | 8 |
-| PDF | pdf_exists_rate | 8 / 8 |
-| 上下文 | reading_context_success | 8 / 8 |
-| 上下文 | clean_context_success | 8 / 8 |
-| 质量门控 | ready_for_llm_rate | 8 / 8 |
-| LLM 精读 | original_structured_notes | 4 |
-| 证据管线 | anchored_candidate_banks | 4 |
-| 证据管线 | anchored_final_notes | 4 |
-| 预览 | anchored_previews_ready | 4 |
-| 写入安全 | approved_marker_apply | 1 |
-| 测试 | pytest | 101 passed |
+验收摘要：
+
+- 从 50 篇候选文献中人工筛选出 8 篇。
+- 8 篇文献完成 Zotero snapshot 读取和 PDF reading context 构建。
+- 8 篇 clean context 通过 quality gate。
+- 4 篇进入 anchored evidence note generation。
+- 4 篇生成 Obsidian preview。
+- 1 篇经过人工确认后写入 Obsidian marker 区域。
+- 测试结果：101 passed。
 
 ## Dogfood Run 001
 
 在小批量 E2E 验收之后，项目又用 2 篇尚未进入 anchored final note 的新论文做了一次 dogfood 验证。
 
-| 指标 | 结果 |
-| --- | ---: |
-| papers_tested | 2 |
-| evidence_candidate_banks_created | 2 / 2 |
-| anchored_final_notes_created | 2 / 2 |
-| anchored_previews_created | 2 / 2 |
-| strict_evidence_failures | 0 |
-| manual_polish_required | 1 / 2 |
-| approved_marker_apply_after_review | 1 |
+验收摘要：
+
+- 2 篇新论文完成 dogfood 测试。
+- 2 篇都成功生成 evidence candidate bank、anchored final note 和 Obsidian preview。
+- 最终 evidence_text 严格校验失败数为 0。
+- 其中 1 篇需要 deterministic wording polish 后再 apply。
+- 1 篇经过 dry-run、backup 和人工确认后写入 Obsidian marker 区域。
 
 Dogfood 记录见 [DOGFOOD_RUN_001.md](DOGFOOD_RUN_001.md)。它故意保持小规模：目标是证明系统能在新的本地论文上继续跑通，而不是把私人输出和全文证据堆进公开仓库。
 

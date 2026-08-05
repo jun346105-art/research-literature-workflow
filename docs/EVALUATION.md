@@ -20,35 +20,27 @@ The current acceptance run used a real local workflow for the topic:
 logistics package defect detection RGB-D geometric verification YOLO
 ```
 
-| Category | Metric | Result |
-| --- | --- | ---: |
-| Discovery | candidates_found | 50 |
-| Screening | selected_papers | 8 |
-| Zotero | zotero_snapshot_items | 8 |
-| PDF | pdf_exists_rate | 8 / 8 |
-| Context | reading_context_success | 8 / 8 |
-| Context | clean_context_success | 8 / 8 |
-| Quality Gate | ready_for_llm_rate | 8 / 8 |
-| LLM Reading | original_structured_notes | 4 |
-| Evidence Pipeline | anchored_candidate_banks | 4 |
-| Evidence Pipeline | anchored_final_notes | 4 |
-| Preview | anchored_previews_ready | 4 |
-| Apply Safety | approved_marker_apply | 1 |
-| Tests | pytest | 101 passed |
+Summary:
+
+- 50 discovery candidates were screened down to 8 selected papers.
+- 8 papers were read from Zotero and processed into PDF reading contexts.
+- 8 clean contexts passed the quality gate.
+- 4 papers went through anchored evidence note generation.
+- 4 Obsidian previews were created.
+- 1 preview was manually approved and applied into an Obsidian marker region.
+- Test suite: 101 passed.
 
 ## Dogfood Run 001
 
 After the initial small-batch acceptance, the workflow was tested again on two additional papers that had not gone through anchored final note generation.
 
-| Metric | Result |
-| --- | ---: |
-| papers_tested | 2 |
-| evidence_candidate_banks_created | 2 / 2 |
-| anchored_final_notes_created | 2 / 2 |
-| anchored_previews_created | 2 / 2 |
-| strict_evidence_failures | 0 |
-| manual_polish_required | 1 / 2 |
-| approved_marker_apply_after_review | 1 |
+Summary:
+
+- 2 new papers were tested after the main acceptance run.
+- Both produced evidence candidate banks, anchored final notes, and Obsidian previews.
+- Strict evidence validation found 0 final evidence failures.
+- 1 preview needed deterministic wording polish before apply.
+- 1 preview was manually approved and applied after dry-run and backup.
 
 The dogfood run is documented in [DOGFOOD_RUN_001.md](DOGFOOD_RUN_001.md). It is intentionally small: the point is to verify that the system works on new local papers without turning the repository into a dump of private outputs.
 
