@@ -218,7 +218,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1.1-anchored-evidence-pipeline`：已加入 anchored evidence pipeline 和脱敏 examples。
 - 已用本地 Zotero、PDF、Obsidian 和兼容 OpenAI API 的 LLM 验证小批量工作流。
 - 已完成 Dogfood Run 001：在新论文上验证 anchored preview，并对 1 篇执行人工确认后的 marker 区域写入。
-- 当前测试：101 passed。
+- 当前测试：106 passed。
 
 ## 当前限制
 

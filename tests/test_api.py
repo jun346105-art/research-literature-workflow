@@ -37,7 +37,10 @@ def test_structured_note_from_bank_endpoint(monkeypatch):
         citation_key = "chen2026sample"
         evidence_links = [1, 2, 3]
 
+    seen = {}
+
     def fake_generate(*args, **kwargs):
+        seen.update(kwargs)
         return Note()
 
     monkeypatch.setattr(api_app, "generate_note_from_evidence_bank", fake_generate)
@@ -51,11 +54,13 @@ def test_structured_note_from_bank_endpoint(monkeypatch):
             "zotero_key": "SAMPLE001",
             "citation_key": "chen2026sample",
             "title": "Sample",
+            "research_context": "sample project profile",
         },
     )
 
     assert response.status_code == 200
     assert response.json()["evidence_links_count"] == 3
+    assert seen["research_context"] == "sample project profile"
 
 
 def test_preview_update_endpoint(monkeypatch):

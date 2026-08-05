@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
@@ -43,6 +43,7 @@ class ZoteroReadClient:
             path = unquote(urlparse(text).path)
             if len(path) >= 3 and path[0] == "/" and path[2] == ":":
                 path = path[1:]
+                return str(PureWindowsPath(path))
             return str(Path(path))
         return text
 

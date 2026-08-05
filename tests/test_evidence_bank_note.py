@@ -125,6 +125,29 @@ def test_prompt_does_not_ask_llm_for_chunk_or_evidence_text(tmp_path):
     generate_note_from_evidence_bank(bank, clean, out, zotero_key="P1", citation_key="key", title="Title", client=fake)
 
     assert "Do not output evidence_text, chunk_id, page_start, or page_end" in fake.prompts[0]
-    assert "物流纸箱/包装箱表观缺陷检测" in fake.prompts[0]
+    assert "No project-specific research context was provided" in fake.prompts[0]
     assert "revised_longform_note" in fake.prompts[0]
     assert "never use not_found" in fake.prompts[0]
+
+
+def test_research_context_can_be_passed_to_prompt(tmp_path):
+    bank = tmp_path / "bank.json"
+    clean = tmp_path / "clean.json"
+    out = tmp_path / "note.json"
+    fake = FakeLLM(_llm_response())
+    bank.write_text(json.dumps(_candidate_bank()), encoding="utf-8")
+    clean.write_text(json.dumps(_clean_context()), encoding="utf-8")
+
+    generate_note_from_evidence_bank(
+        bank,
+        clean,
+        out,
+        zotero_key="P1",
+        citation_key="key",
+        title="Title",
+        client=fake,
+        research_context="Custom project context for medical imaging.",
+    )
+
+    assert "Custom project context for medical imaging." in fake.prompts[0]
+    assert "鐗╂祦" not in fake.prompts[0]

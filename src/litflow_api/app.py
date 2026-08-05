@@ -31,6 +31,7 @@ class EvidenceBankNoteRequest(BaseModel):
     zotero_key: str
     citation_key: str
     title: str
+    research_context: str | None = None
 
 
 class PreviewRequest(BaseModel):
@@ -74,6 +75,7 @@ def structured_note_from_bank(request: EvidenceBankNoteRequest) -> dict[str, Any
             zotero_key=request.zotero_key,
             citation_key=request.citation_key,
             title=request.title,
+            research_context=request.research_context,
         )
     except LLMError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc

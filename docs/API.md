@@ -57,7 +57,8 @@ Generates a structured reading note from an evidence candidate bank.
   "out": "outputs/structured_reading_notes/PAPER_anchored_final.json",
   "zotero_key": "PAPER",
   "citation_key": "paper2026sample",
-  "title": "Sample Paper Title"
+  "title": "Sample Paper Title",
+  "research_context": "Optional project-specific research background."
 }
 ```
 

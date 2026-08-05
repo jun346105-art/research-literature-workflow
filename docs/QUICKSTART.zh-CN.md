@@ -93,8 +93,11 @@ python -m litflow.cli generate-note-from-evidence-bank `
   --out ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
   --zotero-key "PAPER" `
   --citation-key "paper2026sample" `
-  --title "Sample Paper Title"
+  --title "Sample Paper Title" `
+  --research-context-file ".\configs\project_profile.example.md"
 ```
+
+`--research-context-file` 是可选参数，但建议真实项目使用。它可以把项目研究背景放在配置文件里，而不是写死在源码中。
 
 ## 6. 先 Preview，再 Apply
 
@@ -115,4 +118,24 @@ python -m litflow.cli apply-obsidian-update `
   --target "<ObsidianVault>\00_Inbox\LiteratureReview\@paper2026sample.md" `
   --manifest ".\outputs\obsidian_update_apply_manifest.json" `
   --approved
+```
+
+## 7. 可选评估记录
+
+```powershell
+python -m litflow.cli write-eval-run-manifest `
+  --out ".\outputs\evaluation\run_manifest.json" `
+  --run-id "eval-001" `
+  --model "your-model" `
+  --prompt-version "anchored-v1" `
+  --chunk-config "3500/400" `
+  --input-count 2 `
+  --success-count 2 `
+  --strict-evidence-failures 0
+
+python -m litflow.cli compare-evidence-notes `
+  --baseline ".\outputs\evaluation\baseline_note.json" `
+  --proposed ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
+  --clean-context ".\outputs\clean_reading_context\PAPER.json" `
+  --out ".\outputs\evaluation\baseline_vs_anchored.json"
 ```

@@ -10,6 +10,7 @@ from litflow.discovery.paper_search_pro_inspector import (
     format_inspection_report,
     inspect_paper_search_pro_results,
 )
+from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
 from litflow.obsidian.reconcile import plan_citekey_note_migration
@@ -108,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
     bank_note.add_argument("--zotero-key", required=True)
     bank_note.add_argument("--citation-key", required=True)
     bank_note.add_argument("--title", required=True)
+    bank_note.add_argument("--research-context")
+    bank_note.add_argument("--research-context-file", type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -122,6 +125,22 @@ def main(argv: list[str] | None = None) -> int:
     apply_update.add_argument("--manifest", required=True, type=Path)
     apply_update.add_argument("--approved", action="store_true")
     apply_update.add_argument("--dry-run", action="store_true")
+
+    eval_manifest = subparsers.add_parser("write-eval-run-manifest")
+    eval_manifest.add_argument("--out", required=True, type=Path)
+    eval_manifest.add_argument("--run-id", required=True)
+    eval_manifest.add_argument("--model", default="")
+    eval_manifest.add_argument("--prompt-version", default="")
+    eval_manifest.add_argument("--chunk-config", default="")
+    eval_manifest.add_argument("--input-count", type=int, default=0)
+    eval_manifest.add_argument("--success-count", type=int, default=0)
+    eval_manifest.add_argument("--strict-evidence-failures", type=int, default=0)
+
+    compare_notes = subparsers.add_parser("compare-evidence-notes")
+    compare_notes.add_argument("--baseline", required=True, type=Path)
+    compare_notes.add_argument("--proposed", required=True, type=Path)
+    compare_notes.add_argument("--clean-context", required=True, type=Path)
+    compare_notes.add_argument("--out", required=True, type=Path)
 
     args = parser.parse_args(argv)
     try:
@@ -245,6 +264,7 @@ def main(argv: list[str] | None = None) -> int:
                 zotero_key=args.zotero_key,
                 citation_key=args.citation_key,
                 title=args.title,
+                research_context=_research_context_arg(args),
             )
             print(f"Wrote structured reading note: {args.out}")
             print(f"Evidence links: {len(note.evidence_links)}")
@@ -273,11 +293,41 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Backup: {item['backup_path']}")
             print(f"Manifest: {args.manifest}")
             return 0
+
+        if args.command == "write-eval-run-manifest":
+            manifest = write_eval_run_manifest(
+                args.out,
+                run_id=args.run_id,
+                model=args.model,
+                prompt_version=args.prompt_version,
+                chunk_config=args.chunk_config,
+                input_count=args.input_count,
+                success_count=args.success_count,
+                strict_evidence_failures=args.strict_evidence_failures,
+            )
+            print(f"Eval run: {manifest['run_id']}")
+            print(f"Output: {args.out}")
+            return 0
+
+        if args.command == "compare-evidence-notes":
+            report = compare_evidence_notes(args.baseline, args.proposed, args.clean_context, args.out)
+            print(f"Baseline exact grounding rate: {report['baseline']['exact_grounding_rate']:.3f}")
+            print(f"Proposed exact grounding rate: {report['proposed']['exact_grounding_rate']:.3f}")
+            print(f"Output: {args.out}")
+            return 0
     except (ValueError, ZoteroReadError, LLMError) as exc:
         parser.exit(1, f"error: {exc}\n")
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _research_context_arg(args: argparse.Namespace) -> str | None:
+    if args.research_context and args.research_context_file:
+        raise ValueError("use either --research-context or --research-context-file, not both")
+    if args.research_context_file:
+        return args.research_context_file.read_text(encoding="utf-8-sig").strip()
+    return args.research_context
 
 
 if __name__ == "__main__":

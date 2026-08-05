@@ -25,10 +25,9 @@ FIELDS = [
     "relevance_to_my_research",
 ]
 
-USER_RESEARCH_CONTEXT = (
-    "我正在做物流纸箱/包装箱表观缺陷检测，关注 hole / tear / breakage、wet、scratch 三类缺陷。"
-    "当前研究路线包括 YOLO 检测、受控 scratch 合成、小缺陷检测分支、轻量注意力模块，以及工程应用型中文论文写作。"
-    "目标是整理能支撑“包装箱表观缺陷检测、YOLO 改进、数据增强、小样本缺陷、实际物流包装检测”的文献素材。"
+DEFAULT_RESEARCH_CONTEXT = (
+    "No project-specific research context was provided. "
+    "Write relevance conservatively from the paper topic and evidence candidate bank only."
 )
 
 
@@ -41,12 +40,13 @@ def generate_note_from_evidence_bank(
     citation_key: str,
     title: str,
     client: LLMClient | None = None,
+    research_context: str | None = None,
 ) -> StructuredReadingNote:
     bank = json.loads(candidate_bank_path.read_text(encoding="utf-8-sig"))
     clean_context = json.loads(clean_context_path.read_text(encoding="utf-8-sig"))
     candidates = _with_candidate_ids(zotero_key, bank.get("candidates", []))
     client = client or OpenAICompatibleClient.from_env()
-    raw_response = client.complete_json(_bank_prompt(title, candidates))
+    raw_response = client.complete_json(_bank_prompt(title, candidates, research_context or DEFAULT_RESEARCH_CONTEXT))
     try:
         data = _parse_json_response(raw_response)
         note_data = _assemble_note(data, candidates, candidate_bank_path, zotero_key, citation_key, title)
@@ -65,7 +65,7 @@ def _with_candidate_ids(zotero_key: str, candidates: list[dict[str, Any]]) -> li
     return [{**candidate, "candidate_id": f"{zotero_key}_ev_{index:04d}"} for index, candidate in enumerate(candidates, 1)]
 
 
-def _bank_prompt(title: str, candidates: list[dict[str, Any]]) -> str:
+def _bank_prompt(title: str, candidates: list[dict[str, Any]], research_context: str) -> str:
     schema = {field: "" for field in FIELDS}
     schema.update(
         {
@@ -91,7 +91,7 @@ def _bank_prompt(title: str, candidates: list[dict[str, Any]]) -> str:
         "Use Chinese for explanatory fields except evidence text, which the program will copy from the bank.\n"
         "Write like an Obsidian close-reading note, not a short abstract.\n"
         "Use this user research context when writing relevance_to_my_research:\n"
-        f"{USER_RESEARCH_CONTEXT}\n"
+        f"{research_context}\n"
         "Field requirements:\n"
         "- one_sentence_summary: exactly 1 sentence.\n"
         "- research_background: 2-4 sentences about scenario, source of problem, and why detection is needed.\n"

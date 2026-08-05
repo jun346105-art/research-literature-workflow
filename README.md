@@ -194,7 +194,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1.1-anchored-evidence-pipeline`: anchored evidence pipeline and sanitized examples.
 - Small-batch workflow validated with local Zotero, PDFs, Obsidian, and OpenAI-compatible LLM calls.
 - Dogfood run validated anchored previews on new papers, with one manual-approved marker-region apply.
-- Current test count: 101 passed.
+- Current test count: 106 passed.
 
 ## Limitations
 

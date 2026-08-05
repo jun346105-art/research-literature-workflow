@@ -28,7 +28,7 @@ Summary:
 - 4 papers went through anchored evidence note generation.
 - 4 Obsidian previews were created.
 - 1 preview was manually approved and applied into an Obsidian marker region.
-- Test suite: 101 passed.
+- Test suite: 106 passed.
 
 ## Dogfood Run 001
 
@@ -61,6 +61,22 @@ The LLM is not trusted to produce final quote text. In the anchored pipeline:
 5. The final structured note is accepted only if the evidence text is an exact substring of the source chunk.
 
 More details: [Evidence Grounding](EVIDENCE_GROUNDING.md).
+
+## Reproducible Evaluation Records
+
+`litflow` includes two small CLI helpers for future evaluation runs:
+
+```powershell
+python -m litflow.cli write-eval-run-manifest --out ".\outputs\evaluation\run_manifest.json" --run-id "eval-001"
+
+python -m litflow.cli compare-evidence-notes `
+  --baseline ".\outputs\evaluation\baseline_note.json" `
+  --proposed ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
+  --clean-context ".\outputs\clean_reading_context\PAPER.json" `
+  --out ".\outputs\evaluation\baseline_vs_anchored.json"
+```
+
+These helpers do not call an LLM. They record run metadata and compare exact evidence grounding between a baseline note and an anchored note.
 
 ## Safety Metrics
 

@@ -28,7 +28,7 @@ logistics package defect detection RGB-D geometric verification YOLO
 - 4 篇进入 anchored evidence note generation。
 - 4 篇生成 Obsidian preview。
 - 1 篇经过人工确认后写入 Obsidian marker 区域。
-- 测试结果：101 passed。
+- 测试结果：106 passed。
 
 ## Dogfood Run 001
 
@@ -63,6 +63,22 @@ evidence_text in chunk_text
 5. 只有当 `evidence_text` 是 `chunk_text` 的逐字子串时，structured note 才能通过。
 
 详细机制见 [证据锚定机制](EVIDENCE_GROUNDING.zh-CN.md)。
+
+## 可复现实验记录
+
+`litflow` 现在提供两个很小的 CLI 辅助命令，用于后续评估：
+
+```powershell
+python -m litflow.cli write-eval-run-manifest --out ".\outputs\evaluation\run_manifest.json" --run-id "eval-001"
+
+python -m litflow.cli compare-evidence-notes `
+  --baseline ".\outputs\evaluation\baseline_note.json" `
+  --proposed ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
+  --clean-context ".\outputs\clean_reading_context\PAPER.json" `
+  --out ".\outputs\evaluation\baseline_vs_anchored.json"
+```
+
+这两个命令不调用 LLM。它们只记录评估运行元数据，并对 baseline note 和 anchored note 做严格 evidence grounding 对照。
 
 ## 安全边界指标
 
