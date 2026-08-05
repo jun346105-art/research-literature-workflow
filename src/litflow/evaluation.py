@@ -45,6 +45,11 @@ def compare_evidence_notes(baseline_note: Path, proposed_note: Path, clean_conte
     return report
 
 
+def score_evidence_note(note: dict[str, Any], clean_context: dict[str, Any]) -> dict[str, Any]:
+    """Score exact evidence grounding without changing the supplied note."""
+    return _score_note(note, _chunks_by_id(clean_context))
+
+
 def _chunks_by_id(clean_context: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {chunk["chunk_id"]: chunk for chunk in clean_context.get("chunks", [])}
 

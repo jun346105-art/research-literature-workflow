@@ -1,0 +1,1 @@
+This development pilot evaluates literature-reading outputs for logistics packaging, corrugated-board defect detection, industrial vision, and related quality-assurance research. Use the same context for baseline and proposed paths. Treat the context as an evaluation condition, not as evidence from any paper.

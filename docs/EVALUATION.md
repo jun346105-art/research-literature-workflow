@@ -78,6 +78,24 @@ python -m litflow.cli compare-evidence-notes `
 
 These helpers do not call an LLM. They record run metadata and compare exact evidence grounding between a baseline note and an anchored note.
 
+## Evaluation Pilot Preflight
+
+The evaluation runner accepts only a frozen manifest and verifies every clean-context and PDF SHA-256 before any future LLM call. Its safe preflight mode does not construct an LLM client:
+
+```powershell
+$env:PYTHONPATH = "src"
+
+python -m litflow.cli run-evaluation-pilot `
+  --frozen-manifest ".\outputs\evaluation_run_002_pilot\preflight\frozen_input_manifest.json" `
+  --out-dir ".\outputs\evaluation_run_002_pilot\runs\run-002" `
+  --research-context-file ".\configs\evaluation_research_context.txt" `
+  --model "unconfigured" `
+  --temperature 0 `
+  --plan-only
+```
+
+`--execute` is intentionally disabled in this phase. A separately authorized runner must supply the model, API, usage capture, pricing configuration, and budget before a real evaluation run can begin.
+
 ## Safety Metrics
 
 | Safety Boundary | Result |

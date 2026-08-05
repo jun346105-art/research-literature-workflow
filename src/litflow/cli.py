@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from litflow.context import clean_reading_contexts
@@ -11,6 +12,7 @@ from litflow.discovery.paper_search_pro_inspector import (
     inspect_paper_search_pro_results,
 )
 from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
+from litflow.evaluation_runner import EvaluationRunner
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
 from litflow.obsidian.reconcile import plan_citekey_note_migration
@@ -141,6 +143,16 @@ def main(argv: list[str] | None = None) -> int:
     compare_notes.add_argument("--proposed", required=True, type=Path)
     compare_notes.add_argument("--clean-context", required=True, type=Path)
     compare_notes.add_argument("--out", required=True, type=Path)
+
+    evaluation_pilot = subparsers.add_parser("run-evaluation-pilot")
+    evaluation_pilot.add_argument("--frozen-manifest", required=True, type=Path)
+    evaluation_pilot.add_argument("--out-dir", required=True, type=Path)
+    evaluation_pilot.add_argument("--research-context-file", required=True, type=Path)
+    evaluation_pilot.add_argument("--model", default="unconfigured")
+    evaluation_pilot.add_argument("--temperature", type=float, default=0)
+    evaluation_mode = evaluation_pilot.add_mutually_exclusive_group()
+    evaluation_mode.add_argument("--plan-only", action="store_true")
+    evaluation_mode.add_argument("--execute", action="store_true")
 
     args = parser.parse_args(argv)
     try:
@@ -314,6 +326,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Baseline exact grounding rate: {report['baseline']['exact_grounding_rate']:.3f}")
             print(f"Proposed exact grounding rate: {report['proposed']['exact_grounding_rate']:.3f}")
             print(f"Output: {args.out}")
+            return 0
+
+        if args.command == "run-evaluation-pilot":
+            if not args.plan_only and not args.execute:
+                raise ValueError("provide exactly one of --plan-only or --execute")
+            if args.execute:
+                print("error: real LLM execution not configured in this phase")
+                return 1
+            plan = EvaluationRunner(
+                args.frozen_manifest,
+                args.out_dir,
+                args.research_context_file,
+                model=args.model,
+                temperature=args.temperature,
+            ).plan()
+            print(json.dumps(plan, ensure_ascii=False, indent=2))
             return 0
     except (ValueError, ZoteroReadError, LLMError) as exc:
         parser.exit(1, f"error: {exc}\n")
