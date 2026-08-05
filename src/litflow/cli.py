@@ -150,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     evaluation_pilot.add_argument("--research-context-file", required=True, type=Path)
     evaluation_pilot.add_argument("--model")
     evaluation_pilot.add_argument("--paper-key")
+    evaluation_pilot.add_argument("--thinking-mode", choices=["enabled", "disabled"])
     evaluation_pilot.add_argument("--temperature", type=float, default=0)
     evaluation_pilot.add_argument("--allow-dirty", action="store_true")
     evaluation_pilot.add_argument("--resume", action="store_true")
@@ -357,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.execute:
                 if context_window is None or args.max_calls is None:
                     raise ValueError("--execute requires --context-limit-tokens, --max-output-tokens, and --max-calls")
-                client = OpenAICompatibleClient.from_env()
+                client = OpenAICompatibleClient.from_env(thinking_mode=args.thinking_mode)
                 if args.model and args.model != client.model:
                     raise ValueError("--model must match LLM_MODEL when --execute is used")
                 resolved_model = client.model
@@ -377,6 +378,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_calls=args.max_calls,
                 pricing=pricing,
                 paper_key=args.paper_key,
+                thinking_mode=args.thinking_mode,
             )
             if args.execute:
                 result = runner.execute()

@@ -29,16 +29,19 @@ class OpenAICompatibleClient:
     base_url: str
     api_key: str
     model: str
+    thinking_mode: str | None = None
 
     @classmethod
-    def from_env(cls) -> OpenAICompatibleClient:
+    def from_env(cls, *, thinking_mode: str | None = None) -> OpenAICompatibleClient:
         base_url = os.environ.get("LLM_BASE_URL")
         api_key = os.environ.get("LLM_API_KEY")
         model = os.environ.get("LLM_MODEL")
         missing = [name for name, value in [("LLM_BASE_URL", base_url), ("LLM_API_KEY", api_key), ("LLM_MODEL", model)] if not value]
         if missing:
             raise LLMError(f"Missing LLM environment variables: {', '.join(missing)}")
-        return cls(base_url=base_url.rstrip("/"), api_key=api_key, model=model)
+        if thinking_mode not in (None, "enabled", "disabled"):
+            raise LLMError("thinking_mode must be enabled or disabled")
+        return cls(base_url=base_url.rstrip("/"), api_key=api_key, model=model, thinking_mode=thinking_mode)
 
     def complete_json(self, prompt: str) -> str:
         return self.complete_json_with_usage(prompt).content
@@ -58,6 +61,8 @@ class OpenAICompatibleClient:
         }
         if max_output_tokens is not None:
             payload["max_tokens"] = max_output_tokens
+        if self.thinking_mode is not None:
+            payload["thinking"] = {"type": self.thinking_mode}
         request = Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),

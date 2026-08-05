@@ -112,6 +112,7 @@ class EvaluationRunner:
         max_calls: int | None = None,
         pricing: PricingConfig | None = None,
         paper_key: str | None = None,
+        thinking_mode: str | None = None,
     ) -> None:
         self.frozen_manifest_path = frozen_manifest_path
         self.out_dir = out_dir
@@ -125,8 +126,11 @@ class EvaluationRunner:
         self.max_calls = max_calls
         self.pricing = pricing
         self.paper_key = paper_key
+        self.thinking_mode = thinking_mode
         if max_calls is not None and max_calls <= 0:
             raise ValueError("max_calls must be positive")
+        if thinking_mode not in (None, "enabled", "disabled"):
+            raise ValueError("thinking_mode must be enabled or disabled")
 
     def plan(self) -> dict[str, Any]:
         papers, research_context = self._verified_inputs()
@@ -175,6 +179,7 @@ class EvaluationRunner:
             },
             "git": _git_metadata(self.frozen_manifest_path),
             "context_window": self.context_window.as_dict() if self.context_window else None,
+            "request_config": self._request_config(),
         }
 
     def execute(self) -> dict[str, Any]:
@@ -199,6 +204,7 @@ class EvaluationRunner:
             context_window=self.context_window,
             max_calls=self.max_calls,
             pricing=self.pricing,
+            request_config=self._request_config(),
         )
         errors: list[dict[str, Any]] = []
         comparisons: list[dict[str, Any]] = []
@@ -252,6 +258,7 @@ class EvaluationRunner:
                 "max_calls": self.max_calls,
                 "pricing": self.pricing.as_dict() if self.pricing else None,
                 "selected_paper_keys": [paper.zotero_key for paper in papers],
+                "request_config": self._request_config(),
             },
         )
         _write_json(self.out_dir / "input_verification.json", {"verified": True, "papers": [paper.zotero_key for paper in papers]})
@@ -274,6 +281,13 @@ class EvaluationRunner:
             },
             "git_commit_sha": git_metadata["git_commit_sha"],
             "context_window": self.context_window.as_dict() if self.context_window else None,
+            "request_config": self._request_config(),
+        }
+
+    def _request_config(self) -> dict[str, Any]:
+        return {
+            "thinking_mode": self.thinking_mode,
+            "response_format": {"type": "json_object"},
         }
 
     def _verified_inputs(self) -> tuple[list[FrozenPaper], str]:
@@ -472,6 +486,7 @@ class _CallRecorder:
         context_window: ContextWindowConfig | None,
         max_calls: int | None,
         pricing: PricingConfig | None,
+        request_config: dict[str, Any],
     ) -> None:
         self.model, self.temperature, self.records = model, temperature, []
         self.artifact_root = artifact_root
@@ -481,6 +496,7 @@ class _CallRecorder:
         self.context_window = context_window
         self.max_calls = max_calls
         self.pricing = pricing
+        self.request_config = request_config
         self.network_calls = 0
 
     def complete(
@@ -508,6 +524,8 @@ class _CallRecorder:
             "call_key": call_key,
             "estimated_input_tokens": estimated_input_tokens,
             "token_count_status": "estimated_chars_div_4",
+            "thinking_mode": self.request_config["thinking_mode"],
+            "response_format": self.request_config["response_format"],
         }
         checkpoint = self._load_checkpoint(call_key, record["prompt_sha256"])
         if checkpoint is not None:

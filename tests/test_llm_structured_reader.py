@@ -264,3 +264,37 @@ def test_missing_api_key_has_clear_error(monkeypatch):
         OpenAICompatibleClient.from_env()
 
     assert "Missing LLM environment variables" in str(exc.value)
+
+
+def test_openai_compatible_client_sends_explicit_deepseek_non_thinking_json_payload(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":"{}"}}]}'
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("litflow.llm.client.urlopen", fake_urlopen)
+    client = OpenAICompatibleClient(
+        base_url="https://api.deepseek.com",
+        api_key="not-a-real-key",
+        model="deepseek-v4-flash",
+        thinking_mode="disabled",
+    )
+
+    client.complete_json_with_usage("Return JSON.", temperature=0, max_output_tokens=8192)
+
+    assert captured["payload"]["model"] == "deepseek-v4-flash"
+    assert captured["payload"]["temperature"] == 0
+    assert captured["payload"]["response_format"] == {"type": "json_object"}
+    assert captured["payload"]["thinking"] == {"type": "disabled"}

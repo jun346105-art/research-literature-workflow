@@ -193,6 +193,33 @@ def test_execute_keeps_raw_baseline_evidence_and_writes_metrics_and_manual_csv(t
     assert all(row[field] == "" for row in rows for field in ("support_label", "needs_revision", "acceptance", "reviewer_notes"))
 
 
+def test_thinking_and_json_request_config_are_recorded_for_resume_compatibility(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(
+        manifest,
+        run_dir,
+        research_context,
+        model="deepseek-v4-flash",
+        temperature=0,
+        client=StageAwareFakeLLM(),
+        allow_dirty=True,
+        thinking_mode="disabled",
+    ).execute()
+
+    run_manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    assert run_manifest["request_config"] == {
+        "thinking_mode": "disabled",
+        "response_format": {"type": "json_object"},
+    }
+    records = json.loads((run_dir / "call_metrics.json").read_text(encoding="utf-8"))
+    assert all(record["thinking_mode"] == "disabled" for record in records)
+    assert all(record["response_format"] == {"type": "json_object"} for record in records)
+    identity = json.loads((run_dir / "run_identity.json").read_text(encoding="utf-8"))
+    assert identity["request_config"] == run_manifest["request_config"]
+
+
 def test_baseline_format_retry_preserves_both_responses_without_evidence_repair(tmp_path):
     manifest, research_context = _frozen_inputs(tmp_path)
     run_dir = tmp_path / "run"
