@@ -36,6 +36,22 @@ logistics package defect detection RGB-D geometric verification YOLO
 | Apply Safety | approved_marker_apply | 1 |
 | Tests | pytest | 101 passed |
 
+## Dogfood Run 001
+
+After the initial small-batch acceptance, the workflow was tested again on two additional papers that had not gone through anchored final note generation.
+
+| Metric | Result |
+| --- | ---: |
+| papers_tested | 2 |
+| evidence_candidate_banks_created | 2 / 2 |
+| anchored_final_notes_created | 2 / 2 |
+| anchored_previews_created | 2 / 2 |
+| strict_evidence_failures | 0 |
+| manual_polish_required | 1 / 2 |
+| approved_marker_apply_after_review | 1 |
+
+The dogfood run is documented in [DOGFOOD_RUN_001.md](DOGFOOD_RUN_001.md). It is intentionally small: the point is to verify that the system works on new local papers without turning the repository into a dump of private outputs.
+
 ## Evidence Grounding
 
 The final evidence rule is strict:
@@ -51,6 +67,8 @@ The LLM is not trusted to produce final quote text. In the anchored pipeline:
 3. The program fills `chunk_id`, `page_start`, and `page_end`.
 4. The program extracts final `evidence_text` from the original `chunk_text`.
 5. The final structured note is accepted only if the evidence text is an exact substring of the source chunk.
+
+More details: [Evidence Grounding](EVIDENCE_GROUNDING.md).
 
 ## Safety Metrics
 

@@ -2,9 +2,9 @@
 
 ## 目的
 
-本次 dogfood 用 2 篇尚未进入 anchored final 的真实文献，验证 `litflow` 是否能从已有 Zotero snapshot / clean context 继续跑到 anchored preview。
+本次 dogfood 用 2 篇新的真实论文验证 `litflow` 是否能在已有 Zotero snapshot / clean context 基础上继续跑通 anchored evidence pipeline。
 
-本次只生成 preview，不 apply，不写 Obsidian，不修改 Zotero。
+这不是功能扩展，也不是自动综述测试。目标是检查项目是否真的能在新论文上生成可审阅、可追溯、可安全写入 Obsidian 的精读材料。
 
 ## 主题
 
@@ -14,29 +14,18 @@ logistics package defect detection RGB-D geometric verification YOLO
 
 ## 输入
 
-来自上一轮小批量 E2E 的本地输出：
+输入来自上一轮小批量 E2E 的本地输出：
 
 ```text
 outputs/e2e_logistics_package_defect_batch/clean_reading_context/
 ```
 
-选取文献：
+本次选择 2 篇文献：
 
 | zotero_key | citation_key | title | 选择原因 |
 | --- | --- | --- | --- |
-| Z5HMPJQG | song2023ssdbasedcarton | SSD-based carton packaging quality defect detection system for the logistics supply chain | 物流供应链纸箱包装缺陷检测，应用场景强 |
-| 2V3T43BS | prastiwinarti2024efficientpackagingdefect | Efficient packaging defect detection: leveraging pre-trained vision models through transfer learning | 预训练视觉模型和迁移学习，适合作为方法对比素材 |
-
-## LLM 配置
-
-本次使用 OpenAI-compatible API：
-
-```text
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-v4-flash
-```
-
-API key 通过本地环境变量提供，未写入仓库。
+| Z5HMPJQG | song2023ssdbasedcarton | SSD-based carton packaging quality defect detection system for the logistics supply chain | 贴近物流供应链中的纸箱包装质量缺陷检测 |
+| 2V3T43BS | prastiwinarti2024efficientpackagingdefect | Efficient packaging defect detection: leveraging pre-trained vision models through transfer learning | 贴近预训练视觉模型、迁移学习和包装缺陷检测 |
 
 ## 执行流程
 
@@ -49,98 +38,76 @@ clean context
 -> preview-obsidian-update
 ```
 
+其中 `2V3T43BS` 在人工检查和 deterministic polish 后继续执行：
+
+```text
+dry-run
+-> approved marker-region apply
+```
+
 关键约束：
 
-- LLM 不直接生成最终 `evidence_text`；
-- LLM 不自由选择最终 `chunk_id` / page range；
-- 程序从来源 `chunk_text` 截取最终 `evidence_text`；
-- 最终严格校验 `evidence_text in chunk_text`；
-- preview 生成后停止，不 apply。
+- LLM 不直接生成最终 `evidence_text`。
+- LLM 不自由决定最终 `chunk_id` / page range。
+- 程序从来源 `chunk_text` 截取最终 `evidence_text`。
+- 最终严格校验 `evidence_text in chunk_text`。
+- 写入 Obsidian 前必须人工检查 preview。
+- apply 前必须 dry-run，并创建 backup。
 
 ## 结果
 
-| zotero_key | chunks | anchored candidates | failed candidates | evidence_links | strict evidence failures | preview status |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Z5HMPJQG | 7 | 5 | 7 | 5 | 0 | preview_created |
-| 2V3T43BS | 15 | 17 | 7 | 12 | 0 | preview_created |
+| zotero_key | chunks | anchored candidates | failed candidates | evidence_links | strict evidence failures | preview | apply |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| Z5HMPJQG | 7 | 5 | 7 | 5 | 0 | preview_created | not_applied |
+| 2V3T43BS | 15 | 17 | 7 | 12 | 0 | preview_created | applied_after_review |
 
 ## 输出文件
 
-```text
-outputs/dogfood_run_001/evidence_candidate_banks/Z5HMPJQG_evidence_candidates.json
-outputs/dogfood_run_001/evidence_candidate_banks/Z5HMPJQG_evidence_candidates_report.json
-outputs/dogfood_run_001/structured_reading_notes/Z5HMPJQG_song2023ssdbasedcarton_dogfood_anchored_final.json
-outputs/dogfood_run_001/obsidian_update_previews/Z5HMPJQG_song2023ssdbasedcarton_dogfood_preview.md
-outputs/dogfood_run_001/obsidian_update_previews/Z5HMPJQG_song2023ssdbasedcarton_dogfood_preview_manifest.json
+这些输出位于 `outputs/`，不提交到 git：
 
-outputs/dogfood_run_001/evidence_candidate_banks/2V3T43BS_evidence_candidates.json
-outputs/dogfood_run_001/evidence_candidate_banks/2V3T43BS_evidence_candidates_report.json
-outputs/dogfood_run_001/structured_reading_notes/2V3T43BS_prastiwinarti2024efficientpackagingdefect_dogfood_anchored_final.json
-outputs/dogfood_run_001/obsidian_update_previews/2V3T43BS_prastiwinarti2024efficientpackagingdefect_dogfood_preview.md
-outputs/dogfood_run_001/obsidian_update_previews/2V3T43BS_prastiwinarti2024efficientpackagingdefect_dogfood_preview_manifest.json
+```text
+outputs/dogfood_run_001/evidence_candidate_banks/
+outputs/dogfood_run_001/structured_reading_notes/
+outputs/dogfood_run_001/obsidian_update_previews/
+outputs/dogfood_run_001/obsidian_update_apply_2V3T43BS_manifest.json
 ```
 
-这些输出位于 `outputs/`，不应提交到 git。
+`2V3T43BS` 写入前已创建 backup：
 
-## 判断
-
-本次 dogfood 说明：
-
-- 对真实 clean context，anchored pipeline 可以继续生成 evidence candidate bank；
-- evidence-bank grounded note generation 可以生成 structured note；
-- preview 可以正确匹配 Obsidian inbox 中已有目标 note；
-- 两篇最终 `evidence_links` 均通过严格逐字校验；
-- `relevance_to_my_research` 均不是 `not_found`。
+```text
+outputs/obsidian_backups/@prastiwinarti2024efficientpackagingdefect.<timestamp>.md
+```
 
 ## 人工审阅结论
 
-本次 dogfood 的目标是评测系统是否真实可用，而不是把 preview 直接修成最终入库稿。
+`2V3T43BS` 的第一版 preview 技术链路通过，但中文表述需要更保守。因此没有直接 apply，而是先做 deterministic polish：
 
-### 2V3T43BS 审阅结果
+- 删除过强或绝对化表述；
+- 保持 `evidence_text`、`chunk_id`、page range 不变；
+- 保持 12 条 evidence links；
+- 保持 fenced text block 证据格式；
+- 不重新调用 LLM。
 
-`2V3T43BS` 的技术链路通过：
-
-- evidence candidate bank 成功生成；
-- anchored structured note 成功生成；
-- Obsidian preview 成功生成；
-- 12 条 `evidence_links` 全部通过严格逐字校验；
-- `relevance_to_my_research` 不是 `not_found`；
-- 没有 apply，没有写 Obsidian，没有修改 Zotero。
-
-内容质量判断：
-
-- preview 已经可以作为论文写作素材使用；
-- 但还不是无需人工确认的最终 Obsidian 入库稿；
-- 主要问题不是证据错误，而是若干中文表述需要更保守；
-- 例如“100% 准确率”应限定为“在该文实验设置下报告达到”；
-- 与 YOLO / hole / wet / scratch 的关系应保持为应用启发，不能写成原文直接验证。
-
-### 人工成本判断
-
-预计从当前 preview 修到可入库状态需要 5-10 分钟。
-
-这说明当前系统有效：它把最耗时的结构化阅读、证据提取、证据定位和 preview 生成完成了，但仍保留 human-in-the-loop 来处理最终措辞和论文写作判断。
-
-### 产品结论
-
-DOGFOOD_RUN_001 的结论不是“自动生成完美笔记”，而是：
-
-```text
-litflow 可以在真实文献上生成可审阅、可追溯、证据严格校验通过的精读 preview。
-```
-
-当前项目最强的能力是证据可信链和安全写入边界；最终中文表达质量仍需要人工审阅或后处理。
-
-## 风险
-
-- `Z5HMPJQG` 只有 5 条有效 evidence links，刚好达到最低可用线，人工检查时应重点看 claim 是否足够支撑笔记内容。
-- `2V3T43BS` 的 evidence 数量更充足，更适合作为下一步人工审阅样例。
-- 本次没有 apply，因此没有验证 marker 替换、backup 和 Obsidian 正文保持不变。
+人工确认 polished preview 后，执行 dry-run 和 approved apply。最终只替换目标 Obsidian note 的 marker 区域，frontmatter 和 marker 外正文保持不变。
 
 ## 结论
 
 DOGFOOD_RUN_001 通过。
 
-当前项目不是空壳：它可以在真实文献 clean context 上生成可审阅的 anchored preview，并保持最终 evidence text 的严格可追溯性。
+它证明当前项目不是空壳：`litflow` 可以在新的真实论文上生成 anchored evidence candidate bank、structured reading note 和 Obsidian preview，并能在人工确认后安全写入 marker 区域。
 
-下一步建议人工检查两份 preview。若内容可接受，再选择 1 篇执行 dry-run + approved apply。
+当前项目的价值不在于“自动生成完美笔记”，而在于：
+
+- 把 PDF / Zotero / Obsidian / LLM 串成可重复工作流；
+- 用程序控制最终证据文本和来源坐标；
+- 用严格校验防止 LLM 改写证据；
+- 用 preview / dry-run / backup 保护 Obsidian 知识库。
+
+## 当前限制
+
+- 只验证 2 篇新论文，不代表大规模批量稳定性。
+- 其中 1 篇执行 apply，另 1 篇仍停留在 preview。
+- 中文精读内容仍需要人工审阅和保守措辞修订。
+- 未进入自动综述。
+- 未自动下载 PDF。
+- 未修改 Zotero。

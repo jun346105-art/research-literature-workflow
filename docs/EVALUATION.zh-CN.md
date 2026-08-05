@@ -36,6 +36,22 @@ logistics package defect detection RGB-D geometric verification YOLO
 | 写入安全 | approved_marker_apply | 1 |
 | 测试 | pytest | 101 passed |
 
+## Dogfood Run 001
+
+在小批量 E2E 验收之后，项目又用 2 篇尚未进入 anchored final note 的新论文做了一次 dogfood 验证。
+
+| 指标 | 结果 |
+| --- | ---: |
+| papers_tested | 2 |
+| evidence_candidate_banks_created | 2 / 2 |
+| anchored_final_notes_created | 2 / 2 |
+| anchored_previews_created | 2 / 2 |
+| strict_evidence_failures | 0 |
+| manual_polish_required | 1 / 2 |
+| approved_marker_apply_after_review | 1 |
+
+Dogfood 记录见 [DOGFOOD_RUN_001.md](DOGFOOD_RUN_001.md)。它故意保持小规模：目标是证明系统能在新的本地论文上继续跑通，而不是把私人输出和全文证据堆进公开仓库。
+
 ## 证据校验
 
 最终证据规则是严格的：
@@ -53,6 +69,8 @@ evidence_text in chunk_text
 3. 程序填充 `chunk_id`、`page_start`、`page_end`。
 4. 程序从原始 `chunk_text` 中截取最终 `evidence_text`。
 5. 只有当 `evidence_text` 是 `chunk_text` 的逐字子串时，structured note 才能通过。
+
+详细机制见 [证据锚定机制](EVIDENCE_GROUNDING.zh-CN.md)。
 
 ## 安全边界指标
 
