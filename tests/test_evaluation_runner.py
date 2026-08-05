@@ -25,11 +25,11 @@ class StageAwareFakeLLM:
         self.calls.append(prompt)
         zotero_key = re.search(r'"zotero_key":\s*"([^"]+)"', prompt)
         key = zotero_key.group(1) if zotero_key else "P1"
-        if "raw-baseline-multichunk-v1" in prompt:
+        if "raw-baseline-multichunk-v2" in prompt:
             return json.dumps(
                 {
-                    "zotero_key": key,
-                    "title": f"Title {key}",
+                    "summary": "raw summary",
+                    "claims": ["raw claim"],
                     "evidence_links": [
                         {
                             "claim": "raw claim",
@@ -161,11 +161,16 @@ def test_execute_keeps_raw_baseline_evidence_and_writes_metrics_and_manual_csv(t
         model="fake-model",
         temperature=0,
         client=StageAwareFakeLLM(),
+        allow_dirty=True,
     ).execute()
 
-    raw_note = json.loads((run_dir / "papers" / "P1" / "baseline" / "raw_note.json").read_text(encoding="utf-8"))
+    raw_note = json.loads((run_dir / "papers" / "P1" / "baseline" / "raw_content.json").read_text(encoding="utf-8"))
+    scoring_view = json.loads((run_dir / "papers" / "P1" / "baseline" / "scoring_view.json").read_text(encoding="utf-8"))
+    assert "zotero_key" not in raw_note
+    assert scoring_view["zotero_key"] == "P1"
     assert raw_note["evidence_links"][0]["chunk_id"] == "missing_chunk"
     assert raw_note["evidence_links"][0]["evidence_text"] == "rewritten evidence"
+    assert scoring_view["evidence_links"] == raw_note["evidence_links"]
     assert result["aggregate"]["baseline"]["exact_grounding_failure_count"] == 3
     assert result["aggregate"]["proposed"]["exact_grounding_pass_count"] == 9
 
@@ -191,6 +196,41 @@ def test_execute_keeps_raw_baseline_evidence_and_writes_metrics_and_manual_csv(t
         rows = list(csv.DictReader(handle))
     assert rows
     assert all(row[field] == "" for row in rows for field in ("support_label", "needs_revision", "acceptance", "reviewer_notes"))
+
+
+def test_baseline_content_contract_injects_only_frozen_metadata(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+
+    baseline_dir = run_dir / "papers" / "P1" / "baseline"
+    raw = json.loads((baseline_dir / "raw_response_attempt_1.txt").read_text(encoding="utf-8"))
+    scoring_view = json.loads((baseline_dir / "scoring_view.json").read_text(encoding="utf-8"))
+    metrics = json.loads((baseline_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert "zotero_key" not in raw
+    assert scoring_view["zotero_key"] == "P1"
+    assert scoring_view["citation_key"] == "cite1"
+    assert scoring_view["title"] == "Title P1"
+    assert scoring_view["evidence_links"] == raw["evidence_links"]
+    assert metrics["raw_json_parse_valid"] is True
+    assert metrics["baseline_content_schema_valid"] is True
+    assert metrics["baseline_scoring_view_valid"] is True
+
+
+def test_baseline_missing_content_fields_stays_schema_invalid_without_evidence_repair(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=MissingBaselineContentFake(), allow_dirty=True).execute()
+
+    baseline_dir = run_dir / "papers" / "P1" / "baseline"
+    metrics = json.loads((baseline_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics["raw_json_parse_valid"] is True
+    assert metrics["baseline_content_schema_valid"] is False
+    assert metrics["baseline_scoring_view_valid"] is False
+    assert not (baseline_dir / "scoring_view.json").exists()
+    assert json.loads((baseline_dir / "raw_response_attempt_1.txt").read_text(encoding="utf-8")) == {"summary": "incomplete"}
 
 
 def test_thinking_and_json_request_config_are_recorded_for_resume_compatibility(tmp_path):
@@ -224,11 +264,11 @@ def test_baseline_format_retry_preserves_both_responses_without_evidence_repair(
     manifest, research_context = _frozen_inputs(tmp_path)
     run_dir = tmp_path / "run"
 
-    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=RetryFirstBaselineFake()).execute()
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=RetryFirstBaselineFake(), allow_dirty=True).execute()
 
     baseline_dir = run_dir / "papers" / "P1" / "baseline"
     assert (baseline_dir / "raw_response_attempt_1.txt").read_text(encoding="utf-8") == "not json"
-    assert json.loads((baseline_dir / "raw_note.json").read_text(encoding="utf-8"))["evidence_links"][0]["chunk_id"] == "missing_chunk"
+    assert json.loads((baseline_dir / "raw_content.json").read_text(encoding="utf-8"))["evidence_links"][0]["chunk_id"] == "missing_chunk"
     metrics = json.loads((baseline_dir / "metrics.json").read_text(encoding="utf-8"))
     assert metrics["initial_success"] is False
     assert metrics["retry_count"] == 1
@@ -239,7 +279,7 @@ def test_candidate_anchor_rate_uses_only_returned_candidates_and_failures(tmp_pa
     manifest, research_context = _frozen_inputs(tmp_path, chunk_count=4)
     run_dir = tmp_path / "run"
 
-    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=PartialCandidateFake()).execute()
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=PartialCandidateFake(), allow_dirty=True).execute()
 
     metrics = json.loads((run_dir / "papers" / "P1" / "proposed" / "metrics.json").read_text(encoding="utf-8"))
     assert metrics["anchored_candidate_count"] == 4
@@ -293,12 +333,13 @@ def test_fully_invalid_baseline_saves_error_artifact_without_a_success_note(tmp_
     manifest, research_context = _frozen_inputs(tmp_path)
     run_dir = tmp_path / "run"
 
-    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=AlwaysInvalidBaselineFake()).execute()
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=AlwaysInvalidBaselineFake(), allow_dirty=True).execute()
 
     baseline_dir = run_dir / "papers" / "P1" / "baseline"
     assert (baseline_dir / "raw_response_attempt_1.txt").exists()
     assert (baseline_dir / "raw_response_attempt_2.txt").exists()
-    assert not (baseline_dir / "raw_note.json").exists()
+    assert not (baseline_dir / "raw_content.json").exists()
+    assert not (baseline_dir / "scoring_view.json").exists()
     assert json.loads((baseline_dir / "metrics.json").read_text(encoding="utf-8"))["final_success"] is False
 
 
@@ -338,6 +379,7 @@ def test_context_window_overflow_fails_before_fake_llm_call(tmp_path):
             temperature=0,
             client=client,
             context_window=ContextWindowConfig(context_limit_tokens=1, max_output_tokens=1, safety_margin_tokens=0),
+            allow_dirty=True,
         ).execute()
 
     assert client.calls == []
@@ -393,7 +435,7 @@ def test_call_limit_rejects_plan_before_fake_llm_call(tmp_path):
     client = StageAwareFakeLLM()
 
     with pytest.raises(ValueError, match="exceed max_calls"):
-        EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0, client=client, max_calls=1).execute()
+        EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0, client=client, max_calls=1, allow_dirty=True).execute()
 
     assert client.calls == []
 
@@ -453,7 +495,7 @@ class RetryFirstBaselineFake(StageAwareFakeLLM):
         self._failed_once = False
 
     def complete_json(self, prompt):
-        if "raw-baseline-multichunk-v1" in prompt and not self._failed_once:
+        if "raw-baseline-multichunk-v2" in prompt and not self._failed_once:
             self._failed_once = True
             self.calls.append(prompt)
             return "not json"
@@ -479,9 +521,17 @@ class PartialCandidateFake(StageAwareFakeLLM):
 
 class AlwaysInvalidBaselineFake(StageAwareFakeLLM):
     def complete_json(self, prompt):
-        if "raw-baseline-multichunk-v1" in prompt:
+        if "raw-baseline-multichunk-v2" in prompt:
             self.calls.append(prompt)
             return "not json"
+        return super().complete_json(prompt)
+
+
+class MissingBaselineContentFake(StageAwareFakeLLM):
+    def complete_json(self, prompt):
+        if "raw-baseline-multichunk-v2" in prompt:
+            self.calls.append(prompt)
+            return json.dumps({"summary": "incomplete"})
         return super().complete_json(prompt)
 
 

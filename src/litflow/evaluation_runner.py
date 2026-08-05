@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from litflow.evaluation import score_evidence_note
 from litflow.llm.client import LLMClient, LLMError
@@ -23,7 +23,8 @@ from litflow.llm.models import StructuredReadingNote
 from litflow.llm.structured_reader import _parse_json_response, build_llm_input
 
 
-RAW_BASELINE_PROMPT_VERSION = "raw-baseline-multichunk-v1"
+RAW_BASELINE_PROMPT_VERSION = "raw-baseline-multichunk-v2"
+RAW_BASELINE_CONTENT_SCHEMA_VERSION = "raw-baseline-content-v1"
 PROPOSED_CANDIDATE_PROMPT_VERSION = "chunk-constrained-evidence-v1"
 PROPOSED_FINAL_PROMPT_VERSION = "evidence-bank-note-v1"
 
@@ -46,6 +47,20 @@ class ContextWindowError(ValueError):
 
 class CallLimitError(ValueError):
     pass
+
+
+class RawBaselineEvidenceLink(BaseModel):
+    claim: str
+    chunk_id: str
+    page_start: int | None
+    page_end: int | None
+    evidence_text: str
+
+
+class RawBaselineContent(BaseModel):
+    summary: str
+    claims: list[str]
+    evidence_links: list[RawBaselineEvidenceLink]
 
 
 @dataclass(frozen=True)
@@ -147,6 +162,7 @@ class EvaluationRunner:
                     "proposed_candidate_expected_calls": len(candidate_prompts),
                     "proposed_final_note_expected_calls": 1,
                     "baseline_prompt_version": RAW_BASELINE_PROMPT_VERSION,
+                    "baseline_content_schema_version": RAW_BASELINE_CONTENT_SCHEMA_VERSION,
                     "baseline_prompt_char_count": len(baseline_prompt),
                     "baseline_prompt_sha256": _sha256_text(baseline_prompt),
                     "proposed_candidate_prompt_char_count": sum(len(prompt) for prompt in candidate_prompts),
@@ -279,6 +295,7 @@ class EvaluationRunner:
                 "candidate": PROPOSED_CANDIDATE_PROMPT_VERSION,
                 "final": PROPOSED_FINAL_PROMPT_VERSION,
             },
+            "baseline_content_schema_version": RAW_BASELINE_CONTENT_SCHEMA_VERSION,
             "git_commit_sha": git_metadata["git_commit_sha"],
             "context_window": self.context_window.as_dict() if self.context_window else None,
             "request_config": self._request_config(),
@@ -347,7 +364,9 @@ def _run_raw_baseline(
 ) -> dict[str, Any]:
     prompt = _raw_baseline_prompt(clean_context, research_context)
     initial_success = False
-    raw_note: StructuredReadingNote | None = None
+    raw_json_parse_valid = False
+    content: RawBaselineContent | None = None
+    scoring_view: StructuredReadingNote | None = None
     errors: list[dict[str, Any]] = []
     for attempt in (1, 2):
         raw, call_id = recorder.complete(
@@ -363,27 +382,68 @@ def _run_raw_baseline(
         out_dir.mkdir(parents=True, exist_ok=True)
         _atomic_write_text(out_dir / f"raw_response_attempt_{attempt}.txt", raw)
         try:
-            raw_note = StructuredReadingNote.model_validate(_parse_json_response(raw))
-            if raw_note.zotero_key != paper.zotero_key:
-                raise ValueError("raw baseline zotero_key does not match frozen input")
+            data = _parse_json_response(raw)
+            raw_json_parse_valid = True
+            content = RawBaselineContent.model_validate(data)
+            scoring_view = _build_baseline_scoring_view(content, paper)
             initial_success = attempt == 1
             break
         except (json.JSONDecodeError, ValidationError, ValueError) as exc:
             recorder.mark_invalid(call_id, type(exc).__name__)
-            errors.append({"zotero_key": paper.zotero_key, "method": "baseline", "attempt": attempt, "error_type": type(exc).__name__, "error": str(exc)})
+            fields = _validation_fields(exc)
+            errors.append({"zotero_key": paper.zotero_key, "method": "baseline", "attempt": attempt, "error_type": type(exc).__name__, "error": str(exc), "validation_fields": fields})
             if attempt == 2:
                 _write_json(out_dir / "error.json", {"error_type": type(exc).__name__, "error": str(exc), "raw_response_artifact": f"raw_response_attempt_{attempt}.txt"})
             else:
-                prompt = _raw_baseline_retry_prompt(prompt)
-    if raw_note is None:
-        metrics = _note_metrics(None, clean_context, initial_success=False, retry_count=1, final_success=False, calls=recorder.records, key=paper.zotero_key)
+                prompt = _raw_baseline_retry_prompt(prompt, fields)
+    if content is None or scoring_view is None:
+        metrics = _baseline_metrics(
+            None,
+            clean_context,
+            initial_success=False,
+            retry_count=1,
+            final_success=False,
+            calls=recorder.records,
+            key=paper.zotero_key,
+            raw_json_parse_valid=raw_json_parse_valid,
+            baseline_content_schema_valid=False,
+            baseline_scoring_view_valid=False,
+        )
         _write_json(out_dir / "metrics.json", metrics)
         return {"metrics": metrics, "errors": errors}
-    raw_note_path = out_dir / "raw_note.json"
-    _atomic_write_text(raw_note_path, raw_note.model_dump_json(indent=2) + "\n")
-    metrics = _note_metrics(raw_note.model_dump(), clean_context, initial_success=initial_success, retry_count=0 if initial_success else 1, final_success=True, calls=recorder.records, key=paper.zotero_key)
+    _atomic_write_text(out_dir / "raw_content.json", content.model_dump_json(indent=2) + "\n")
+    _atomic_write_text(out_dir / "scoring_view.json", scoring_view.model_dump_json(indent=2) + "\n")
+    metrics = _baseline_metrics(
+        scoring_view.model_dump(),
+        clean_context,
+        initial_success=initial_success,
+        retry_count=0 if initial_success else 1,
+        final_success=True,
+        calls=recorder.records,
+        key=paper.zotero_key,
+        raw_json_parse_valid=True,
+        baseline_content_schema_valid=True,
+        baseline_scoring_view_valid=True,
+    )
     _write_json(out_dir / "metrics.json", metrics)
     return {"metrics": metrics, "errors": errors}
+
+
+def _build_baseline_scoring_view(content: RawBaselineContent, paper: FrozenPaper) -> StructuredReadingNote:
+    """Attach frozen system metadata without repairing model-produced evidence."""
+    return StructuredReadingNote(
+        zotero_key=paper.zotero_key,
+        citation_key=paper.citation_key or None,
+        title=paper.title,
+        one_sentence_summary=content.summary,
+        evidence_links=[item.model_dump() for item in content.evidence_links],
+    )
+
+
+def _validation_fields(error: Exception) -> list[str]:
+    if not isinstance(error, ValidationError):
+        return []
+    return [".".join(str(part) for part in item["loc"]) for item in error.errors()]
 
 
 def _run_proposed(
@@ -655,6 +715,40 @@ def _note_metrics(note: dict[str, Any] | None, clean_context: dict[str, Any], *,
     }
 
 
+def _baseline_metrics(
+    note: dict[str, Any] | None,
+    clean_context: dict[str, Any],
+    *,
+    initial_success: bool,
+    retry_count: int,
+    final_success: bool,
+    calls: list[dict[str, Any]],
+    key: str,
+    raw_json_parse_valid: bool,
+    baseline_content_schema_valid: bool,
+    baseline_scoring_view_valid: bool,
+) -> dict[str, Any]:
+    metrics = _note_metrics(
+        note,
+        clean_context,
+        initial_success=initial_success,
+        retry_count=retry_count,
+        final_success=final_success,
+        calls=calls,
+        key=key,
+    )
+    metrics.update(
+        {
+            "json_parse_success": raw_json_parse_valid,
+            "schema_valid": baseline_content_schema_valid,
+            "raw_json_parse_valid": raw_json_parse_valid,
+            "baseline_content_schema_valid": baseline_content_schema_valid,
+            "baseline_scoring_view_valid": baseline_scoring_view_valid,
+        }
+    )
+    return metrics
+
+
 def _aggregate(comparisons: list[dict[str, Any]], records: list[dict[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {"paper_count": len(comparisons), "baseline": {}, "proposed": {}, "manual_metrics": "not_computed_until_manual_csv_is_filled"}
     for method in ("baseline", "proposed"):
@@ -677,7 +771,7 @@ def _write_manual_review_csv(path: Path, comparisons: list[dict[str, Any]], pape
             for method in ("baseline", "proposed"):
                 metrics = comparison[method]
                 failures = {item["index"]: item["type"] for item in metrics["evidence_failures"]}
-                note_path = path.parent / "papers" / comparison["zotero_key"] / method / ("raw_note.json" if method == "baseline" else "final_note.json")
+                note_path = path.parent / "papers" / comparison["zotero_key"] / method / ("scoring_view.json" if method == "baseline" else "final_note.json")
                 if not note_path.is_file():
                     continue
                 for index, link in enumerate(_load_json(note_path).get("evidence_links", []), 1):
@@ -685,17 +779,39 @@ def _write_manual_review_csv(path: Path, comparisons: list[dict[str, Any]], pape
 
 
 def _raw_baseline_prompt(clean_context: dict[str, Any], research_context: str) -> str:
+    schema = {
+        "summary": "",
+        "claims": [""],
+        "evidence_links": [
+            {
+                "claim": "",
+                "chunk_id": "",
+                "page_start": 1,
+                "page_end": 1,
+                "evidence_text": "",
+            }
+        ],
+    }
     return (
         f"Prompt version: {RAW_BASELINE_PROMPT_VERSION}\n"
-        "Return one JSON object only. Use only the provided clean context and research context. Do not use external knowledge. "
-        "For every evidence link, provide claim, chunk_id, page_start, page_end, and evidence_text.\n"
+        "Return one JSON object only that matches the content-only schema below. Use only the provided clean context and research context. "
+        "Do not use external knowledge. Do not output zotero_key, citation_key, or title: the evaluation runner owns those system metadata fields. "
+        "Every schema field is required. For every evidence link, provide claim, chunk_id, page_start, page_end, and evidence_text. "
+        "Do not repair or omit an evidence link merely because it may be weak.\n"
+        f"Content-only JSON schema example:\n{json.dumps(schema, ensure_ascii=False)}\n"
         f"Research context:\n{research_context}\n"
         f"Clean context:\n{json.dumps(build_llm_input(clean_context), ensure_ascii=False)}"
     )
 
 
-def _raw_baseline_retry_prompt(prompt: str) -> str:
-    return prompt + "\nYour previous response was not valid JSON/schema. Return corrected JSON only. This retry corrects format only; do not rely on programmatic evidence repair."
+def _raw_baseline_retry_prompt(prompt: str, invalid_fields: list[str]) -> str:
+    detail = ", ".join(invalid_fields) if invalid_fields else "valid JSON"
+    return (
+        prompt
+        + f"\nYour previous response failed the content-only contract. Correct these invalid or missing fields: {detail}. "
+        "Return corrected JSON only. This retry corrects format/content-contract fields only; do not rely on programmatic evidence repair. "
+        "Do not add system-owned metadata."
+    )
 
 
 def _sha256_file(path: Path) -> str:
