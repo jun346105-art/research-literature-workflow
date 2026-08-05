@@ -4,6 +4,8 @@
 
 Turn scattered papers into evidence-grounded Obsidian reading notes.
 
+![litflow architecture](docs/screenshots/litflow-architecture.svg)
+
 `litflow` is a local-first literature workflow for students and researchers who use Zotero, Obsidian, PDFs, and OpenAI-compatible LLMs. It is not another one-shot AI paper summarizer. It helps you build reusable, reviewable, source-grounded reading notes for long-running research projects.
 
 ## Why This Exists

@@ -4,6 +4,8 @@
 
 把零散论文变成可追溯、可复用的 Obsidian 精读笔记。
 
+![litflow 架构图](docs/screenshots/litflow-architecture-zh.svg)
+
 `litflow` 是一个本地优先的科研文献工作流工具，面向使用 Zotero、Obsidian、PDF 和兼容 OpenAI API 大模型的本科生、研究生和科研初学者。它不是一次性的 AI 论文总结器，而是帮助你把文献检索、筛选、精读、证据追溯和 Obsidian 笔记沉淀串成一个可持续复用的流程。
 
 ## 为什么需要这个项目

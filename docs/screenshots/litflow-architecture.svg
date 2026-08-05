@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">litflow local-first evidence-grounded literature workflow</title>
+  <desc id="desc">Architecture diagram showing paper-search-pro discovery, manual screening, Zotero source of truth, litflow context building, evidence bank, LLM structured reading, Obsidian preview, and approved marker-only apply.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.4; rx: 14; }
+      .discovery { stroke: #2563eb; }
+      .human { stroke: #f59e0b; }
+      .source { stroke: #16a34a; }
+      .context { stroke: #0f766e; }
+      .llm { stroke: #7c3aed; }
+      .obsidian { stroke: #64748b; }
+      .label { font: 700 18px Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 13px Arial, sans-serif; fill: #475569; }
+      .small { font: 12px Arial, sans-serif; fill: #475569; }
+      .title { font: 700 31px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 15px Arial, sans-serif; fill: #475569; }
+      .tag { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1; rx: 10; }
+      .tagtext { font: 700 12px Arial, sans-serif; fill: #92400e; }
+      .guard { fill: #fef2f2; stroke: #ef4444; stroke-width: 1; rx: 10; }
+      .guardtext { font: 700 12px Arial, sans-serif; fill: #991b1b; }
+      .arrow { stroke: #64748b; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+      .footer { font: 700 14px Arial, sans-serif; fill: #334155; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="620" />
+  <text class="title" x="50" y="58">litflow: Local-first, evidence-grounded literature workflow</text>
+  <text class="subtitle" x="52" y="87">Separate discovery, source-of-truth metadata, LLM reasoning, strict evidence validation, and Obsidian writes.</text>
+
+  <rect class="panel discovery" x="48" y="132" width="170" height="135" />
+  <text class="label" x="72" y="168">Discovery</text>
+  <text class="sub" x="72" y="196">paper-search-pro</text>
+  <text class="small" x="72" y="219">papers.json / csv</text>
+  <text class="small" x="72" y="239">bib / ris / report</text>
+
+  <rect class="panel human" x="258" y="132" width="170" height="135" />
+  <text class="label" x="287" y="168">Curation</text>
+  <text class="sub" x="287" y="196">candidate_pool.json</text>
+  <text class="small" x="287" y="219">selected_candidates</text>
+  <text class="small" x="287" y="239">manual screening</text>
+
+  <rect class="panel source" x="468" y="132" width="170" height="135" />
+  <text class="label" x="493" y="168">Zotero</text>
+  <text class="sub" x="493" y="196">source of truth</text>
+  <text class="small" x="493" y="219">metadata + PDFs</text>
+  <text class="small" x="493" y="239">annotations + keys</text>
+
+  <rect class="panel context" x="678" y="132" width="170" height="135" />
+  <text class="label" x="704" y="168">Context</text>
+  <text class="sub" x="704" y="196">PDF text extraction</text>
+  <text class="small" x="704" y="219">clean chunks</text>
+  <text class="small" x="704" y="239">quality gate</text>
+
+  <rect class="panel llm" x="888" y="132" width="220" height="135" />
+  <text class="label" x="916" y="168">Grounded LLM</text>
+  <text class="sub" x="916" y="196">selects candidate_id</text>
+  <text class="small" x="916" y="219">does not own final quotes</text>
+  <text class="small" x="916" y="239">structured JSON note</text>
+
+  <path class="arrow" d="M218 199 H258" />
+  <path class="arrow" d="M428 199 H468" />
+  <path class="arrow" d="M638 199 H678" />
+  <path class="arrow" d="M848 199 H888" />
+
+  <rect class="tag" x="270" y="292" width="145" height="34" />
+  <text class="tagtext" x="294" y="314">HUMAN GATE</text>
+  <path class="thin" d="M343 267 V292" />
+
+  <rect class="panel context" x="610" y="338" width="230" height="132" />
+  <text class="label" x="635" y="374">Evidence Bank</text>
+  <text class="sub" x="635" y="402">chunk-constrained extraction</text>
+  <text class="small" x="635" y="425">programmatic anchoring</text>
+  <text class="small" x="635" y="445">exact source spans only</text>
+
+  <rect class="guard" x="872" y="338" width="236" height="132" />
+  <text class="guardtext" x="902" y="374">STRICT VALIDATION</text>
+  <text class="small" x="902" y="402">final evidence_text must be</text>
+  <text class="small" x="902" y="425">an exact substring of</text>
+  <text class="small" x="902" y="445">the source chunk_text</text>
+
+  <path class="arrow" d="M763 267 V338" />
+  <path class="arrow" d="M840 404 H872" />
+  <path class="thin" d="M990 338 V267" />
+
+  <rect class="panel obsidian" x="258" y="388" width="250" height="145" />
+  <text class="label" x="286" y="424">Obsidian Preview</text>
+  <text class="sub" x="286" y="452">reviewable Markdown</text>
+  <text class="small" x="286" y="475">no direct vault pollution</text>
+  <text class="small" x="286" y="495">manual review before apply</text>
+
+  <rect class="panel obsidian" x="48" y="388" width="170" height="145" />
+  <text class="label" x="78" y="424">Apply</text>
+  <text class="sub" x="78" y="452">approved only</text>
+  <text class="small" x="78" y="475">marker-region update</text>
+  <text class="small" x="78" y="495">backup protected</text>
+
+  <path class="arrow" d="M610 435 H508" />
+  <path class="arrow" d="M258 460 H218" />
+
+  <rect class="tag" x="302" y="548" width="162" height="34" />
+  <text class="tagtext" x="326" y="570">HUMAN REVIEW</text>
+  <path class="thin" d="M383 533 V548" />
+
+  <rect class="tag" x="68" y="548" width="130" height="34" />
+  <text class="tagtext" x="93" y="570">APPROVED</text>
+  <path class="thin" d="M133 533 V548" />
+
+  <text class="footer" x="50" y="604">Not a one-shot paper summarizer: litflow keeps every write reviewable, reversible, and evidence-grounded.</text>
+</svg>

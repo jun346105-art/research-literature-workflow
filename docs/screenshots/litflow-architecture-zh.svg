@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">litflow 本地优先、证据驱动的科研文献工作流</title>
+  <desc id="desc">架构图展示 paper-search-pro 检索、人工筛选、Zotero 可信源、litflow 上下文构建、证据库、LLM 结构化精读、Obsidian 预览和确认后写入。</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.4; rx: 14; }
+      .discovery { stroke: #2563eb; }
+      .human { stroke: #f59e0b; }
+      .source { stroke: #16a34a; }
+      .context { stroke: #0f766e; }
+      .llm { stroke: #7c3aed; }
+      .obsidian { stroke: #64748b; }
+      .label { font: 700 18px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #0f172a; }
+      .sub { font: 13px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .small { font: 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .title { font: 700 31px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 15px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #475569; }
+      .tag { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1; rx: 10; }
+      .tagtext { font: 700 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #92400e; }
+      .guard { fill: #fef2f2; stroke: #ef4444; stroke-width: 1; rx: 10; }
+      .guardtext { font: 700 12px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #991b1b; }
+      .arrow { stroke: #64748b; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .thin { stroke: #94a3b8; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+      .footer { font: 700 14px "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #334155; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="620" />
+  <text class="title" x="50" y="58">litflow：本地优先、证据驱动的科研文献工作流</text>
+  <text class="subtitle" x="52" y="87">把文献发现、Zotero 元数据源、LLM 精读、严格证据校验和 Obsidian 写入拆成独立阶段。</text>
+
+  <rect class="panel discovery" x="48" y="132" width="170" height="135" />
+  <text class="label" x="72" y="168">文献发现</text>
+  <text class="sub" x="72" y="196">paper-search-pro</text>
+  <text class="small" x="72" y="219">papers.json / csv</text>
+  <text class="small" x="72" y="239">bib / ris / report</text>
+
+  <rect class="panel human" x="258" y="132" width="170" height="135" />
+  <text class="label" x="287" y="168">人工筛选</text>
+  <text class="sub" x="287" y="196">candidate_pool.json</text>
+  <text class="small" x="287" y="219">selected_candidates</text>
+  <text class="small" x="287" y="239">先筛选再导入</text>
+
+  <rect class="panel source" x="468" y="132" width="170" height="135" />
+  <text class="label" x="493" y="168">Zotero</text>
+  <text class="sub" x="493" y="196">唯一元数据源</text>
+  <text class="small" x="493" y="219">元数据 + PDF</text>
+  <text class="small" x="493" y="239">批注 + 引用键</text>
+
+  <rect class="panel context" x="678" y="132" width="170" height="135" />
+  <text class="label" x="704" y="168">上下文构建</text>
+  <text class="sub" x="704" y="196">PDF 文本抽取</text>
+  <text class="small" x="704" y="219">清洗分块</text>
+  <text class="small" x="704" y="239">质量门控</text>
+
+  <rect class="panel llm" x="888" y="132" width="220" height="135" />
+  <text class="label" x="916" y="168">证据约束 LLM</text>
+  <text class="sub" x="916" y="196">只选择 candidate_id</text>
+  <text class="small" x="916" y="219">不直接决定最终引文</text>
+  <text class="small" x="916" y="239">输出结构化 JSON</text>
+
+  <path class="arrow" d="M218 199 H258" />
+  <path class="arrow" d="M428 199 H468" />
+  <path class="arrow" d="M638 199 H678" />
+  <path class="arrow" d="M848 199 H888" />
+
+  <rect class="tag" x="270" y="292" width="145" height="34" />
+  <text class="tagtext" x="308" y="314">人工关卡</text>
+  <path class="thin" d="M343 267 V292" />
+
+  <rect class="panel context" x="610" y="338" width="230" height="132" />
+  <text class="label" x="635" y="374">证据候选库</text>
+  <text class="sub" x="635" y="402">逐 chunk 抽取候选证据</text>
+  <text class="small" x="635" y="425">程序化 evidence anchoring</text>
+  <text class="small" x="635" y="445">只保留原文连续片段</text>
+
+  <rect class="guard" x="872" y="338" width="236" height="132" />
+  <text class="guardtext" x="928" y="374">严格校验</text>
+  <text class="small" x="902" y="402">最终 evidence_text 必须是</text>
+  <text class="small" x="902" y="425">来源 chunk_text 的</text>
+  <text class="small" x="902" y="445">逐字子串</text>
+
+  <path class="arrow" d="M763 267 V338" />
+  <path class="arrow" d="M840 404 H872" />
+  <path class="thin" d="M990 338 V267" />
+
+  <rect class="panel obsidian" x="258" y="388" width="250" height="145" />
+  <text class="label" x="286" y="424">Obsidian 预览</text>
+  <text class="sub" x="286" y="452">可审阅 Markdown</text>
+  <text class="small" x="286" y="475">不直接污染知识库</text>
+  <text class="small" x="286" y="495">人工确认后才写入</text>
+
+  <rect class="panel obsidian" x="48" y="388" width="170" height="145" />
+  <text class="label" x="78" y="424">确认写入</text>
+  <text class="sub" x="78" y="452">必须 approved</text>
+  <text class="small" x="78" y="475">只替换 marker 区域</text>
+  <text class="small" x="78" y="495">写入前自动备份</text>
+
+  <path class="arrow" d="M610 435 H508" />
+  <path class="arrow" d="M258 460 H218" />
+
+  <rect class="tag" x="302" y="548" width="162" height="34" />
+  <text class="tagtext" x="332" y="570">人工审阅</text>
+  <path class="thin" d="M383 533 V548" />
+
+  <rect class="tag" x="68" y="548" width="130" height="34" />
+  <text class="tagtext" x="98" y="570">确认写入</text>
+  <path class="thin" d="M133 533 V548" />
+
+  <text class="footer" x="50" y="604">不是一次性 AI 论文总结器：litflow 让每次写入都可审阅、可回滚、可追溯证据。</text>
+</svg>
