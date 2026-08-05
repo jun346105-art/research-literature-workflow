@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import math
+import os
 import subprocess
 import time
 import uuid
@@ -30,6 +32,58 @@ class FrozenInputError(ValueError):
     pass
 
 
+class WorktreePolicyError(ValueError):
+    pass
+
+
+class ResumeMismatchError(ValueError):
+    pass
+
+
+class ContextWindowError(ValueError):
+    pass
+
+
+class CallLimitError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class ContextWindowConfig:
+    context_limit_tokens: int
+    max_output_tokens: int
+    safety_margin_tokens: int = 0
+    token_estimator: str = "chars_div_4"
+
+    def __post_init__(self) -> None:
+        if self.context_limit_tokens <= 0 or self.max_output_tokens <= 0 or self.safety_margin_tokens < 0:
+            raise ValueError("context window values must be positive, except safety_margin_tokens may be zero")
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "context_limit_tokens": self.context_limit_tokens,
+            "max_output_tokens": self.max_output_tokens,
+            "safety_margin_tokens": self.safety_margin_tokens,
+            "token_estimator": self.token_estimator,
+        }
+
+
+@dataclass(frozen=True)
+class PricingConfig:
+    input_per_million_tokens: float
+    output_per_million_tokens: float
+
+    def __post_init__(self) -> None:
+        if self.input_per_million_tokens < 0 or self.output_per_million_tokens < 0:
+            raise ValueError("pricing values must not be negative")
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "input_per_million_tokens": self.input_per_million_tokens,
+            "output_per_million_tokens": self.output_per_million_tokens,
+        }
+
+
 @dataclass(frozen=True)
 class FrozenPaper:
     zotero_key: str
@@ -52,6 +106,12 @@ class EvaluationRunner:
         model: str,
         temperature: float,
         client: LLMClient | None = None,
+        allow_dirty: bool = False,
+        resume: bool = False,
+        context_window: ContextWindowConfig | None = None,
+        max_calls: int | None = None,
+        pricing: PricingConfig | None = None,
+        paper_key: str | None = None,
     ) -> None:
         self.frozen_manifest_path = frozen_manifest_path
         self.out_dir = out_dir
@@ -59,6 +119,14 @@ class EvaluationRunner:
         self.model = model
         self.temperature = temperature
         self.client = client
+        self.allow_dirty = allow_dirty
+        self.resume = resume
+        self.context_window = context_window
+        self.max_calls = max_calls
+        self.pricing = pricing
+        self.paper_key = paper_key
+        if max_calls is not None and max_calls <= 0:
+            raise ValueError("max_calls must be positive")
 
     def plan(self) -> dict[str, Any]:
         papers, research_context = self._verified_inputs()
@@ -88,6 +156,7 @@ class EvaluationRunner:
         final_calls = len(paper_plans)
         return {
             "role": "development_pilot",
+            "resolved_model": self.model,
             "manifest": str(self.frozen_manifest_path),
             "research_context": {
                 "path": str(self.research_context_path),
@@ -95,6 +164,7 @@ class EvaluationRunner:
                 "sha256": _sha256_text(research_context),
             },
             "paper_count": len(paper_plans),
+            "selected_paper_keys": [paper.zotero_key for paper in papers],
             "papers": paper_plans,
             "estimated_calls": {
                 "baseline_initial": baseline_calls,
@@ -103,6 +173,8 @@ class EvaluationRunner:
                 "minimum_total": baseline_calls + candidate_calls + final_calls,
                 "maximum_with_one_baseline_retry": baseline_calls * 2 + candidate_calls + final_calls,
             },
+            "git": _git_metadata(self.frozen_manifest_path),
+            "context_window": self.context_window.as_dict() if self.context_window else None,
         }
 
     def execute(self) -> dict[str, Any]:
@@ -110,8 +182,24 @@ class EvaluationRunner:
             raise LLMError("execute requires an explicitly injected LLM client")
         plan = self.plan()
         papers, research_context = self._verified_inputs()
+        git_metadata = _git_metadata(self.frozen_manifest_path)
+        if git_metadata["git_worktree_status"] == "dirty" and not self.allow_dirty:
+            raise WorktreePolicyError("dirty worktree rejected; use allow_dirty only for an explicitly documented exception")
+        if self.max_calls is not None and plan["estimated_calls"]["minimum_total"] > self.max_calls:
+            raise CallLimitError("planned minimum LLM calls exceed max_calls")
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        recorder = _CallRecorder(self.model, self.temperature, self.out_dir)
+        identity = self._run_identity(git_metadata)
+        _prepare_run_identity(self.out_dir, identity, resume=self.resume)
+        recorder = _CallRecorder(
+            self.model,
+            self.temperature,
+            self.out_dir,
+            identity=identity,
+            resume=self.resume,
+            context_window=self.context_window,
+            max_calls=self.max_calls,
+            pricing=self.pricing,
+        )
         errors: list[dict[str, Any]] = []
         comparisons: list[dict[str, Any]] = []
 
@@ -155,8 +243,15 @@ class EvaluationRunner:
                 "executed_at": _now(),
                 "model": self.model,
                 "temperature": self.temperature,
-                **_git_metadata(self.frozen_manifest_path),
-                "dirty_worktree_policy": "record_only; require a clean worktree before enabling real execution",
+                **git_metadata,
+                "allow_dirty": self.allow_dirty,
+                "dirty_worktree_policy": "rejected_by_default; allow_dirty records an explicit exception",
+                "resume": self.resume,
+                "run_identity_sha256": _sha256_text(_canonical_json(identity)),
+                "context_window": self.context_window.as_dict() if self.context_window else None,
+                "max_calls": self.max_calls,
+                "pricing": self.pricing.as_dict() if self.pricing else None,
+                "selected_paper_keys": [paper.zotero_key for paper in papers],
             },
         )
         _write_json(self.out_dir / "input_verification.json", {"verified": True, "papers": [paper.zotero_key for paper in papers]})
@@ -165,6 +260,21 @@ class EvaluationRunner:
         _write_json(self.out_dir / "errors.json", errors)
         _write_manual_review_csv(self.out_dir / "manual_claim_evidence_review.csv", comparisons, papers)
         return {"plan": plan, "aggregate": aggregate, "errors": errors}
+
+    def _run_identity(self, git_metadata: dict[str, str | None]) -> dict[str, Any]:
+        return {
+            "frozen_manifest_sha256": _sha256_file(self.frozen_manifest_path),
+            "research_context_sha256": _sha256_file(self.research_context_path),
+            "model": self.model,
+            "temperature": self.temperature,
+            "prompt_versions": {
+                "baseline": RAW_BASELINE_PROMPT_VERSION,
+                "candidate": PROPOSED_CANDIDATE_PROMPT_VERSION,
+                "final": PROPOSED_FINAL_PROMPT_VERSION,
+            },
+            "git_commit_sha": git_metadata["git_commit_sha"],
+            "context_window": self.context_window.as_dict() if self.context_window else None,
+        }
 
     def _verified_inputs(self) -> tuple[list[FrozenPaper], str]:
         if not self.research_context_path.is_file():
@@ -204,6 +314,10 @@ class EvaluationRunner:
                     quality_status=item["quality_status"],
                 )
             )
+        if self.paper_key is not None:
+            frozen = [paper for paper in frozen if paper.zotero_key == self.paper_key]
+            if not frozen:
+                raise FrozenInputError(f"paper_key is not present in frozen manifest: {self.paper_key}")
         return frozen, self.research_context_path.read_text(encoding="utf-8-sig")
 
 
@@ -222,9 +336,18 @@ def _run_raw_baseline(
     raw_note: StructuredReadingNote | None = None
     errors: list[dict[str, Any]] = []
     for attempt in (1, 2):
-        raw, call_id = recorder.complete(client, paper.zotero_key, "baseline_raw", None, attempt, RAW_BASELINE_PROMPT_VERSION, prompt)
+        raw, call_id = recorder.complete(
+            client,
+            paper.zotero_key,
+            "baseline_raw",
+            None,
+            attempt,
+            RAW_BASELINE_PROMPT_VERSION,
+            prompt,
+            call_key=f"{paper.zotero_key}:baseline_raw:{attempt}",
+        )
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"raw_response_attempt_{attempt}.txt").write_text(raw, encoding="utf-8")
+        _atomic_write_text(out_dir / f"raw_response_attempt_{attempt}.txt", raw)
         try:
             raw_note = StructuredReadingNote.model_validate(_parse_json_response(raw))
             if raw_note.zotero_key != paper.zotero_key:
@@ -243,7 +366,7 @@ def _run_raw_baseline(
         _write_json(out_dir / "metrics.json", metrics)
         return {"metrics": metrics, "errors": errors}
     raw_note_path = out_dir / "raw_note.json"
-    raw_note_path.write_text(raw_note.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    _atomic_write_text(raw_note_path, raw_note.model_dump_json(indent=2) + "\n")
     metrics = _note_metrics(raw_note.model_dump(), clean_context, initial_success=initial_success, retry_count=0 if initial_success else 1, final_success=True, calls=recorder.records, key=paper.zotero_key)
     _write_json(out_dir / "metrics.json", metrics)
     return {"metrics": metrics, "errors": errors}
@@ -293,8 +416,8 @@ def _run_proposed(
         metrics.update(
             {
                 "chunk_count": bank["metadata"].get("chunk_count", 0),
-                "chunk_call_success_count": sum(record["status"] == "success" for record in recorder.records if record["zotero_key"] == paper.zotero_key and record["stage"] == "proposed_candidate_chunk"),
-                "chunk_call_failure_count": sum(record["status"] != "success" for record in recorder.records if record["zotero_key"] == paper.zotero_key and record["stage"] == "proposed_candidate_chunk"),
+                "chunk_call_success_count": sum(record["status"] in {"success", "resumed"} for record in recorder.records if record["zotero_key"] == paper.zotero_key and record["stage"] == "proposed_candidate_chunk"),
+                "chunk_call_failure_count": sum(record["status"] not in {"success", "resumed"} for record in recorder.records if record["zotero_key"] == paper.zotero_key and record["stage"] == "proposed_candidate_chunk"),
                 "chunks_with_anchored_candidate": chunks_with_candidates,
                 "proposed_candidate_count": len(candidates) + len(failures),
                 "anchored_candidate_count": len(candidates),
@@ -305,6 +428,8 @@ def _run_proposed(
                 "candidate_report_success": report.get("success", False),
             }
         )
+    except (CallLimitError, ContextWindowError, LLMError, ResumeMismatchError):
+        raise
     except Exception as exc:
         errors.append({"zotero_key": paper.zotero_key, "method": "proposed", "error_type": type(exc).__name__, "error": str(exc)})
         _write_json(out_dir / "error.json", errors[-1])
@@ -321,17 +446,58 @@ class _RecordingClient:
 
     def complete_json(self, prompt: str) -> str:
         chunk_id = next(self.chunk_ids, None) if self.stage == "proposed_candidate_chunk" else None
-        return self.recorder.complete(self.client, self.zotero_key, self.stage, chunk_id, 1, self.prompt_version, prompt)[0]
+        suffix = chunk_id or "final"
+        call_key = f"{self.zotero_key}:{self.stage}:{suffix}:1"
+        return self.recorder.complete(
+            self.client,
+            self.zotero_key,
+            self.stage,
+            chunk_id,
+            1,
+            self.prompt_version,
+            prompt,
+            call_key=call_key,
+        )[0]
 
 
 class _CallRecorder:
-    def __init__(self, model: str, temperature: float, artifact_root: Path) -> None:
+    def __init__(
+        self,
+        model: str,
+        temperature: float,
+        artifact_root: Path,
+        *,
+        identity: dict[str, Any],
+        resume: bool,
+        context_window: ContextWindowConfig | None,
+        max_calls: int | None,
+        pricing: PricingConfig | None,
+    ) -> None:
         self.model, self.temperature, self.records = model, temperature, []
         self.artifact_root = artifact_root
+        self.identity = identity
+        self.identity_sha256 = _sha256_text(_canonical_json(identity))
+        self.resume = resume
+        self.context_window = context_window
+        self.max_calls = max_calls
+        self.pricing = pricing
+        self.network_calls = 0
 
-    def complete(self, client: LLMClient, zotero_key: str, stage: str, chunk_id: str | None, attempt: int, prompt_version: str, prompt: str) -> tuple[str, str]:
+    def complete(
+        self,
+        client: LLMClient,
+        zotero_key: str,
+        stage: str,
+        chunk_id: str | None,
+        attempt: int,
+        prompt_version: str,
+        prompt: str,
+        *,
+        call_key: str,
+    ) -> tuple[str, str]:
         call_id = uuid.uuid4().hex
         started = time.perf_counter()
+        estimated_input_tokens = _estimated_input_tokens(prompt)
         record = {
             "call_id": call_id, "zotero_key": zotero_key, "stage": stage, "chunk_id": chunk_id, "attempt": attempt,
             "start_timestamp": _now(), "end_timestamp": None, "latency_ms": None, "status": "failed", "error_type": None,
@@ -339,19 +505,100 @@ class _CallRecorder:
             "prompt_char_count": len(prompt), "response_char_count": None, "prompt_sha256": _sha256_text(prompt), "response_sha256": None,
             "input_tokens": None, "output_tokens": None, "total_tokens": None, "usage_status": "usage_unavailable", "estimated_cost": None,
             "raw_response_artifact": None,
+            "call_key": call_key,
+            "estimated_input_tokens": estimated_input_tokens,
+            "token_count_status": "estimated_chars_div_4",
         }
+        checkpoint = self._load_checkpoint(call_key, record["prompt_sha256"])
+        if checkpoint is not None:
+            response_path = self.artifact_root / checkpoint["raw_response_artifact"]
+            response = response_path.read_text(encoding="utf-8")
+            record.update(
+                {
+                    "end_timestamp": _now(),
+                    "latency_ms": 0,
+                    "status": "resumed",
+                    "response_char_count": len(response),
+                    "response_sha256": checkpoint["response_sha256"],
+                    "raw_response_artifact": checkpoint["raw_response_artifact"],
+                }
+            )
+            self.records.append(record)
+            return response, call_id
+        self._check_context_window(estimated_input_tokens)
+        if self.max_calls is not None and self.network_calls >= self.max_calls:
+            raise CallLimitError("max_calls reached before request")
+        self.network_calls += 1
         try:
-            response = client.complete_json(prompt)
+            completion_method = getattr(client, "complete_json_with_usage", None)
+            if callable(completion_method):
+                completion = completion_method(
+                    prompt,
+                    temperature=self.temperature,
+                    max_output_tokens=self.context_window.max_output_tokens if self.context_window else None,
+                )
+                response = completion.content
+                record.update(
+                    {
+                        "input_tokens": completion.input_tokens,
+                        "output_tokens": completion.output_tokens,
+                        "total_tokens": completion.total_tokens,
+                        "usage_status": "provider_reported" if completion.total_tokens is not None else "usage_unavailable",
+                    }
+                )
+                if self.pricing and completion.input_tokens is not None and completion.output_tokens is not None:
+                    record["estimated_cost"] = round(
+                        completion.input_tokens / 1_000_000 * self.pricing.input_per_million_tokens
+                        + completion.output_tokens / 1_000_000 * self.pricing.output_per_million_tokens,
+                        12,
+                    )
+            else:
+                response = client.complete_json(prompt)
         except Exception as exc:
             record.update({"end_timestamp": _now(), "latency_ms": round((time.perf_counter() - started) * 1000, 3), "error_type": type(exc).__name__})
             self.records.append(record)
             raise
         artifact = self.artifact_root / "calls" / f"{call_id}.response.txt"
-        artifact.parent.mkdir(parents=True, exist_ok=True)
-        artifact.write_text(response, encoding="utf-8")
+        _atomic_write_text(artifact, response)
         record.update({"end_timestamp": _now(), "latency_ms": round((time.perf_counter() - started) * 1000, 3), "status": "success", "response_char_count": len(response), "response_sha256": _sha256_text(response), "raw_response_artifact": str(artifact.relative_to(self.artifact_root))})
         self.records.append(record)
+        _write_json(
+            self._checkpoint_path(call_key),
+            {
+                "identity_sha256": self.identity_sha256,
+                "call_key": call_key,
+                "response_sha256": record["response_sha256"],
+                "raw_response_artifact": record["raw_response_artifact"],
+                "prompt_sha256": record["prompt_sha256"],
+            },
+        )
         return response, call_id
+
+    def _checkpoint_path(self, call_key: str) -> Path:
+        return self.artifact_root / "checkpoints" / f"{_sha256_text(call_key)}.json"
+
+    def _load_checkpoint(self, call_key: str, prompt_sha256: str) -> dict[str, Any] | None:
+        if not self.resume:
+            return None
+        path = self._checkpoint_path(call_key)
+        if not path.is_file():
+            return None
+        payload = _load_json(path)
+        if payload.get("identity_sha256") != self.identity_sha256:
+            raise ResumeMismatchError("checkpoint identity mismatch")
+        if payload.get("prompt_sha256") != prompt_sha256:
+            raise ResumeMismatchError("checkpoint prompt SHA-256 mismatch")
+        response_path = self.artifact_root / str(payload.get("raw_response_artifact", ""))
+        if not response_path.is_file() or _sha256_file(response_path) != payload.get("response_sha256"):
+            raise ResumeMismatchError("checkpoint response SHA-256 mismatch")
+        return payload
+
+    def _check_context_window(self, estimated_input_tokens: int) -> None:
+        if self.context_window is None:
+            return
+        required = estimated_input_tokens + self.context_window.max_output_tokens + self.context_window.safety_margin_tokens
+        if required > self.context_window.context_limit_tokens:
+            raise ContextWindowError("prompt exceeds configured context limit before LLM call")
 
     def mark_invalid(self, call_id: str, error_type: str) -> None:
         for record in self.records:
@@ -379,7 +626,7 @@ def _note_metrics(note: dict[str, Any] | None, clean_context: dict[str, Any], *,
         "evidence_text_not_found_count": sum(item["type"] == "evidence_text_not_found" for item in failures),
         "end_to_end_success": final_success and score["failure_count"] == 0,
         "total_llm_calls": len(paper_calls),
-        "failed_llm_calls": sum(record["status"] != "success" for record in paper_calls),
+        "failed_llm_calls": sum(record["status"] not in {"success", "resumed"} for record in paper_calls),
         "total_latency_ms": round(sum(record["latency_ms"] or 0 for record in paper_calls), 3),
         "input_tokens": None,
         "output_tokens": None,
@@ -445,6 +692,14 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _estimated_input_tokens(prompt: str) -> int:
+    return math.ceil(len(prompt) / 4)
+
+
 def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
@@ -467,8 +722,30 @@ def _git_metadata(manifest_path: Path) -> dict[str, str | None]:
 
 
 def _write_json(path: Path, data: Any) -> None:
+    _atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _prepare_run_identity(out_dir: Path, identity: dict[str, Any], *, resume: bool) -> None:
+    path = out_dir / "run_identity.json"
+    if resume:
+        if not path.is_file():
+            raise ResumeMismatchError("resume requested but run identity is missing")
+        existing = _load_json(path)
+        if existing != identity:
+            raise ResumeMismatchError("checkpoint identity mismatch")
+        return
+    _write_json(path, identity)
 
 
 def _now() -> str:

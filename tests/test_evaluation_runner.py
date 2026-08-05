@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from litflow.cli import main
-from litflow.evaluation_runner import FrozenInputError, EvaluationRunner
+from litflow.evaluation_runner import (
+    ContextWindowConfig,
+    ContextWindowError,
+    EvaluationRunner,
+    FrozenInputError,
+    ResumeMismatchError,
+    WorktreePolicyError,
+)
 
 
 class StageAwareFakeLLM:
@@ -77,6 +84,45 @@ def test_plan_only_uses_manifest_counts_and_never_calls_llm(tmp_path):
     assert client.calls == []
     assert all(item["baseline_prompt_char_count"] > 0 for item in report["papers"])
     assert all(item["proposed_candidate_prompt_char_count"] > 0 for item in report["papers"])
+
+
+def test_plan_only_can_select_one_frozen_paper_with_dynamic_call_budget(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path, chunk_count=16)
+    client = StageAwareFakeLLM()
+
+    report = EvaluationRunner(
+        manifest,
+        tmp_path / "single-run",
+        research_context,
+        model="fake",
+        temperature=0,
+        client=client,
+        paper_key="P2",
+    ).plan()
+
+    assert report["selected_paper_keys"] == ["P2"]
+    assert report["paper_count"] == 1
+    assert report["estimated_calls"]["minimum_total"] == 18
+    assert report["estimated_calls"]["maximum_with_one_baseline_retry"] == 19
+    assert client.calls == []
+
+
+def test_non_frozen_paper_key_is_rejected_before_fake_llm_call(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    client = StageAwareFakeLLM()
+
+    with pytest.raises(FrozenInputError, match="not present in frozen manifest"):
+        EvaluationRunner(
+            manifest,
+            tmp_path / "run",
+            research_context,
+            model="fake",
+            temperature=0,
+            client=client,
+            paper_key="NOT_FROZEN",
+        ).execute()
+
+    assert client.calls == []
 
 
 def test_hash_mismatch_fails_before_any_llm_call(tmp_path):
@@ -175,13 +221,14 @@ def test_candidate_anchor_rate_uses_only_returned_candidates_and_failures(tmp_pa
     assert metrics["chunk_evidence_coverage_rate"] == 1
 
 
-def test_cli_rejects_execute_and_plan_only_without_constructing_real_client(tmp_path, capsys):
+def test_cli_rejects_execute_without_safety_limits_before_constructing_client(tmp_path, capsys):
     manifest, research_context = _frozen_inputs(tmp_path)
 
-    code = main(["run-evaluation-pilot", "--frozen-manifest", str(manifest), "--out-dir", str(tmp_path / "run"), "--research-context-file", str(research_context), "--execute"])
+    with pytest.raises(SystemExit) as exc_info:
+        main(["run-evaluation-pilot", "--frozen-manifest", str(manifest), "--out-dir", str(tmp_path / "run"), "--research-context-file", str(research_context), "--execute"])
 
-    assert code == 1
-    assert "real LLM execution not configured in this phase" in capsys.readouterr().out
+    assert exc_info.value.code == 1
+    assert "--execute requires" in capsys.readouterr().err
 
 
 def test_cli_plan_only_validates_without_llm_client_or_environment(tmp_path, capsys, monkeypatch):
@@ -226,6 +273,151 @@ def test_fully_invalid_baseline_saves_error_artifact_without_a_success_note(tmp_
     assert (baseline_dir / "raw_response_attempt_2.txt").exists()
     assert not (baseline_dir / "raw_note.json").exists()
     assert json.loads((baseline_dir / "metrics.json").read_text(encoding="utf-8"))["final_success"] is False
+
+
+def test_execute_rejects_dirty_worktree_before_fake_llm_call(tmp_path, monkeypatch):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    monkeypatch.setattr("litflow.evaluation_runner._git_metadata", lambda _: {"git_commit_sha": "abc", "git_worktree_status": "dirty"})
+    client = StageAwareFakeLLM()
+
+    with pytest.raises(WorktreePolicyError, match="dirty worktree"):
+        EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0, client=client).execute()
+
+    assert client.calls == []
+
+
+def test_allow_dirty_records_exception_in_run_manifest(tmp_path, monkeypatch):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    monkeypatch.setattr("litflow.evaluation_runner._git_metadata", lambda _: {"git_commit_sha": "abc", "git_worktree_status": "dirty"})
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+
+    saved = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    assert saved["git_worktree_status"] == "dirty"
+    assert saved["allow_dirty"] is True
+
+
+def test_context_window_overflow_fails_before_fake_llm_call(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    client = StageAwareFakeLLM()
+
+    with pytest.raises(ContextWindowError, match="context limit"):
+        EvaluationRunner(
+            manifest,
+            tmp_path / "run",
+            research_context,
+            model="fake",
+            temperature=0,
+            client=client,
+            context_window=ContextWindowConfig(context_limit_tokens=1, max_output_tokens=1, safety_margin_tokens=0),
+        ).execute()
+
+    assert client.calls == []
+
+
+def test_resume_reuses_verified_checkpoints_without_duplicate_calls(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+    first = StageAwareFakeLLM()
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=first, allow_dirty=True).execute()
+    second = StageAwareFakeLLM()
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=second, allow_dirty=True, resume=True).execute()
+
+    assert first.calls
+    assert second.calls == []
+
+
+def test_resume_reuses_matching_checkpoint_when_selection_changes(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+    selected = StageAwareFakeLLM()
+
+    EvaluationRunner(
+        manifest,
+        run_dir,
+        research_context,
+        model="fake",
+        temperature=0,
+        client=selected,
+        allow_dirty=True,
+        resume=True,
+        paper_key="P2",
+    ).execute()
+
+    assert selected.calls == []
+    saved = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    assert saved["selected_paper_keys"] == ["P2"]
+
+
+def test_resume_rejects_changed_model_configuration(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+    EvaluationRunner(manifest, run_dir, research_context, model="fake-a", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+
+    with pytest.raises(ResumeMismatchError, match="checkpoint identity mismatch"):
+        EvaluationRunner(manifest, run_dir, research_context, model="fake-b", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True, resume=True).execute()
+
+
+def test_call_limit_rejects_plan_before_fake_llm_call(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    client = StageAwareFakeLLM()
+
+    with pytest.raises(ValueError, match="exceed max_calls"):
+        EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0, client=client, max_calls=1).execute()
+
+    assert client.calls == []
+
+
+def test_missing_llm_environment_rejects_cli_execute_before_network(tmp_path, capsys, monkeypatch):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    for variable in ("LLM_BASE_URL", "LLM_API_KEY", "LLM_MODEL"):
+        monkeypatch.delenv(variable, raising=False)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main(
+            [
+                "run-evaluation-pilot",
+                "--frozen-manifest", str(manifest),
+                "--out-dir", str(tmp_path / "run"),
+                "--research-context-file", str(research_context),
+                "--execute",
+                "--context-limit-tokens", "1000000",
+                "--max-output-tokens", "100",
+                "--max-calls", "12",
+            ]
+        )
+
+    assert exc_info.value.code == 1
+    assert "LLM_API_KEY" in capsys.readouterr().err
+    assert not (tmp_path / "run").exists()
+
+
+def test_fake_execution_artifacts_do_not_contain_environment_api_key(tmp_path, monkeypatch):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    secret = "test-api-key-must-not-be-recorded"
+    monkeypatch.setenv("LLM_API_KEY", secret)
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+
+    for path in run_dir.rglob("*"):
+        if path.is_file():
+            assert secret not in path.read_text(encoding="utf-8")
+
+
+def test_checkpoint_files_are_atomic_complete_json_documents(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    run_dir = tmp_path / "run"
+
+    EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True).execute()
+
+    checkpoints = list((run_dir / "checkpoints").glob("*.json"))
+    assert len(checkpoints) == 12
+    assert not list(run_dir.rglob("*.tmp"))
+    assert all(json.loads(path.read_text(encoding="utf-8"))["response_sha256"] for path in checkpoints)
 
 
 class RetryFirstBaselineFake(StageAwareFakeLLM):

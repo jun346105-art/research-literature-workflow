@@ -12,13 +12,13 @@ from litflow.discovery.paper_search_pro_inspector import (
     inspect_paper_search_pro_results,
 )
 from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
-from litflow.evaluation_runner import EvaluationRunner
+from litflow.evaluation_runner import ContextWindowConfig, EvaluationRunner, PricingConfig
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
 from litflow.obsidian.reconcile import plan_citekey_note_migration
 from litflow.obsidian.update_preview import preview_obsidian_update
 from litflow.obsidian.apply_update import apply_obsidian_update
-from litflow.llm.client import LLMError
+from litflow.llm.client import LLMError, OpenAICompatibleClient
 from litflow.llm.evidence_bank_note import generate_note_from_evidence_bank
 from litflow.llm.evidence_candidates import build_evidence_candidate_bank
 from litflow.llm.structured_reader import read_paper_with_llm
@@ -148,8 +148,17 @@ def main(argv: list[str] | None = None) -> int:
     evaluation_pilot.add_argument("--frozen-manifest", required=True, type=Path)
     evaluation_pilot.add_argument("--out-dir", required=True, type=Path)
     evaluation_pilot.add_argument("--research-context-file", required=True, type=Path)
-    evaluation_pilot.add_argument("--model", default="unconfigured")
+    evaluation_pilot.add_argument("--model")
+    evaluation_pilot.add_argument("--paper-key")
     evaluation_pilot.add_argument("--temperature", type=float, default=0)
+    evaluation_pilot.add_argument("--allow-dirty", action="store_true")
+    evaluation_pilot.add_argument("--resume", action="store_true")
+    evaluation_pilot.add_argument("--max-calls", type=int)
+    evaluation_pilot.add_argument("--context-limit-tokens", type=int)
+    evaluation_pilot.add_argument("--max-output-tokens", type=int)
+    evaluation_pilot.add_argument("--context-safety-margin-tokens", type=int, default=0)
+    evaluation_pilot.add_argument("--input-price-per-million-tokens", type=float)
+    evaluation_pilot.add_argument("--output-price-per-million-tokens", type=float)
     evaluation_mode = evaluation_pilot.add_mutually_exclusive_group()
     evaluation_mode.add_argument("--plan-only", action="store_true")
     evaluation_mode.add_argument("--execute", action="store_true")
@@ -331,17 +340,49 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "run-evaluation-pilot":
             if not args.plan_only and not args.execute:
                 raise ValueError("provide exactly one of --plan-only or --execute")
+            context_window = None
+            if args.context_limit_tokens is not None or args.max_output_tokens is not None:
+                if args.context_limit_tokens is None or args.max_output_tokens is None:
+                    raise ValueError("context-limit-tokens and max-output-tokens must be provided together")
+                context_window = ContextWindowConfig(
+                    context_limit_tokens=args.context_limit_tokens,
+                    max_output_tokens=args.max_output_tokens,
+                    safety_margin_tokens=args.context_safety_margin_tokens,
+                )
+            pricing = None
+            if args.input_price_per_million_tokens is not None or args.output_price_per_million_tokens is not None:
+                if args.input_price_per_million_tokens is None or args.output_price_per_million_tokens is None:
+                    raise ValueError("input-price-per-million-tokens and output-price-per-million-tokens must be provided together")
+                pricing = PricingConfig(args.input_price_per_million_tokens, args.output_price_per_million_tokens)
             if args.execute:
-                print("error: real LLM execution not configured in this phase")
-                return 1
-            plan = EvaluationRunner(
+                if context_window is None or args.max_calls is None:
+                    raise ValueError("--execute requires --context-limit-tokens, --max-output-tokens, and --max-calls")
+                client = OpenAICompatibleClient.from_env()
+                if args.model and args.model != client.model:
+                    raise ValueError("--model must match LLM_MODEL when --execute is used")
+                resolved_model = client.model
+            else:
+                client = None
+                resolved_model = args.model or "unconfigured"
+            runner = EvaluationRunner(
                 args.frozen_manifest,
                 args.out_dir,
                 args.research_context_file,
-                model=args.model,
+                model=resolved_model,
                 temperature=args.temperature,
-            ).plan()
-            print(json.dumps(plan, ensure_ascii=False, indent=2))
+                client=client,
+                allow_dirty=args.allow_dirty,
+                resume=args.resume,
+                context_window=context_window,
+                max_calls=args.max_calls,
+                pricing=pricing,
+                paper_key=args.paper_key,
+            )
+            if args.execute:
+                result = runner.execute()
+                print(json.dumps(result, ensure_ascii=False, indent=2))
+                return 0
+            print(json.dumps(runner.plan(), ensure_ascii=False, indent=2))
             return 0
     except (ValueError, ZoteroReadError, LLMError) as exc:
         parser.exit(1, f"error: {exc}\n")

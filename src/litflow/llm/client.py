@@ -17,6 +17,14 @@ class LLMClient(Protocol):
 
 
 @dataclass(frozen=True)
+class LLMCompletion:
+    content: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+
+
+@dataclass(frozen=True)
 class OpenAICompatibleClient:
     base_url: str
     api_key: str
@@ -33,12 +41,23 @@ class OpenAICompatibleClient:
         return cls(base_url=base_url.rstrip("/"), api_key=api_key, model=model)
 
     def complete_json(self, prompt: str) -> str:
+        return self.complete_json_with_usage(prompt).content
+
+    def complete_json_with_usage(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0,
+        max_output_tokens: int | None = None,
+    ) -> LLMCompletion:
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0,
+            "temperature": temperature,
             "response_format": {"type": "json_object"},
         }
+        if max_output_tokens is not None:
+            payload["max_tokens"] = max_output_tokens
         request = Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
@@ -54,9 +73,20 @@ class OpenAICompatibleClient:
         except HTTPError as exc:
             raise LLMError(f"LLM API HTTP {exc.code}") from exc
         except URLError as exc:
-            raise LLMError(f"LLM API unavailable: {exc}") from exc
+            raise LLMError("LLM API unavailable") from exc
         try:
-            return data["choices"][0]["message"]["content"]
+            content = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
             raise LLMError("LLM API response did not contain choices[0].message.content") from exc
+        usage = data.get("usage") if isinstance(data, dict) else None
+        return LLMCompletion(
+            content=content,
+            input_tokens=_usage_int(usage, "prompt_tokens"),
+            output_tokens=_usage_int(usage, "completion_tokens"),
+            total_tokens=_usage_int(usage, "total_tokens"),
+        )
 
+
+def _usage_int(usage: object, key: str) -> int | None:
+    value = usage.get(key) if isinstance(usage, dict) else None
+    return value if isinstance(value, int) else None
