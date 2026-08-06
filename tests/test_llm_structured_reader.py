@@ -226,6 +226,19 @@ def test_anchor_quote_hint_normalized_whitespace_returns_original_span():
     assert result["evidence_text"] in chunk
 
 
+def test_anchor_quote_hint_safe_mapping_preserves_original_span_and_rejects_space_hyphen():
+    chunk = "The ﬁrst sample has a word-\ncontinuation."
+    result = _anchor_quote_hint("The first sample has a wordcontinuation.", chunk)
+    space_hyphen = _anchor_quote_hint("wordcontinuation", "word- continuation")
+
+    assert result["status"] == "ok"
+    assert result["method"] == "safe_normalized_match"
+    assert result["evidence_text"] in chunk
+    assert result["evidence_text"] == "The ﬁrst sample has a word-\ncontinuation"
+    assert space_hyphen["status"] == "error"
+    assert space_hyphen["error_type"] == "evidence_anchor_not_found"
+
+
 def test_anchor_quote_hint_ambiguous_does_not_guess():
     result = _anchor_quote_hint("same phrase", "same phrase appears twice: same phrase")
 
@@ -238,6 +251,14 @@ def test_anchor_quote_hint_not_found():
 
     assert result["status"] == "error"
     assert result["error_type"] == "evidence_anchor_not_found"
+
+
+def test_anchor_quote_hint_rejects_model_rewrite_and_non_contiguous_text():
+    rewrite = _anchor_quote_hint("machine vision technology", "machine-vision based technology")
+    non_contiguous = _anchor_quote_hint("alpha beta gamma delta", "alpha beta inserted gamma delta")
+
+    assert rewrite["error_type"] == "evidence_anchor_not_found"
+    assert non_contiguous["error_type"] == "evidence_anchor_not_found"
 
 
 def test_unanchorable_too_few_valid_links_saves_error(tmp_path):

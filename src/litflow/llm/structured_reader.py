@@ -8,6 +8,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from litflow.llm.client import LLMClient, LLMError, OpenAICompatibleClient
+from litflow.llm.span_mapping import map_verbatim_span, normalized_whitespace_matches
 from litflow.llm.models import StructuredReadingNote
 from litflow.llm.prompts import build_structured_reading_prompt
 
@@ -155,33 +156,14 @@ def _anchor_evidence_links(note: StructuredReadingNote, allowed_chunks: dict[str
 
 
 def _anchor_quote_hint(quote_hint: str, chunk_text: str) -> dict[str, str]:
-    if not quote_hint:
-        return {"status": "error", "error_type": "evidence_anchor_not_found", "message": "empty quote_hint"}
-    exact_count = chunk_text.count(quote_hint)
-    if exact_count == 1:
-        return {"status": "ok", "method": "exact_match", "evidence_text": quote_hint}
-    if exact_count > 1:
-        return {"status": "error", "error_type": "evidence_anchor_ambiguous", "message": "quote_hint has multiple exact matches"}
-    matches = _normalized_span_matches(quote_hint, chunk_text)
-    if len(matches) == 1:
-        start, end = matches[0]
-        return {"status": "ok", "method": "normalized_whitespace_match", "evidence_text": chunk_text[start:end]}
-    if len(matches) > 1:
-        return {"status": "error", "error_type": "evidence_anchor_ambiguous", "message": "quote_hint has multiple normalized matches"}
-    return {"status": "error", "error_type": "evidence_anchor_not_found", "message": "quote_hint not found in declared chunk"}
+    result = map_verbatim_span(quote_hint, chunk_text)
+    if result.status == "ok":
+        return {"status": "ok", "method": result.method, "evidence_text": result.evidence_text}
+    return {"status": "error", "error_type": result.error_type, "message": result.message}
 
 
 def _normalized_span_matches(quote_hint: str, chunk_text: str) -> list[tuple[int, int]]:
-    hint_tokens = [m.group(0).casefold() for m in re.finditer(r"\S+", quote_hint)]
-    chunk_tokens = [(m.group(0).casefold(), m.start(), m.end()) for m in re.finditer(r"\S+", chunk_text)]
-    if not hint_tokens or len(hint_tokens) > len(chunk_tokens):
-        return []
-    matches = []
-    width = len(hint_tokens)
-    for index in range(len(chunk_tokens) - width + 1):
-        if [token for token, _, _ in chunk_tokens[index : index + width]] == hint_tokens:
-            matches.append((chunk_tokens[index][1], chunk_tokens[index + width - 1][2]))
-    return matches
+    return normalized_whitespace_matches(quote_hint, chunk_text)
 
 
 def _anchor_failure(link: Any, error_type: str, message: str) -> dict[str, Any]:

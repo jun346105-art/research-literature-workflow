@@ -75,6 +75,22 @@ def test_candidate_bank_normalized_whitespace_maps_to_original(tmp_path):
     assert candidate["evidence_text"] == "method extracts\nuseful evidence."
 
 
+def test_candidate_bank_records_safe_normalized_match_as_original_substring(tmp_path):
+    clean = tmp_path / "clean.json"
+    out = tmp_path / "bank.json"
+    report = tmp_path / "report.json"
+    context = _clean_context()
+    context["chunks"][0]["text"] = "The ﬁrst sample has a word-\ncontinuation."
+    clean.write_text(json.dumps(context), encoding="utf-8")
+
+    build_evidence_candidate_bank(clean, out, report, client=FakeLLM([_response("claim", "The first sample has a wordcontinuation."), '{"candidates":[]}', '{"candidates":[]}']))
+
+    candidate = json.loads(out.read_text(encoding="utf-8"))["candidates"][0]
+    assert candidate["anchoring_method"] == "safe_normalized_match"
+    assert candidate["evidence_text"] in context["chunks"][0]["text"]
+    assert candidate["evidence_text"] == "The ﬁrst sample has a word-\ncontinuation"
+
+
 def test_candidate_bank_records_not_found_and_ambiguous(tmp_path):
     clean = tmp_path / "clean.json"
     out = tmp_path / "bank.json"
