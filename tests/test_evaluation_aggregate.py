@@ -41,10 +41,45 @@ def test_aggregate_uses_canonical_headers_and_call_metrics(tmp_path):
     assert report["micro_aggregate"]["provider_usage_statuses"] == {"provider_reported": 9}
     assert report["human_review_aggregate"]["baseline"]["supported"]["numerator"] == 3
     assert report["human_review_aggregate"]["proposed"]["supported"]["numerator"] == 3
+    assert report["known_limitations"] == [
+        "Development pilot only; not a held-out benchmark.",
+        "Baseline and Proposed claims are not paired claim-by-claim.",
+        "Human labels are project-author review with AI-assisted translation, not independent blinded expert annotation.",
+        "Exact grounding does not establish semantic correctness.",
+        "Candidate chunk coverage does not equal retrieval recall.",
+        "Legacy reviewer notes contain irreversible encoding loss and are excluded from metrics.",
+    ]
+    serialized_summary = json.dumps(report, ensure_ascii=False)
+    assert "?" not in serialized_summary
+    for paper in report["per_paper"]:
+        assert paper["artifact_paths"]["pdf"] == {
+            "path_type": "private_local_path_redacted",
+            "sha256": _sha256(tmp_path / "paper.pdf"),
+        }
+        assert all("C:\\Users" not in json.dumps(path) for path in paper["artifact_paths"].values())
     reproduction = json.loads((out_dir / "reproduction_manifest.json").read_text(encoding="utf-8"))
     assert reproduction["aggregator_git_commit_sha"] == "aggregator-test-sha"
     assert len(reproduction["aggregator_module_sha256"]) == 64
     assert all(".aggregate.tmp-" not in item["path"] for item in reproduction["outputs"])
+    assert reproduction["original_command"] == ["litflow", "aggregate-evaluation-pilot"]
+    assert reproduction["replay_command_template"] == ["litflow", "aggregate-evaluation-pilot"]
+
+
+def test_replay_template_replaces_output_directory(tmp_path):
+    runs, expected_hashes = _make_runs(tmp_path)
+    out_dir = tmp_path / "aggregate"
+    aggregate_evaluation_pilot(
+        runs,
+        out_dir,
+        expected_reviewed_sha256=expected_hashes,
+        repo_root=tmp_path,
+        command_args=["litflow", "aggregate-evaluation-pilot", "--out-dir", str(out_dir)],
+        aggregator_git_commit_sha="test",
+    )
+
+    reproduction = json.loads((out_dir / "reproduction_manifest.json").read_text(encoding="utf-8"))
+    assert reproduction["original_command"][-1] == str(out_dir)
+    assert reproduction["replay_command_template"][-1] == "<NEW_EMPTY_OUTPUT_DIR>"
 
 
 def test_aggregate_rejects_mismatched_reviewed_hash_before_output(tmp_path):

@@ -52,6 +52,7 @@ def aggregate_evaluation_pilot(
     summary = _build_summary(
         records,
         shared,
+        root,
         input_price_cny_per_million_tokens,
         output_price_cny_per_million_tokens,
     )
@@ -221,9 +222,13 @@ def _load_and_validate_runs(
 
 
 def _build_summary(
-    records: list[dict[str, Any]], shared: dict[str, Any], input_price: float, output_price: float
+    records: list[dict[str, Any]],
+    shared: dict[str, Any],
+    root: Path,
+    input_price: float,
+    output_price: float,
 ) -> dict[str, Any]:
-    per_paper = [_paper_metrics(record) for record in records]
+    per_paper = [_paper_metrics(record, root) for record in records]
     all_calls = [call for record in records for call in record["calls"]]
     calls_by_stage = {stage: [call for call in all_calls if call.get("stage") == stage] for stage in ("baseline_raw", "proposed_candidate_chunk", "proposed_final_note")}
     latency = {"overall": _latency_metrics(all_calls)}
@@ -282,12 +287,12 @@ def _build_summary(
             "reference_estimated_cost_cny": round(input_tokens / 1_000_000 * input_price + output_tokens / 1_000_000 * output_price, 6),
             "note": "Reference estimate only; not a provider invoice and does not alter source artifacts.",
         },
-        "known_limitations": _known_limitations(records),
+        "known_limitations": _known_limitations(),
     }
     return summary
 
 
-def _paper_metrics(record: dict[str, Any]) -> dict[str, Any]:
+def _paper_metrics(record: dict[str, Any], root: Path) -> dict[str, Any]:
     calls = record["calls"]
     by_stage = {stage: [call for call in calls if call.get("stage") == stage] for stage in ("baseline_raw", "proposed_candidate_chunk", "proposed_final_note")}
     baseline = record["baseline"]
@@ -317,7 +322,7 @@ def _paper_metrics(record: dict[str, Any]) -> dict[str, Any]:
         },
         "candidate": {"total": len(candidates) + len(failures), "anchored": len(candidates), "failed": len(failures), "covered_chunks": len({item.get("chunk_id") for item in candidates if item.get("chunk_id")}), "anchoring_methods": dict(methods), "failure_types": dict(failure_types)},
         "proposed_final": {"evidence_count": proposed.get("final_selected_evidence_count", 0), "strict_pass": proposed.get("exact_grounding_pass_count", 0), "strict_fail": proposed.get("exact_grounding_failure_count", 0), "schema_valid": bool(proposed.get("schema_valid"))},
-        "artifact_paths": {name: str(path) for name, path in record["artifact_paths"].items()},
+        "artifact_paths": _canonical_artifact_paths(record["artifact_paths"], root),
     }
 
 
@@ -367,19 +372,15 @@ def _reviewer_notes_integrity(note: str) -> str:
     return "ok"
 
 
-def _known_limitations(records: list[dict[str, Any]]) -> list[str]:
-    limits = [
+def _known_limitations() -> list[str]:
+    return [
         "Development pilot only; not a held-out benchmark.",
         "Baseline and Proposed claims are not paired claim-by-claim.",
         "Human labels are project-author review with AI-assisted translation, not independent blinded expert annotation.",
         "Exact grounding does not establish semantic correctness.",
         "Candidate chunk coverage does not equal retrieval recall.",
+        "Legacy reviewer notes contain irreversible encoding loss and are excluded from metrics.",
     ]
-    for record in records:
-        summary_path = record["run_dir"] / "human_review_summary.json"
-        if summary_path.is_file():
-            limits.extend(_load_json(summary_path).get("known_observations", []))
-    return list(dict.fromkeys(limits))
 
 
 def _write_outputs(out_dir: Path, summary: dict[str, Any], records: list[dict[str, Any]]) -> None:
@@ -413,14 +414,15 @@ def _write_reproduction_manifest(
         "aggregator_git_commit_sha": git_sha,
         "aggregator_module_path": _path_record(module_path, root),
         "aggregator_module_sha256": _sha256_file(module_path),
-        "replay_command": command_args,
+        "original_command": command_args,
+        "replay_command_template": _replay_command_template(command_args),
         "python_version": sys.version,
         "inputs": [_path_record(path, root) for path in inputs],
         "outputs": [
             _path_record_with_display_path(write_dir / name, final_out_dir / name, root)
             for name in output_names
         ],
-        "percentile_algorithm": "nearest-rank: sorted_values[ceil(p*n)-1]",
+        "percentile_algorithm": "nearest-rank: sorted_values[ceil(p*n)-1]; sample counts are emitted in latency_ms fields.",
         "cost_formula": "input_tokens * input_price_per_million / 1000000 + output_tokens * output_price_per_million / 1000000",
         "reviewer_notes_integrity_policy": "missing for blank; legacy_encoding_lost for question-majority or ASCII question residue; otherwise ok.",
         "self_hash_note": "The reproduction manifest does not embed its own SHA-256 because that would be circular.",
@@ -502,6 +504,36 @@ def _path_record_with_display_path(source: Path, display: Path, root: Path) -> d
         record["path"] = str(display.resolve())
         record["path_type"] = "private_local_path"
     return record
+
+
+def _canonical_artifact_paths(paths: dict[str, Path], root: Path) -> dict[str, dict[str, str]]:
+    return {
+        name: _canonical_summary_path(path, root, redact_path=name == "pdf")
+        for name, path in paths.items()
+    }
+
+
+def _canonical_summary_path(path: Path, root: Path, *, redact_path: bool) -> dict[str, str]:
+    if redact_path:
+        return {"path_type": "private_local_path_redacted", "sha256": _sha256_file(path)}
+    try:
+        return {
+            "path": os.path.relpath(path.resolve(), root.resolve()).replace("\\", "/"),
+            "path_type": "relative_to_repo",
+        }
+    except ValueError:
+        return {"path_type": "private_local_path_redacted", "sha256": _sha256_file(path)}
+
+
+def _replay_command_template(command_args: list[str]) -> list[str]:
+    template = list(command_args)
+    try:
+        index = template.index("--out-dir")
+    except ValueError:
+        return template
+    if index + 1 < len(template):
+        template[index + 1] = "<NEW_EMPTY_OUTPUT_DIR>"
+    return template
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
