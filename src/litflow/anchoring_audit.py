@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import subprocess
-import unicodedata
 import uuid
 from collections import Counter
 from difflib import SequenceMatcher
@@ -15,6 +14,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any
 
+from litflow.llm.span_mapping import SAFE_NORMALIZATION_PROFILE, safe_normalize, safe_span_matches
 from litflow.llm.structured_reader import _normalized_span_matches
 
 
@@ -185,7 +185,7 @@ def _audit_item(row: dict[str, str], context: dict[str, Any], index: int) -> dic
     text = declared.get("text") or ""
     exact_count = text.count(hint) if hint else 0
     current_matches = _normalized_span_matches(hint, text)
-    safe_matches, safe_flags = _safe_span_matches(hint, text)
+    safe_matches = safe_span_matches(hint, text)
     other_matches = []
     adjacent_matches = []
     other_similarity = 0.0
@@ -193,7 +193,7 @@ def _audit_item(row: dict[str, str], context: dict[str, Any], index: int) -> dic
     for chunk_index, chunk in enumerate(chunks):
         if chunk is declared:
             continue
-        matches, _ = _safe_span_matches(hint, chunk.get("text") or "")
+        matches = safe_span_matches(hint, chunk.get("text") or "")
         similarity = _diagnostic_similarity(hint, chunk.get("text") or "")
         if len(matches) == 1:
             other_matches.append(chunk.get("chunk_id", ""))
@@ -204,8 +204,8 @@ def _audit_item(row: dict[str, str], context: dict[str, Any], index: int) -> dic
     declared_similarity = _diagnostic_similarity(hint, text)
     mapped = safe_matches[0] if len(safe_matches) == 1 else None
     span_text = text[mapped[0] : mapped[1]] if mapped else ""
-    hint_flags = _safe_normalize(hint)[2]
-    span_flags = _safe_normalize(span_text)[2] if mapped else set()
+    hint_flags = safe_normalize(hint)[2]
+    span_flags = safe_normalize(span_text)[2] if mapped else set()
     flags = hint_flags | span_flags
     if other_matches:
         flags.add("other_chunk_match")
@@ -214,7 +214,7 @@ def _audit_item(row: dict[str, str], context: dict[str, Any], index: int) -> dic
     if non_contiguous:
         flags.add("cross_sentence")
 
-    roundtrip = bool(mapped and text[mapped[0] : mapped[1]] == span_text and _safe_normalize(span_text)[0] == _safe_normalize(hint)[0])
+    roundtrip = bool(mapped and text[mapped[0] : mapped[1]] == span_text and safe_normalize(span_text)[0] == safe_normalize(hint)[0])
     if exact_count == 1:
         status, eligibility, cause, confidence = "exact_span_available", "eligible_exact", "normalization_gap", "high"
     elif (len(current_matches) == 1 or mapped is not None) and mapped is not None and roundtrip:
@@ -249,83 +249,16 @@ def _audit_item(row: dict[str, str], context: dict[str, Any], index: int) -> dic
         "adjacent_chunk_matches": ";".join(adjacent_matches), "mapped_span_start": mapped[0] if mapped else "",
         "mapped_span_end": mapped[1] if mapped else "", "mapped_span_char_count": len(span_text),
         "mapped_span_sha256": _sha256_text(span_text) if span_text else "",
-        "mapping_normalization_profile": "safe_nfkc_alnum_v1" if mapped else "",
+        "mapping_normalization_profile": SAFE_NORMALIZATION_PROFILE if mapped else "",
         "local_mapping_features": ";".join(sorted(flags & {"unicode_nfkc", "unicode_ligature", "nul_character", "soft_hyphen", "zero_width", "linebreak_dehyphenation"})),
         "roundtrip_verified": roundtrip,
         "diagnostic_similarity": round(max(declared_similarity, other_similarity), 6),
     }
 
 
-def _safe_span_matches(hint: str, text: str) -> tuple[list[tuple[int, int]], set[str]]:
-    normalized_hint, _, hint_flags = _safe_normalize(hint)
-    normalized_text, mapping, text_flags = _safe_normalize(text)
-    if not normalized_hint:
-        return [], hint_flags | text_flags
-    matches = []
-    start = normalized_text.find(normalized_hint)
-    while start >= 0:
-        end = start + len(normalized_hint)
-        matches.append((mapping[start][0], mapping[end - 1][1]))
-        start = normalized_text.find(normalized_hint, start + 1)
-    return matches, hint_flags | text_flags
-
-
-def _safe_normalize(value: str) -> tuple[str, list[tuple[int, int]], set[str]]:
-    flags: set[str] = set()
-    chars: list[str] = []
-    mapping: list[tuple[int, int]] = []
-    index = 0
-    while index < len(value):
-        char = value[index]
-        if char == "\x00":
-            flags.add("nul_character")
-            index += 1
-            continue
-        if char == "\u00ad":
-            flags.add("soft_hyphen")
-            index += 1
-            continue
-        if char in {"\u200b", "\u200c", "\u200d", "\ufeff"}:
-            flags.add("zero_width")
-            index += 1
-            continue
-        if char == "-" and index > 0 and value[index - 1].isalpha():
-            next_index = index + 1
-            while next_index < len(value) and value[next_index].isspace():
-                next_index += 1
-            gap = value[index + 1 : next_index]
-            if next_index < len(value) and value[next_index].isalpha() and ("\n" in gap or "\r" in gap):
-                flags.add("linebreak_dehyphenation")
-                index = next_index
-                continue
-        normalized = unicodedata.normalize("NFKC", char)
-        if normalized != char:
-            flags.add("unicode_nfkc")
-            if char in {"ﬁ", "ﬂ", "ﬀ", "ﬃ", "ﬄ"}:
-                flags.add("unicode_ligature")
-        for normalized_char in normalized:
-            if normalized_char.isalnum():
-                chars.append(normalized_char.casefold())
-                mapping.append((index, index + 1))
-            else:
-                if normalized_char in {"'", '"', "-", "–", "—", "‐", "‑"}:
-                    flags.add("punctuation_change")
-                if not chars or chars[-1] != " ":
-                    chars.append(" ")
-                    mapping.append((index, index + 1))
-        index += 1
-    while chars and chars[0] == " ":
-        chars.pop(0)
-        mapping.pop(0)
-    while chars and chars[-1] == " ":
-        chars.pop()
-        mapping.pop()
-    return "".join(chars), mapping, flags
-
-
 def _has_non_contiguous_span(hint: str, text: str) -> bool:
-    hint_tokens = _safe_normalize(hint)[0].split()
-    text_tokens = _safe_normalize(text)[0].split()
+    hint_tokens = safe_normalize(hint)[0].split()
+    text_tokens = safe_normalize(text)[0].split()
     if len(hint_tokens) < 8 or len(text_tokens) < len(hint_tokens):
         return False
     matcher = SequenceMatcher(None, hint_tokens, text_tokens, autojunk=False)
@@ -341,8 +274,8 @@ def _has_non_contiguous_span(hint: str, text: str) -> bool:
 
 
 def _diagnostic_similarity(hint: str, text: str) -> float:
-    hint_tokens = _safe_normalize(hint)[0].split()
-    text_tokens = _safe_normalize(text)[0].split()
+    hint_tokens = safe_normalize(hint)[0].split()
+    text_tokens = safe_normalize(text)[0].split()
     if not hint_tokens or not text_tokens:
         return 0.0
     # Diagnostic-only token LCS coverage; it never changes strict grounding.
