@@ -102,7 +102,7 @@ Evidence validation 规则保持严格：
 | Zotero key | Applied target note | Backup path | Apply status |
 | --- | --- | --- | --- |
 | L4DLHQUZ | `<ObsidianVault>/00_Inbox/LiteratureReview/@he2024tpmntextureprior.md` | `outputs/obsidian_backups/@he2024tpmntextureprior.20260701214215.md` | applied |
-| 696N7XZ8 | `<ObsidianVault>/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` | `outputs/obsidian_backups/@zhang2024corrugatedcarddefect.20260701214215.md` | applied |
+| 696N7XZ8 | `<ObsidianVault>/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` | `outputs/obsidian_backups/@zhang2024corrugatedcardboarddefect.20260701214215.md` | applied |
 
 Apply manifest：
 
