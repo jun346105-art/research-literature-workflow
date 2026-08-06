@@ -13,6 +13,7 @@ from litflow.discovery.paper_search_pro_inspector import (
 )
 from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
 from litflow.evaluation_aggregate import aggregate_evaluation_pilot
+from litflow.anchoring_audit import audit_anchoring_failures
 from litflow.evaluation_runner import ContextWindowConfig, EvaluationRunner, PricingConfig
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
@@ -171,6 +172,12 @@ def main(argv: list[str] | None = None) -> int:
     aggregate_pilot.add_argument("--reviewed-csv-sha", required=True, action="append", metavar="PAPER_KEY=SHA256")
     aggregate_pilot.add_argument("--input-price-cny-per-million-tokens", type=float, default=1)
     aggregate_pilot.add_argument("--output-price-cny-per-million-tokens", type=float, default=2)
+
+    anchoring_audit = subparsers.add_parser("audit-anchoring-failures")
+    anchoring_audit.add_argument("--failure-inventory", required=True, type=Path)
+    anchoring_audit.add_argument("--frozen-manifest", required=True, type=Path)
+    anchoring_audit.add_argument("--run-dir", required=True, type=Path, action="append")
+    anchoring_audit.add_argument("--out-dir", required=True, type=Path)
 
     args = parser.parse_args(argv)
     try:
@@ -416,6 +423,16 @@ def main(argv: list[str] | None = None) -> int:
                 output_price_cny_per_million_tokens=args.output_price_cny_per_million_tokens,
             )
             print(json.dumps({"output": str(args.out_dir), "papers": report["micro_aggregate"]["paper_count"]}, ensure_ascii=False))
+            return 0
+
+        if args.command == "audit-anchoring-failures":
+            report = audit_anchoring_failures(
+                args.failure_inventory,
+                args.frozen_manifest,
+                args.run_dir,
+                args.out_dir,
+            )
+            print(json.dumps({"output": str(args.out_dir), "failures": report["total_failures"]}, ensure_ascii=False))
             return 0
     except (ValueError, ZoteroReadError, LLMError) as exc:
         parser.exit(1, f"error: {exc}\n")
