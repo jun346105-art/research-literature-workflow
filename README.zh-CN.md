@@ -92,6 +92,18 @@ python -m litflow.cli preview-obsidian-update `
 
 更多步骤见：[docs/QUICKSTART.zh-CN.md](docs/QUICKSTART.zh-CN.md)
 
+## 评估结果摘要
+
+Evaluation Run 002 development pilot：3 papers / 59 chunks。
+
+- 65 real LLM calls，0 retries，0 runner errors。
+- Baseline strict exact grounding：1 / 23；Proposed final strict exact grounding：37 / 37。
+- Candidate anchoring：57 / 100；包含 candidate 的 chunk coverage：35 / 59。
+- Proposed 人工审核为 supported 或 partially supported：36 / 37。
+- 测试：139 passed。
+
+这不是 held-out benchmark。strict exact grounding 不等于语义准确率，也不声称消除 hallucination；本轮最明确证明的是 evidence traceability 的提升。详见：[Evaluation Run 002](docs/EVALUATION_RUN_002.zh-CN.md)。
+
 ## 和普通 AI 总结器有什么不同
 
 ### 不是 summary-only，而是 evidence-grounded
@@ -190,6 +202,7 @@ python -m litflow.cli apply-obsidian-update `
 - [最小 FastAPI wrapper](docs/API.md)
 - [API sample 调用示例](docs/API_DEMO.md)
 - [评估与验收指标](docs/EVALUATION.zh-CN.md)
+- [Evaluation Run 002 development pilot](docs/EVALUATION_RUN_002.zh-CN.md)
 - [证据锚定机制](docs/EVIDENCE_GROUNDING.zh-CN.md)
 - [Dogfood Run 001](docs/DOGFOOD_RUN_001.md)
 - [架构说明](ARCHITECTURE.md)
@@ -218,7 +231,8 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1.1-anchored-evidence-pipeline`：已加入 anchored evidence pipeline 和脱敏 examples。
 - 已用本地 Zotero、PDF、Obsidian 和兼容 OpenAI API 的 LLM 验证小批量工作流。
 - 已完成 Dogfood Run 001：在新论文上验证 anchored preview，并对 1 篇执行人工确认后的 marker 区域写入。
-- 当前测试：106 passed。
+- 已完成 Evaluation Run 002：具备 guarded execution、frozen-manifest/hash validation、atomic checkpoint/resume、context/call limit 和 reproducible aggregation。
+- 当前测试：139 passed。
 
 ## 当前限制
 
@@ -235,6 +249,6 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 ## 开发检查
 
 ```powershell
-$env:PYTHONPATH='src;C:\Users\GigaByte\Documents\Codex\2026-07-01\obsidian\work\pydeps'
-python -m pytest -q -p no:cacheprovider --basetemp ".\pytest_tmp_dev"
+$env:PYTHONPATH = "src"
+python -m pytest -q -p no:cacheprovider
 ```

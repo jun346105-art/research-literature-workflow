@@ -12,6 +12,12 @@
 - Obsidian 写入是否安全；
 - 测试是否可重复运行。
 
+## Evaluation Run 002
+
+最新公开结果是一个包含 3 篇论文的 development pilot，对比了“只生成原始内容、事后不做 anchoring、repair、filtering 或 evidence rewriting 的 evaluation-only baseline”和 anchored evidence pipeline。报告包含 strict grounding、candidate anchoring、latency、provider-reported usage 与人工审核标签，但不公开私有本地 artifacts。
+
+完整的方法、结果、边界与下一阶段见：[Evaluation Run 002](EVALUATION_RUN_002.zh-CN.md)。
+
 ## 小批量 E2E 验收
 
 当前验收主题是：
@@ -28,7 +34,7 @@ logistics package defect detection RGB-D geometric verification YOLO
 - 4 篇进入 anchored evidence note generation。
 - 4 篇生成 Obsidian preview。
 - 1 篇经过人工确认后写入 Obsidian marker 区域。
-- 测试结果：106 passed。
+- 测试结果：139 passed。
 
 ## Dogfood Run 001
 
@@ -79,6 +85,10 @@ python -m litflow.cli compare-evidence-notes `
 ```
 
 这两个命令不调用 LLM。它们只记录评估运行元数据，并对 baseline note 和 anchored note 做严格 evidence grounding 对照。
+
+## 受保护执行
+
+真实执行需要显式授权、frozen manifest、输入 hash 校验、模型/API 配置和预算。默认拒绝 dirty worktree；运行器会原子写入 checkpoints、仅在配置兼容时 resume、执行 context guard 和 maximum-call limit。`call_metrics.json` 是调用次数、usage 与 latency 的权威来源。provider usage 可用时记录；只有显式配置 pricing 时才用于成本估算。已发布的三篇 development pilot 见 [Evaluation Run 002](EVALUATION_RUN_002.zh-CN.md)。
 
 ## 安全边界指标
 

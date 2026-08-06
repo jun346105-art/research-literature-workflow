@@ -90,10 +90,10 @@ Evidence validation 规则保持严格：
 
 | Zotero key | Preview path | Target note |
 | --- | --- | --- |
-| L4DLHQUZ | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/L4DLHQUZ_he2024tpmntextureprior_preview.md` | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@he2024tpmntextureprior.md` |
-| 696N7XZ8 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/696N7XZ8_zhang2024corrugatedcardboarddefect_preview.md` | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` |
-| JRIUZQ58 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/JRIUZQ58_rogalka2024decipheringdoublewalled_preview.md` | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@rogalka2024decipheringdoublewalled.md` |
-| 3NF6ZYI5 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/3NF6ZYI5_yang2020detectingdefectswith_preview.md` | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@yang2020detectingdefectswith.md` |
+| L4DLHQUZ | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/L4DLHQUZ_he2024tpmntextureprior_preview.md` | `<ObsidianVault>/00_Inbox/LiteratureReview/@he2024tpmntextureprior.md` |
+| 696N7XZ8 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/696N7XZ8_zhang2024corrugatedcardboarddefect_preview.md` | `<ObsidianVault>/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` |
+| JRIUZQ58 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/JRIUZQ58_rogalka2024decipheringdoublewalled_preview.md` | `<ObsidianVault>/00_Inbox/LiteratureReview/@rogalka2024decipheringdoublewalled.md` |
+| 3NF6ZYI5 | `outputs/e2e_logistics_package_defect_batch/obsidian_update_previews/3NF6ZYI5_yang2020detectingdefectswith_preview.md` | `<ObsidianVault>/00_Inbox/LiteratureReview/@yang2020detectingdefectswith.md` |
 
 ## 8. 2 篇 Apply 结果
 
@@ -101,8 +101,8 @@ Evidence validation 规则保持严格：
 
 | Zotero key | Applied target note | Backup path | Apply status |
 | --- | --- | --- | --- |
-| L4DLHQUZ | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@he2024tpmntextureprior.md` | `outputs/obsidian_backups/@he2024tpmntextureprior.20260701214215.md` | applied |
-| 696N7XZ8 | `D:/论文写作/文献/ResearchVault/LiteratureVault/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` | `outputs/obsidian_backups/@zhang2024corrugatedcardboarddefect.20260701214215.md` | applied |
+| L4DLHQUZ | `<ObsidianVault>/00_Inbox/LiteratureReview/@he2024tpmntextureprior.md` | `outputs/obsidian_backups/@he2024tpmntextureprior.20260701214215.md` | applied |
+| 696N7XZ8 | `<ObsidianVault>/00_Inbox/LiteratureReview/@zhang2024corrugatedcardboarddefect.md` | `outputs/obsidian_backups/@zhang2024corrugatedcarddefect.20260701214215.md` | applied |
 
 Apply manifest：
 

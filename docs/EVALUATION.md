@@ -12,6 +12,12 @@ Instead, the current MVP measures:
 - safe Obsidian write boundaries;
 - repeatable tests.
 
+## Evaluation Run 002
+
+The latest published result is a three-paper development pilot comparing an evaluation-only raw-generation baseline without post-generation anchoring, repair, filtering, or evidence rewriting with the anchored evidence pipeline. It reports strict grounding, candidate anchoring, latency, provider-reported usage, and human review labels without publishing private local artifacts.
+
+Read the full methodology, results, limits, and next phase in [Evaluation Run 002](EVALUATION_RUN_002.md).
+
 ## Small-Batch E2E Acceptance
 
 The current acceptance run used a real local workflow for the topic:
@@ -28,7 +34,7 @@ Summary:
 - 4 papers went through anchored evidence note generation.
 - 4 Obsidian previews were created.
 - 1 preview was manually approved and applied into an Obsidian marker region.
-- Test suite: 106 passed.
+- Test suite: 139 passed.
 
 ## Dogfood Run 001
 
@@ -94,7 +100,7 @@ python -m litflow.cli run-evaluation-pilot `
   --plan-only
 ```
 
-`--execute` is intentionally disabled in this phase. A separately authorized runner must supply the model, API, usage capture, pricing configuration, and budget before a real evaluation run can begin.
+Guarded execution requires explicit authorization, a frozen manifest, input hash verification, model/API configuration, and a budget. It rejects a dirty worktree by default, writes atomic checkpoints, supports compatibility-checked resume, applies a context guard and a maximum-call limit, and records calls, usage, and latency in `call_metrics.json` as the authoritative source. Provider usage is recorded when available; pricing is used for cost estimation only when explicitly configured. The published three-paper development pilot is documented in [Evaluation Run 002](EVALUATION_RUN_002.md).
 
 ## Safety Metrics
 

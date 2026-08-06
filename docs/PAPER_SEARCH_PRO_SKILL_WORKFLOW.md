@@ -7,7 +7,7 @@
 Suggested output directory for each search:
 
 ```text
-D:/论文写作/文献/paper-search-results/2026-07-01-logistics-defect-detection/
+<PAPER_SEARCH_PRO_RESULT_DIR>/2026-07-01-logistics-defect-detection/
 ```
 
 Recommended files in that directory:
@@ -27,14 +27,14 @@ Inspect the result directory:
 $env:PYTHONPATH = "src"
 
 python -m litflow.cli inspect-psp-results `
-  --input "D:/论文写作/文献/paper-search-results/2026-07-01-logistics-defect-detection"
+  --input "<PAPER_SEARCH_PRO_RESULT_DIR>/2026-07-01-logistics-defect-detection"
 ```
 
 Build the candidate pool:
 
 ```powershell
 python -m litflow.cli build-candidate-pool `
-  --input "D:/论文写作/文献/paper-search-results/2026-07-01-logistics-defect-detection" `
+  --input "<PAPER_SEARCH_PRO_RESULT_DIR>/2026-07-01-logistics-defect-detection" `
   --output "./outputs/candidate_pool.json"
 ```
 

@@ -90,6 +90,18 @@ Expected output: [examples/expected_outputs/SAMPLE001_preview.md](examples/expec
 
 More steps: [docs/QUICKSTART.md](docs/QUICKSTART.md)
 
+## Evaluation Snapshot
+
+Evaluation Run 002 development pilot: 3 papers / 59 chunks.
+
+- 65 real LLM calls, 0 retries, and 0 runner errors.
+- Baseline strict exact grounding: 1 / 23; Proposed final strict exact grounding: 37 / 37.
+- Candidate anchoring: 57 / 100; candidate-bearing chunk coverage: 35 / 59.
+- Proposed human supported or partially supported: 36 / 37.
+- Tests: 139 passed.
+
+This is not a held-out benchmark. Strict exact grounding is not semantic accuracy, and the result does not claim to eliminate hallucination. Its clearest evidence is stronger evidence traceability. Details: [Evaluation Run 002](docs/EVALUATION_RUN_002.md).
+
 ## What Makes It Different
 
 ### Evidence-grounded, not summary-only
@@ -166,6 +178,7 @@ python -m litflow.cli apply-obsidian-update `
 - [Minimal FastAPI wrapper](docs/API.md)
 - [API demo with sample data](docs/API_DEMO.md)
 - [Evaluation and acceptance metrics](docs/EVALUATION.md)
+- [Evaluation Run 002 development pilot](docs/EVALUATION_RUN_002.md)
 - [Evidence grounding](docs/EVIDENCE_GROUNDING.md)
 - [Dogfood run 001](docs/DOGFOOD_RUN_001.md)
 - [Architecture](ARCHITECTURE.md)
@@ -194,7 +207,8 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - `v0.1.1-anchored-evidence-pipeline`: anchored evidence pipeline and sanitized examples.
 - Small-batch workflow validated with local Zotero, PDFs, Obsidian, and OpenAI-compatible LLM calls.
 - Dogfood run validated anchored previews on new papers, with one manual-approved marker-region apply.
-- Current test count: 106 passed.
+- Evaluation Run 002 completed with guarded execution, frozen-manifest/hash validation, atomic checkpoint/resume, context/call limits, and reproducible aggregation.
+- Current test count: 139 passed.
 
 ## Limitations
 
@@ -210,6 +224,6 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 ## Development Check
 
 ```powershell
-$env:PYTHONPATH='src;C:\Users\GigaByte\Documents\Codex\2026-07-01\obsidian\work\pydeps'
-python -m pytest -q -p no:cacheprovider --basetemp ".\pytest_tmp_dev"
+$env:PYTHONPATH = "src"
+python -m pytest -q -p no:cacheprovider
 ```
