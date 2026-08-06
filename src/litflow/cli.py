@@ -12,6 +12,7 @@ from litflow.discovery.paper_search_pro_inspector import (
     inspect_paper_search_pro_results,
 )
 from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
+from litflow.evaluation_aggregate import aggregate_evaluation_pilot
 from litflow.evaluation_runner import ContextWindowConfig, EvaluationRunner, PricingConfig
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
@@ -163,6 +164,13 @@ def main(argv: list[str] | None = None) -> int:
     evaluation_mode = evaluation_pilot.add_mutually_exclusive_group()
     evaluation_mode.add_argument("--plan-only", action="store_true")
     evaluation_mode.add_argument("--execute", action="store_true")
+
+    aggregate_pilot = subparsers.add_parser("aggregate-evaluation-pilot")
+    aggregate_pilot.add_argument("--run-dir", required=True, type=Path, action="append")
+    aggregate_pilot.add_argument("--out-dir", required=True, type=Path)
+    aggregate_pilot.add_argument("--reviewed-csv-sha", required=True, action="append", metavar="PAPER_KEY=SHA256")
+    aggregate_pilot.add_argument("--input-price-cny-per-million-tokens", type=float, default=1)
+    aggregate_pilot.add_argument("--output-price-cny-per-million-tokens", type=float, default=2)
 
     args = parser.parse_args(argv)
     try:
@@ -386,6 +394,29 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             print(json.dumps(runner.plan(), ensure_ascii=False, indent=2))
             return 0
+
+        if args.command == "aggregate-evaluation-pilot":
+            expected_hashes = _parse_reviewed_csv_hashes(args.reviewed_csv_sha)
+            command_args = ["python", "-m", "litflow.cli", "aggregate-evaluation-pilot"]
+            for run_dir in args.run_dir:
+                command_args.extend(["--run-dir", str(run_dir)])
+            command_args.extend(["--out-dir", str(args.out_dir)])
+            for value in args.reviewed_csv_sha:
+                command_args.extend(["--reviewed-csv-sha", value])
+            command_args.extend([
+                "--input-price-cny-per-million-tokens", str(args.input_price_cny_per_million_tokens),
+                "--output-price-cny-per-million-tokens", str(args.output_price_cny_per_million_tokens),
+            ])
+            report = aggregate_evaluation_pilot(
+                args.run_dir,
+                args.out_dir,
+                expected_reviewed_sha256=expected_hashes,
+                command_args=command_args,
+                input_price_cny_per_million_tokens=args.input_price_cny_per_million_tokens,
+                output_price_cny_per_million_tokens=args.output_price_cny_per_million_tokens,
+            )
+            print(json.dumps({"output": str(args.out_dir), "papers": report["micro_aggregate"]["paper_count"]}, ensure_ascii=False))
+            return 0
     except (ValueError, ZoteroReadError, LLMError) as exc:
         parser.exit(1, f"error: {exc}\n")
 
@@ -399,6 +430,18 @@ def _research_context_arg(args: argparse.Namespace) -> str | None:
     if args.research_context_file:
         return args.research_context_file.read_text(encoding="utf-8-sig").strip()
     return args.research_context
+
+
+def _parse_reviewed_csv_hashes(values: list[str]) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for value in values:
+        paper_key, separator, digest = value.partition("=")
+        if not separator or not paper_key or len(digest) != 64 or any(character not in "0123456789abcdefABCDEF" for character in digest):
+            raise ValueError("--reviewed-csv-sha must use PAPER_KEY=64-character-SHA256")
+        if paper_key in result:
+            raise ValueError(f"duplicate --reviewed-csv-sha key: {paper_key}")
+        result[paper_key] = digest.lower()
+    return result
 
 
 if __name__ == "__main__":
