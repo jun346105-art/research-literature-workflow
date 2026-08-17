@@ -72,6 +72,7 @@ def extract_deep_reading_objects(
     max_output_tokens: int = 8192,
     safety_margin_tokens: int = 16_384,
     resume: bool = False,
+    thinking_mode: str | None = "disabled",
 ) -> DeepReadingSidecar:
     plan = plan_deep_reading(
         candidate_bank_path,
@@ -97,7 +98,9 @@ def extract_deep_reading_objects(
         raw_response = raw_path.read_text(encoding="utf-8")
         usage = {"status": "resumed", "input_tokens": None, "output_tokens": None, "total_tokens": None, "latency_ms": 0}
     else:
-        client = client or OpenAICompatibleClient.from_env()
+        client = client or OpenAICompatibleClient.from_env(thinking_mode=thinking_mode)
+        if isinstance(client, OpenAICompatibleClient) and model != client.model:
+            raise LLMError("--model must match LLM_MODEL when deep-reading execute is used")
         started = time.perf_counter()
         complete_with_usage = getattr(client, "complete_json_with_usage", None)
         if callable(complete_with_usage):
@@ -120,7 +123,7 @@ def extract_deep_reading_objects(
     _atomic_write(run_dir / "anchor_failure_ledger.json", json.dumps(_failure_ledger(sidecar), ensure_ascii=False, indent=2) + "\n")
     _atomic_write(run_dir / "validation_report.json", json.dumps(_validation_report(sidecar), ensure_ascii=False, indent=2) + "\n")
     _atomic_write(run_dir / "usage.json", json.dumps(usage, ensure_ascii=False, indent=2) + "\n")
-    _atomic_write(run_dir / "run_manifest.json", json.dumps({"run_id": run_dir.name, "plan": plan, "identity_sha256": identity, "git": _git_metadata(), "request_config": {"thinking_mode": getattr(client, "thinking_mode", None) if not resume else None, "response_format": {"type": "json_object"}}, "resume": resume}, ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(run_dir / "run_manifest.json", json.dumps({"run_id": run_dir.name, "plan": plan, "identity_sha256": identity, "git": _git_metadata(), "request_config": {"thinking_mode": thinking_mode, "response_format": {"type": "json_object"}}, "resume": resume}, ensure_ascii=False, indent=2) + "\n")
     return sidecar
 
 

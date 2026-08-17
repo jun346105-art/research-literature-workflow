@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from litflow.llm.client import LLMError
+from litflow.llm.client import LLMError, OpenAICompatibleClient
 from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_reading
 from litflow.llm.deep_reading_models import DeepReadingSidecar, ValueStatus
 from litflow.llm.models import StructuredReadingNote
@@ -65,6 +65,13 @@ def test_unanchorable_new_quote_is_downgraded_not_stated(tmp_path):
     assert sidecar.method_components[0].insertion_point.status == ValueStatus.not_found
     assert sidecar.method_components[0].insertion_point.value is None
     assert sidecar.method_components[0].insertion_point.evidence_ids == []
+
+
+def test_execute_rejects_resolved_model_mismatch_before_network(tmp_path, monkeypatch):
+    clean, bank = _inputs(tmp_path)
+    monkeypatch.setattr(OpenAICompatibleClient, "from_env", classmethod(lambda _cls, **_kwargs: OpenAICompatibleClient("https://api.example.com", "fake", "wrong-model", "disabled")))
+    with pytest.raises(LLMError, match="LLM_MODEL"):
+        extract_deep_reading_objects(bank, clean, tmp_path / "sidecar.json", model="expected-model")
 
 
 def test_cross_paper_evidence_and_unknown_component_are_rejected(tmp_path):

@@ -124,6 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     deep_reading.add_argument("--clean-context", required=True, type=Path)
     deep_reading.add_argument("--out", required=True, type=Path)
     deep_reading.add_argument("--model", default="unconfigured")
+    deep_reading.add_argument("--thinking-mode", choices=["enabled", "disabled"], default="disabled")
     deep_reading.add_argument("--context-limit-tokens", type=int, default=1_000_000)
     deep_reading.add_argument("--max-output-tokens", type=int, default=8192)
     deep_reading.add_argument("--context-safety-margin-tokens", type=int, default=16_384)
@@ -337,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.plan_only:
                 print(json.dumps(plan_deep_reading(args.candidate_bank, args.clean_context, model=args.model, context_limit_tokens=args.context_limit_tokens, max_output_tokens=args.max_output_tokens, safety_margin_tokens=args.context_safety_margin_tokens), ensure_ascii=False, indent=2))
                 return 0
-            note = extract_deep_reading_objects(args.candidate_bank, args.clean_context, args.out, model=args.model, context_limit_tokens=args.context_limit_tokens, max_output_tokens=args.max_output_tokens, safety_margin_tokens=args.context_safety_margin_tokens, resume=args.resume)
+            note = extract_deep_reading_objects(args.candidate_bank, args.clean_context, args.out, model=args.model, context_limit_tokens=args.context_limit_tokens, max_output_tokens=args.max_output_tokens, safety_margin_tokens=args.context_safety_margin_tokens, resume=args.resume, thinking_mode=args.thinking_mode)
             print(f"Wrote deep-reading objects: {args.out}")
             print(f"Method components: {len(note.method_components)}")
             return 0
