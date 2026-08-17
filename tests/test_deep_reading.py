@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 from litflow.llm.client import LLMError, OpenAICompatibleClient
-from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_reading
+from litflow.llm.deep_reading import _prompt, extract_deep_reading_objects, plan_deep_reading
 from litflow.llm.deep_reading_models import DeepReadingSidecar, ValueStatus
+from litflow.llm.evidence_registry import load_registry
 from litflow.llm.models import StructuredReadingNote
 from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 
@@ -30,6 +31,7 @@ def test_plan_only_uses_full_context_without_client(tmp_path):
     assert plan["full_context_char_count"] == sum(len(chunk) for chunk in ["Method source. New operation source.", "Experiment source.", "Ablation source."])
     assert plan["candidate_evidence_char_count"] > 0
     assert plan["prompt_char_count"] > plan["candidate_evidence_char_count"]
+    assert "status must be exactly one of" in _prompt(json.loads(clean.read_text(encoding="utf-8")), load_registry(bank, clean))
     assert plan["context_guard"]["within_limit"] is True
     with pytest.raises(ValueError, match="context limit"):
         plan_deep_reading(bank, clean, model="fake", context_limit_tokens=1, max_output_tokens=1, safety_margin_tokens=0)

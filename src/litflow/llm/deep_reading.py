@@ -140,6 +140,7 @@ def _prompt(clean: dict[str, Any], registry: EvidenceRegistry) -> str:
         "Extract only paper-stated deep-reading objects. Return JSON only.\n"
         "Use existing_evidence_ids when provided evidence supports a field. For a new source, provide quote_hints with declared chunk_id and a short contiguous quote_hint.\n"
         "Never state a value without existing_evidence_ids or quote_hints. If no support is found in the supplied context, use status not_found_in_available_context with value null.\n"
+        "For every sourced field, status must be exactly one of: stated, not_found_in_available_context, not_applicable. Do not use found, missing, not_stated, or any other status.\n"
         "Do not infer, do not use external knowledge, do not claim a component insertion point unless it is stated.\n"
         "A full-model comparison is not a single-component ablation.\n"
         f"Schema: {json.dumps(schema, ensure_ascii=False)}\n"
