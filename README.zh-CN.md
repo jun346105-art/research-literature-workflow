@@ -232,6 +232,8 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - 已用本地 Zotero、PDF、Obsidian 和兼容 OpenAI API 的 LLM 验证小批量工作流。
 - 已完成 Dogfood Run 001：在新论文上验证 anchored preview，并对 1 篇执行人工确认后的 marker 区域写入。
 - 已完成 Evaluation Run 002：具备 guarded execution、frozen-manifest/hash validation、atomic checkpoint/resume、context/call limit 和 reproducible aggregation。
+- v0.3A 方法精读对象抽取目前属于实验性且未验证能力，不作为生产功能宣传。
+- Passage-level BM25 当前仅在 AI-drafted silver qrels 上进行初步评估，需完成作者 qrels 审核后才能对外解释指标。
 - 当前测试：139 passed。
 
 ## 当前限制

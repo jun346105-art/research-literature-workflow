@@ -17,6 +17,8 @@
 - Phase 5A-5O: evidence audit, strict validation diagnosis, programmatic anchoring, chunk-constrained evidence extraction, evidence-bank grounded notes, anchored previews, and one anchored apply replacement pilot.
 - Open-source presentation: sanitized examples, English/Chinese README, API demo, and architecture diagrams.
 - Minimal FastAPI wrapper: safe HTTP endpoints for health check, evidence candidate bank generation, evidence-bank note generation, and Obsidian preview generation.
+- v0.3A deep-reading object ingestion: experimental and currently unvalidated. Two development responses were preserved, but neither satisfied the strict canonical object schema; it is not a production feature.
+- Passage-level BM25: an offline baseline built on AI-drafted silver qrels. Its retrieval metrics are preliminary and require human qrels review before external claims.
 
 For detailed acceptance metrics, see:
 
@@ -53,6 +55,8 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - No Zotero writes.
 - No public hosted deployment.
 - No production job queue or database-backed task state.
+- No validated deep-reading object ingestion or methods-preview workflow yet.
+- BM25 qrels are AI-drafted silver labels, not human-validated benchmarks.
 
 ## Recommended Next Steps
 

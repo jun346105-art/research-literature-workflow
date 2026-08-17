@@ -28,6 +28,7 @@ from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_rea
 from litflow.llm.structured_reader import read_paper_with_llm
 from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
+from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -143,6 +144,22 @@ def main(argv: list[str] | None = None) -> int:
     deep_replay.add_argument("--candidate-bank", required=True, type=Path)
     deep_replay.add_argument("--clean-context", required=True, type=Path)
     deep_replay.add_argument("--out-dir", required=True, type=Path)
+
+    rag_build = subparsers.add_parser("build-rag-corpus")
+    rag_build.add_argument("--frozen-manifest", required=True, type=Path)
+    rag_build.add_argument("--corpus", required=True, type=Path)
+    rag_build.add_argument("--manifest", required=True, type=Path)
+
+    rag_search = subparsers.add_parser("search-bm25")
+    rag_search.add_argument("--corpus", required=True, type=Path)
+    rag_search.add_argument("--query", required=True)
+    rag_search.add_argument("--top-k", type=int, default=10)
+
+    rag_evaluate = subparsers.add_parser("evaluate-bm25")
+    rag_evaluate.add_argument("--corpus", required=True, type=Path)
+    rag_evaluate.add_argument("--queries", required=True, type=Path)
+    rag_evaluate.add_argument("--out-dir", required=True, type=Path)
+    rag_evaluate.add_argument("--mode", required=True, choices=["en", "zh_raw"])
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -359,6 +376,21 @@ def main(argv: list[str] | None = None) -> int:
             sidecar = replay_deep_reading_response(args.raw_response, args.candidate_bank, args.clean_context, args.out_dir, expected_raw_sha256=args.expected_raw_sha256)
             print(f"Offline replay sidecar: {args.out_dir / 'deep_reading_objects.json'}")
             print(f"Method components: {len(sidecar.method_components)}")
+            return 0
+
+        if args.command == "build-rag-corpus":
+            report = build_corpus(args.frozen_manifest, args.corpus, args.manifest)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "search-bm25":
+            results = BM25Index(load_corpus(args.corpus)).search(args.query, top_k=args.top_k)
+            print(json.dumps(results, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "evaluate-bm25":
+            report = evaluate_bm25(args.corpus, args.queries, args.out_dir, mode=args.mode)
+            print(json.dumps(report, ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "preview-obsidian-update":
