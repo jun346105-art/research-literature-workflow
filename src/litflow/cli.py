@@ -24,7 +24,9 @@ from litflow.obsidian.apply_update import apply_obsidian_update
 from litflow.llm.client import LLMError, OpenAICompatibleClient
 from litflow.llm.evidence_bank_note import generate_note_from_evidence_bank
 from litflow.llm.evidence_candidates import build_evidence_candidate_bank
+from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_reading
 from litflow.llm.structured_reader import read_paper_with_llm
+from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
@@ -116,6 +118,23 @@ def main(argv: list[str] | None = None) -> int:
     bank_note.add_argument("--title", required=True)
     bank_note.add_argument("--research-context")
     bank_note.add_argument("--research-context-file", type=Path)
+
+    deep_reading = subparsers.add_parser("extract-deep-reading-objects")
+    deep_reading.add_argument("--candidate-bank", required=True, type=Path)
+    deep_reading.add_argument("--clean-context", required=True, type=Path)
+    deep_reading.add_argument("--out", required=True, type=Path)
+    deep_reading.add_argument("--model", default="unconfigured")
+    deep_reading.add_argument("--context-limit-tokens", type=int, default=1_000_000)
+    deep_reading.add_argument("--max-output-tokens", type=int, default=8192)
+    deep_reading.add_argument("--context-safety-margin-tokens", type=int, default=16_384)
+    deep_reading.add_argument("--resume", action="store_true")
+    deep_mode = deep_reading.add_mutually_exclusive_group(required=True)
+    deep_mode.add_argument("--plan-only", action="store_true")
+    deep_mode.add_argument("--execute", action="store_true")
+
+    deep_preview = subparsers.add_parser("preview-deep-reading-objects")
+    deep_preview.add_argument("--sidecar", required=True, type=Path)
+    deep_preview.add_argument("--out", required=True, type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -312,6 +331,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"Wrote structured reading note: {args.out}")
             print(f"Evidence links: {len(note.evidence_links)}")
+            return 0
+
+        if args.command == "extract-deep-reading-objects":
+            if args.plan_only:
+                print(json.dumps(plan_deep_reading(args.candidate_bank, args.clean_context, model=args.model, context_limit_tokens=args.context_limit_tokens, max_output_tokens=args.max_output_tokens, safety_margin_tokens=args.context_safety_margin_tokens), ensure_ascii=False, indent=2))
+                return 0
+            note = extract_deep_reading_objects(args.candidate_bank, args.clean_context, args.out, model=args.model, context_limit_tokens=args.context_limit_tokens, max_output_tokens=args.max_output_tokens, safety_margin_tokens=args.context_safety_margin_tokens, resume=args.resume)
+            print(f"Wrote deep-reading objects: {args.out}")
+            print(f"Method components: {len(note.method_components)}")
+            return 0
+
+        if args.command == "preview-deep-reading-objects":
+            preview_deep_reading_objects(args.sidecar, args.out)
+            print(f"Preview: {args.out}")
             return 0
 
         if args.command == "preview-obsidian-update":
