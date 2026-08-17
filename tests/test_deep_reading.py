@@ -137,6 +137,19 @@ def test_found_without_anchor_downgrades_and_replay_is_offline(tmp_path, monkeyp
     assert not (tmp_path / "bad-replay").exists()
 
 
+def test_offline_replay_persists_validation_failure_without_sidecar(tmp_path):
+    clean, bank = _inputs(tmp_path)
+    payload = _payload()
+    payload["ablation_records"][0]["ablation_design"]["value"] = "unknown comparison"
+    raw = tmp_path / "raw_response.txt"
+    raw.write_text(json.dumps(payload), encoding="utf-8")
+    out = tmp_path / "failed-replay"
+    with pytest.raises(ValueError, match="unknown canonical enum"):
+        replay_deep_reading_response(raw, bank, clean, out, expected_raw_sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
+    assert json.loads((out / "offline_replay_manifest.json").read_text(encoding="utf-8"))["status"] == "validation_failed"
+    assert not (out / "deep_reading_objects.json").exists()
+
+
 def test_provider_usage_and_manifest_persist_before_schema_failure(tmp_path):
     clean, bank = _inputs(tmp_path)
     payload = _payload()

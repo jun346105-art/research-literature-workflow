@@ -315,17 +315,24 @@ def replay_deep_reading_response(raw_response_path: Path, candidate_bank_path: P
     raw = raw_response_path.read_text(encoding="utf-8-sig")
     if _sha256_file(raw_response_path) != expected_raw_sha256:
         raise ValueError("raw response SHA-256 mismatch")
-    registry = load_registry(candidate_bank_path, clean_context_path)
-    clean = _load(clean_context_path)
-    payload, normalization_ledger = normalize_deep_reading_response(_parse_json_response(raw))
-    sidecar = _assemble(payload, clean, registry, _sha256_file(candidate_bank_path), normalization_ledger)
+    manifest = {"role": "offline_replay", "raw_response_sha256": expected_raw_sha256, "candidate_bank_sha256": _sha256_file(candidate_bank_path), "clean_context_sha256": _sha256_file(clean_context_path), "external_llm_called": False}
+    try:
+        registry = load_registry(candidate_bank_path, clean_context_path)
+        clean = _load(clean_context_path)
+        payload, normalization_ledger = normalize_deep_reading_response(_parse_json_response(raw))
+        sidecar = _assemble(payload, clean, registry, _sha256_file(candidate_bank_path), normalization_ledger)
+    except Exception as exc:
+        out_dir.mkdir(parents=True)
+        _atomic_write(out_dir / "offline_replay_manifest.json", json.dumps({**manifest, "status": "validation_failed"}, indent=2) + "\n")
+        _atomic_write(out_dir / "validation_report.json", json.dumps({"schema_valid": False, "error_type": type(exc).__name__, "error": str(exc)}, ensure_ascii=False, indent=2) + "\n")
+        raise
     out_dir.mkdir(parents=True)
     _atomic_write(out_dir / "deep_reading_objects.json", sidecar.model_dump_json(indent=2) + "\n")
     _atomic_write(out_dir / "evidence_registry.json", json.dumps([record.model_dump() for record in sidecar.evidence_registry], ensure_ascii=False, indent=2) + "\n")
     _atomic_write(out_dir / "normalization_ledger.json", json.dumps(normalization_ledger, ensure_ascii=False, indent=2) + "\n")
     _atomic_write(out_dir / "anchor_failure_ledger.json", json.dumps(_failure_ledger(sidecar), ensure_ascii=False, indent=2) + "\n")
     _atomic_write(out_dir / "validation_report.json", json.dumps(_validation_report(sidecar), ensure_ascii=False, indent=2) + "\n")
-    _atomic_write(out_dir / "offline_replay_manifest.json", json.dumps({"role": "offline_replay", "raw_response_sha256": expected_raw_sha256, "candidate_bank_sha256": _sha256_file(candidate_bank_path), "clean_context_sha256": _sha256_file(clean_context_path), "external_llm_called": False}, indent=2) + "\n")
+    _atomic_write(out_dir / "offline_replay_manifest.json", json.dumps({**manifest, "status": "validation_success"}, indent=2) + "\n")
     preview_deep_reading_objects(out_dir / "deep_reading_objects.json", out_dir / "deep_reading_preview.md")
     return sidecar
 
