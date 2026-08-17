@@ -24,7 +24,7 @@ from litflow.obsidian.apply_update import apply_obsidian_update
 from litflow.llm.client import LLMError, OpenAICompatibleClient
 from litflow.llm.evidence_bank_note import generate_note_from_evidence_bank
 from litflow.llm.evidence_candidates import build_evidence_candidate_bank
-from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_reading
+from litflow.llm.deep_reading import extract_deep_reading_objects, plan_deep_reading, replay_deep_reading_response
 from litflow.llm.structured_reader import read_paper_with_llm
 from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
@@ -136,6 +136,13 @@ def main(argv: list[str] | None = None) -> int:
     deep_preview = subparsers.add_parser("preview-deep-reading-objects")
     deep_preview.add_argument("--sidecar", required=True, type=Path)
     deep_preview.add_argument("--out", required=True, type=Path)
+
+    deep_replay = subparsers.add_parser("replay-deep-reading-response")
+    deep_replay.add_argument("--raw-response", required=True, type=Path)
+    deep_replay.add_argument("--expected-raw-sha256", required=True)
+    deep_replay.add_argument("--candidate-bank", required=True, type=Path)
+    deep_replay.add_argument("--clean-context", required=True, type=Path)
+    deep_replay.add_argument("--out-dir", required=True, type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -346,6 +353,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "preview-deep-reading-objects":
             preview_deep_reading_objects(args.sidecar, args.out)
             print(f"Preview: {args.out}")
+            return 0
+
+        if args.command == "replay-deep-reading-response":
+            sidecar = replay_deep_reading_response(args.raw_response, args.candidate_bank, args.clean_context, args.out_dir, expected_raw_sha256=args.expected_raw_sha256)
+            print(f"Offline replay sidecar: {args.out_dir / 'deep_reading_objects.json'}")
+            print(f"Method components: {len(sidecar.method_components)}")
             return 0
 
         if args.command == "preview-obsidian-update":

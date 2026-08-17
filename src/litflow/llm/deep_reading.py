@@ -11,14 +11,17 @@ from typing import Any
 
 from litflow.llm.client import LLMClient, LLMError, OpenAICompatibleClient
 from litflow.llm.deep_reading_models import (
-    AblationRecord, DeepReadingSidecar, ExperimentRecord, MethodComponent, MetricRecord,
-    NamedSetting, PaperStatedClaim, SourcedValue, ValueStatus, not_found_value,
+    AblationDesign, AblationRecord, ArchitectureStage, DeepReadingSidecar, ExperimentRecord,
+    MethodComponent, MetricRecord, NamedSetting, OperationType, PaperStatedClaim,
+    SourcedValue, ValueStatus, not_found_value,
 )
 from litflow.llm.evidence_registry import EvidenceRegistry, load_registry
 from litflow.llm.structured_reader import _parse_json_response
+from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 
 
 DEEP_READING_PROMPT_VERSION = "deep-reading-objects-v0.3A"
+STATUS_ALIASES = {"found": "stated", "stated": "stated", "not_found_in_available_context": "not_found_in_available_context", "not_applicable": "not_applicable"}
 
 
 def plan_deep_reading(
@@ -112,18 +115,23 @@ def extract_deep_reading_objects(
             usage = {"status": "usage_unavailable", "input_tokens": None, "output_tokens": None, "total_tokens": None, "latency_ms": round((time.perf_counter() - started) * 1000, 3)}
         _atomic_write(raw_path, raw_response)
         _atomic_write(checkpoint_path, json.dumps({"identity_sha256": identity, "response_sha256": _sha256_file(raw_path), "prompt_sha256": plan["prompt_sha256"]}, indent=2) + "\n")
+        _persist_transport_artifacts(run_dir, plan, identity, usage, thinking_mode, resume, status="provider_response_received")
     try:
         payload = _parse_json_response(raw_response)
-        sidecar = _assemble(payload, clean, registry, _sha256_file(candidate_bank_path))
+        payload, normalization_ledger = normalize_deep_reading_response(payload)
+        sidecar = _assemble(payload, clean, registry, _sha256_file(candidate_bank_path), normalization_ledger)
     except Exception as exc:
         _write_error(output_path, raw_response, exc)
+        _atomic_write(run_dir / "validation_report.json", json.dumps({"schema_valid": False, "error_type": type(exc).__name__, "error": str(exc)}, ensure_ascii=False, indent=2) + "\n")
+        _persist_transport_artifacts(run_dir, plan, identity, usage, thinking_mode, resume, status="validation_failed")
         raise LLMError(f"LLM returned invalid deep-reading objects; raw response saved to {output_path.with_suffix('.error.json')}") from exc
     _atomic_write(output_path, sidecar.model_dump_json(indent=2) + "\n")
     _atomic_write(run_dir / "evidence_registry.json", json.dumps([record.model_dump() for record in sidecar.evidence_registry], ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(run_dir / "normalization_ledger.json", json.dumps(normalization_ledger, ensure_ascii=False, indent=2) + "\n")
     _atomic_write(run_dir / "anchor_failure_ledger.json", json.dumps(_failure_ledger(sidecar), ensure_ascii=False, indent=2) + "\n")
     _atomic_write(run_dir / "validation_report.json", json.dumps(_validation_report(sidecar), ensure_ascii=False, indent=2) + "\n")
     _atomic_write(run_dir / "usage.json", json.dumps(usage, ensure_ascii=False, indent=2) + "\n")
-    _atomic_write(run_dir / "run_manifest.json", json.dumps({"run_id": run_dir.name, "plan": plan, "identity_sha256": identity, "git": _git_metadata(), "request_config": {"thinking_mode": thinking_mode, "response_format": {"type": "json_object"}}, "resume": resume}, ensure_ascii=False, indent=2) + "\n")
+    _persist_transport_artifacts(run_dir, plan, identity, usage, thinking_mode, resume, status="validation_success")
     return sidecar
 
 
@@ -153,7 +161,7 @@ def _raw_value() -> dict[str, Any]:
     return {"value": None, "status": "not_found_in_available_context", "existing_evidence_ids": [], "quote_hints": [], "raw_value": None, "warnings": []}
 
 
-def _assemble(payload: dict[str, Any], clean: dict[str, Any], registry: EvidenceRegistry, bank_sha: str) -> DeepReadingSidecar:
+def _assemble(payload: dict[str, Any], clean: dict[str, Any], registry: EvidenceRegistry, bank_sha: str, normalization_ledger: list[dict[str, Any]] | None = None) -> DeepReadingSidecar:
     metadata = clean.get("metadata", {})
     key = metadata.get("zotero_key") or registry.zotero_key
     warnings: list[str] = []
@@ -171,7 +179,7 @@ def _assemble(payload: dict[str, Any], clean: dict[str, Any], registry: Evidence
         method_components=components,
         experiment_records=experiments,
         ablation_records=ablations,
-        warnings=warnings,
+        warnings=warnings + [f"normalization: {item['rule']} at {item['path']}" for item in normalization_ledger or []],
     )
 
 
@@ -208,7 +216,7 @@ def _claim(raw: dict[str, Any], registry: EvidenceRegistry, key: str, index: int
 def _component(raw: dict[str, Any], registry: EvidenceRegistry, key: str, index: int, warnings: list[str]) -> MethodComponent:
     names = ("name", "architecture_stage", "operation_type", "insertion_point", "input_description", "operation_description", "output_description", "addressed_problem", "author_claimed_effect", "stated_design_motivation")
     values = {name: _value(raw.get(name), registry, warnings) for name in names}
-    return MethodComponent(component_id=f"{key}:component:{index:04d}", **values)
+    return MethodComponent(component_id=f"{key}:component:{index:04d}", architecture_stage_raw=_raw_label(raw.get("architecture_stage")), operation_type_raw=_raw_label(raw.get("operation_type")), **values)
 
 
 def _metric(raw: dict[str, Any], registry: EvidenceRegistry, warnings: list[str]) -> MetricRecord:
@@ -239,6 +247,92 @@ def _sha256_text(value: str) -> str:
 def _write_error(output_path: Path, raw_response: str, error: Exception) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.with_suffix(".error.json").write_text(json.dumps({"error_type": type(error).__name__, "error": str(error), "raw_response": raw_response}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def normalize_deep_reading_response(payload: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    if not isinstance(payload, dict):
+        raise ValueError("raw transport response must be a JSON object")
+    ledger: list[dict[str, Any]] = []
+    _normalize_statuses(payload, ledger)
+    for index, component in enumerate(payload.get("method_components", [])):
+        _normalize_enum_value(component, "architecture_stage", {item.value for item in ArchitectureStage}, "unknown", f"method_components[{index}].architecture_stage", ledger)
+        _normalize_enum_value(component, "operation_type", {item.value for item in OperationType}, "other", f"method_components[{index}].operation_type", ledger)
+    for index, record in enumerate(payload.get("ablation_records", [])):
+        _normalize_enum_value(record, "ablation_design", {item.value for item in AblationDesign}, None, f"ablation_records[{index}].ablation_design", ledger)
+    return payload, ledger
+
+
+def _normalize_statuses(value: Any, ledger: list[dict[str, Any]], path: str = "") -> None:
+    if isinstance(value, dict):
+        if "status" in value:
+            raw = value["status"]
+            normalized = str(raw).strip().casefold()
+            if normalized not in STATUS_ALIASES:
+                raise ValueError(f"unsupported sourced-value status: {raw}")
+            canonical = STATUS_ALIASES[normalized]
+            if raw != canonical:
+                ledger.append({"path": path or "$", "rule": "status_alias", "raw_label": raw, "canonical_label": canonical})
+            value["status"] = canonical
+        for key, child in value.items():
+            _normalize_statuses(child, ledger, f"{path}.{key}".strip("."))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _normalize_statuses(child, ledger, f"{path}[{index}]")
+
+
+def _normalize_enum_value(record: dict[str, Any], field: str, allowed: set[str], fallback: str | None, path: str, ledger: list[dict[str, Any]]) -> None:
+    sourced = record.get(field)
+    if not isinstance(sourced, dict) or sourced.get("status") != "stated" or sourced.get("value") is None:
+        return
+    raw = str(sourced["value"])
+    normalized = _normalized_label(raw)
+    canonical = next((item for item in allowed if _normalized_label(item) == normalized), None)
+    if canonical is None:
+        if fallback is None:
+            raise ValueError(f"unknown canonical enum label for {field}: {raw}")
+        sourced["value"] = fallback
+        sourced["raw_label"] = raw
+        ledger.append({"path": path, "rule": "enum_other_fallback", "raw_label": raw, "canonical_label": fallback})
+    else:
+        sourced["value"] = canonical
+        if raw != canonical:
+            ledger.append({"path": path, "rule": "enum_label_normalization", "raw_label": raw, "canonical_label": canonical})
+
+
+def _normalized_label(value: str) -> str:
+    import re
+
+    return re.sub(r"[\s_-]+", "_", value.strip().casefold())
+
+
+def _raw_label(value: Any) -> str | None:
+    return value.get("raw_label") if isinstance(value, dict) else None
+
+
+def replay_deep_reading_response(raw_response_path: Path, candidate_bank_path: Path, clean_context_path: Path, out_dir: Path, *, expected_raw_sha256: str) -> DeepReadingSidecar:
+    if out_dir.exists() and any(out_dir.iterdir()):
+        raise ValueError("offline replay output directory already exists and is nonempty")
+    raw = raw_response_path.read_text(encoding="utf-8-sig")
+    if _sha256_file(raw_response_path) != expected_raw_sha256:
+        raise ValueError("raw response SHA-256 mismatch")
+    registry = load_registry(candidate_bank_path, clean_context_path)
+    clean = _load(clean_context_path)
+    payload, normalization_ledger = normalize_deep_reading_response(_parse_json_response(raw))
+    sidecar = _assemble(payload, clean, registry, _sha256_file(candidate_bank_path), normalization_ledger)
+    out_dir.mkdir(parents=True)
+    _atomic_write(out_dir / "deep_reading_objects.json", sidecar.model_dump_json(indent=2) + "\n")
+    _atomic_write(out_dir / "evidence_registry.json", json.dumps([record.model_dump() for record in sidecar.evidence_registry], ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(out_dir / "normalization_ledger.json", json.dumps(normalization_ledger, ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(out_dir / "anchor_failure_ledger.json", json.dumps(_failure_ledger(sidecar), ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(out_dir / "validation_report.json", json.dumps(_validation_report(sidecar), ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(out_dir / "offline_replay_manifest.json", json.dumps({"role": "offline_replay", "raw_response_sha256": expected_raw_sha256, "candidate_bank_sha256": _sha256_file(candidate_bank_path), "clean_context_sha256": _sha256_file(clean_context_path), "external_llm_called": False}, indent=2) + "\n")
+    preview_deep_reading_objects(out_dir / "deep_reading_objects.json", out_dir / "deep_reading_preview.md")
+    return sidecar
+
+
+def _persist_transport_artifacts(run_dir: Path, plan: dict[str, Any], identity: str, usage: dict[str, Any], thinking_mode: str | None, resume: bool, *, status: str) -> None:
+    _atomic_write(run_dir / "usage.json", json.dumps(usage, ensure_ascii=False, indent=2) + "\n")
+    _atomic_write(run_dir / "run_manifest.json", json.dumps({"run_id": run_dir.name, "plan": plan, "identity_sha256": identity, "git": _git_metadata(), "request_config": {"thinking_mode": thinking_mode, "response_format": {"type": "json_object"}}, "resume": resume, "call_status": status}, ensure_ascii=False, indent=2) + "\n")
 
 
 def _failure_ledger(sidecar: DeepReadingSidecar) -> dict[str, Any]:

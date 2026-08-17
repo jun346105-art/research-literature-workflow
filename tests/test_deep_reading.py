@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
 from litflow.llm.client import LLMError, OpenAICompatibleClient
-from litflow.llm.deep_reading import _prompt, extract_deep_reading_objects, plan_deep_reading
+from litflow.llm.deep_reading import _prompt, extract_deep_reading_objects, normalize_deep_reading_response, plan_deep_reading, replay_deep_reading_response
 from litflow.llm.deep_reading_models import DeepReadingSidecar, ValueStatus
 from litflow.llm.evidence_registry import load_registry
 from litflow.llm.models import StructuredReadingNote
@@ -21,6 +22,14 @@ class FakeLLM:
     def complete_json(self, _prompt: str) -> str:
         self.calls += 1
         return json.dumps(self.response)
+
+
+class FakeUsageLLM(FakeLLM):
+    def complete_json_with_usage(self, prompt: str, **_kwargs):
+        from litflow.llm.client import LLMCompletion
+
+        self.calls += 1
+        return LLMCompletion(json.dumps(self.response), input_tokens=10, output_tokens=5, total_tokens=15)
 
 
 def test_plan_only_uses_full_context_without_client(tmp_path):
@@ -92,6 +101,52 @@ def test_cross_paper_evidence_and_unknown_component_are_rejected(tmp_path):
     payload["method_components"][0]["insertion_point"]["status"] = "not_stated"
     with pytest.raises(LLMError):
         extract_deep_reading_objects(bank, clean, tmp_path / "bad-status.json", client=FakeLLM(payload))
+
+
+def test_normalization_found_and_controlled_enum_rules(tmp_path):
+    payload = _payload()
+    payload["method_components"][0]["operation_type"]["value"] = "feature extraction"
+    payload["method_components"][0]["operation_type"]["status"] = "found"
+    normalized, ledger = normalize_deep_reading_response(payload)
+    operation = normalized["method_components"][0]["operation_type"]
+    assert operation["status"] == "stated"
+    assert operation["value"] == "other"
+    assert operation["raw_label"] == "feature extraction"
+    assert any(item["rule"] == "status_alias" for item in ledger)
+    assert any(item["rule"] == "enum_other_fallback" for item in ledger)
+
+    payload = _payload()
+    payload["ablation_records"][0]["ablation_design"]["value"] = "custom comparison"
+    with pytest.raises(ValueError, match="unknown canonical enum"):
+        normalize_deep_reading_response(payload)
+
+
+def test_found_without_anchor_downgrades_and_replay_is_offline(tmp_path, monkeypatch):
+    clean, bank = _inputs(tmp_path)
+    payload = _payload()
+    payload["method_components"][0]["insertion_point"] = _quote("not present", "P1_chunk_0001", "backbone")
+    payload["method_components"][0]["insertion_point"]["status"] = "found"
+    raw = tmp_path / "raw_response.txt"
+    raw.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    replay = replay_deep_reading_response(raw, bank, clean, tmp_path / "replay", expected_raw_sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
+    assert replay.method_components[0].insertion_point.status == ValueStatus.not_found
+    assert (tmp_path / "replay" / "deep_reading_preview.md").is_file()
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        replay_deep_reading_response(raw, bank, clean, tmp_path / "bad-replay", expected_raw_sha256="0" * 64)
+    assert not (tmp_path / "bad-replay").exists()
+
+
+def test_provider_usage_and_manifest_persist_before_schema_failure(tmp_path):
+    clean, bank = _inputs(tmp_path)
+    payload = _payload()
+    payload["ablation_records"][0]["ablation_design"]["value"] = "unknown comparison"
+    with pytest.raises(LLMError):
+        extract_deep_reading_objects(bank, clean, tmp_path / "sidecar.json", client=FakeUsageLLM(payload))
+    usage = json.loads((tmp_path / "usage.json").read_text(encoding="utf-8"))
+    manifest = json.loads((tmp_path / "run_manifest.json").read_text(encoding="utf-8"))
+    assert usage["total_tokens"] == 15
+    assert manifest["call_status"] == "validation_failed"
 
 
 def test_preview_is_sidecar_only_and_old_structured_note_still_valid(tmp_path):

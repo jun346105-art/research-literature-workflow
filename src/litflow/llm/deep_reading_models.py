@@ -87,7 +87,9 @@ class MethodComponent(BaseModel):
     component_id: str
     name: SourcedValue[str]
     architecture_stage: SourcedValue[ArchitectureStage]
+    architecture_stage_raw: str | None = None
     operation_type: SourcedValue[OperationType]
+    operation_type_raw: str | None = None
     insertion_point: SourcedValue[str]
     input_description: SourcedValue[str]
     operation_description: SourcedValue[str]
