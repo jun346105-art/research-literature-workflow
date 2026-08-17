@@ -258,7 +258,7 @@ def normalize_deep_reading_response(payload: dict[str, Any]) -> tuple[dict[str, 
         _normalize_enum_value(component, "architecture_stage", {item.value for item in ArchitectureStage}, "unknown", f"method_components[{index}].architecture_stage", ledger)
         _normalize_enum_value(component, "operation_type", {item.value for item in OperationType}, "other", f"method_components[{index}].operation_type", ledger)
     for index, record in enumerate(payload.get("ablation_records", [])):
-        _normalize_enum_value(record, "ablation_design", {item.value for item in AblationDesign}, None, f"ablation_records[{index}].ablation_design", ledger)
+        _normalize_enum_value(record, "ablation_design", {item.value for item in AblationDesign}, "unclear", f"ablation_records[{index}].ablation_design", ledger, warning_rule="unknown_ablation_design_normalized_to_unclear")
     return payload, ledger
 
 
@@ -280,7 +280,7 @@ def _normalize_statuses(value: Any, ledger: list[dict[str, Any]], path: str = ""
             _normalize_statuses(child, ledger, f"{path}[{index}]")
 
 
-def _normalize_enum_value(record: dict[str, Any], field: str, allowed: set[str], fallback: str | None, path: str, ledger: list[dict[str, Any]]) -> None:
+def _normalize_enum_value(record: dict[str, Any], field: str, allowed: set[str], fallback: str | None, path: str, ledger: list[dict[str, Any]], *, warning_rule: str | None = None) -> None:
     sourced = record.get(field)
     if not isinstance(sourced, dict) or sourced.get("status") != "stated" or sourced.get("value") is None:
         return
@@ -292,7 +292,7 @@ def _normalize_enum_value(record: dict[str, Any], field: str, allowed: set[str],
             raise ValueError(f"unknown canonical enum label for {field}: {raw}")
         sourced["value"] = fallback
         sourced["raw_label"] = raw
-        ledger.append({"path": path, "rule": "enum_other_fallback", "raw_label": raw, "canonical_label": fallback})
+        ledger.append({"path": path, "rule": warning_rule or "enum_other_fallback", "raw_label": raw, "canonical_label": fallback})
     else:
         sourced["value"] = canonical
         if raw != canonical:

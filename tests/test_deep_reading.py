@@ -117,8 +117,11 @@ def test_normalization_found_and_controlled_enum_rules(tmp_path):
 
     payload = _payload()
     payload["ablation_records"][0]["ablation_design"]["value"] = "custom comparison"
-    with pytest.raises(ValueError, match="unknown canonical enum"):
-        normalize_deep_reading_response(payload)
+    normalized, ledger = normalize_deep_reading_response(payload)
+    design = normalized["ablation_records"][0]["ablation_design"]
+    assert design["value"] == "unclear"
+    assert design["raw_label"] == "custom comparison"
+    assert any(item["rule"] == "unknown_ablation_design_normalized_to_unclear" for item in ledger)
 
 
 def test_found_without_anchor_downgrades_and_replay_is_offline(tmp_path, monkeypatch):
@@ -140,11 +143,11 @@ def test_found_without_anchor_downgrades_and_replay_is_offline(tmp_path, monkeyp
 def test_offline_replay_persists_validation_failure_without_sidecar(tmp_path):
     clean, bank = _inputs(tmp_path)
     payload = _payload()
-    payload["ablation_records"][0]["ablation_design"]["value"] = "unknown comparison"
+    payload["paper_stated_claims"][0]["statement"]["status"] = "invalid_status"
     raw = tmp_path / "raw_response.txt"
     raw.write_text(json.dumps(payload), encoding="utf-8")
     out = tmp_path / "failed-replay"
-    with pytest.raises(ValueError, match="unknown canonical enum"):
+    with pytest.raises(ValueError, match="unsupported sourced-value status"):
         replay_deep_reading_response(raw, bank, clean, out, expected_raw_sha256=hashlib.sha256(raw.read_bytes()).hexdigest())
     assert json.loads((out / "offline_replay_manifest.json").read_text(encoding="utf-8"))["status"] == "validation_failed"
     assert not (out / "deep_reading_objects.json").exists()
@@ -153,7 +156,7 @@ def test_offline_replay_persists_validation_failure_without_sidecar(tmp_path):
 def test_provider_usage_and_manifest_persist_before_schema_failure(tmp_path):
     clean, bank = _inputs(tmp_path)
     payload = _payload()
-    payload["ablation_records"][0]["ablation_design"]["value"] = "unknown comparison"
+    payload["paper_stated_claims"][0]["statement"]["status"] = "invalid_status"
     with pytest.raises(LLMError):
         extract_deep_reading_objects(bank, clean, tmp_path / "sidecar.json", client=FakeUsageLLM(payload))
     usage = json.loads((tmp_path / "usage.json").read_text(encoding="utf-8"))
