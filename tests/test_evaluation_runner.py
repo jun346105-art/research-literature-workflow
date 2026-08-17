@@ -73,6 +73,7 @@ def test_plan_only_uses_manifest_counts_and_never_calls_llm(tmp_path):
     report = EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0, client=client).plan()
 
     assert report["paper_count"] == 3
+    assert report["role"] == "development_pilot"
     assert [item["chunk_count"] for item in report["papers"]] == [2, 2, 2]
     assert report["estimated_calls"] == {
         "baseline_initial": 3,
@@ -84,6 +85,31 @@ def test_plan_only_uses_manifest_counts_and_never_calls_llm(tmp_path):
     assert client.calls == []
     assert all(item["baseline_prompt_char_count"] > 0 for item in report["papers"])
     assert all(item["proposed_candidate_prompt_char_count"] > 0 for item in report["papers"])
+
+
+def test_held_out_role_is_inherited_by_plan_execute_and_resume_identity(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path, role="held_out_production_validation")
+    run_dir = tmp_path / "run"
+    runner = EvaluationRunner(manifest, run_dir, research_context, model="fake", temperature=0, client=StageAwareFakeLLM(), allow_dirty=True)
+
+    assert runner.plan()["role"] == "held_out_production_validation"
+    result = runner.execute()
+    run_manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    identity = json.loads((run_dir / "run_identity.json").read_text(encoding="utf-8"))
+    assert result["plan"]["role"] == "held_out_production_validation"
+    assert run_manifest["role"] == "held_out_production_validation"
+    assert run_manifest["plan"]["role"] == "held_out_production_validation"
+    assert identity["role"] == "held_out_production_validation"
+
+
+def test_missing_role_keeps_legacy_development_compatibility_and_invalid_role_fails(tmp_path):
+    manifest, research_context = _frozen_inputs(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8")); payload["metadata"] = {}
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    assert EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0).plan()["role"] == "development_pilot"
+    payload["metadata"]["role"] = "unknown_role"; manifest.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(FrozenInputError, match="unsupported frozen manifest role"):
+        EvaluationRunner(manifest, tmp_path / "run", research_context, model="fake", temperature=0).plan()
 
 
 def test_plan_only_can_select_one_frozen_paper_with_dynamic_call_budget(tmp_path):
@@ -535,7 +561,7 @@ class MissingBaselineContentFake(StageAwareFakeLLM):
         return super().complete_json(prompt)
 
 
-def _frozen_inputs(tmp_path: Path, chunk_count: int = 2) -> tuple[Path, Path]:
+def _frozen_inputs(tmp_path: Path, chunk_count: int = 2, role: str = "development_pilot") -> tuple[Path, Path]:
     papers = []
     for index, key in enumerate(("P1", "P2", "P3"), 1):
         pdf = tmp_path / f"{key}.pdf"
@@ -566,7 +592,7 @@ def _frozen_inputs(tmp_path: Path, chunk_count: int = 2) -> tuple[Path, Path]:
             }
         )
     manifest = tmp_path / "frozen.json"
-    manifest.write_text(json.dumps({"metadata": {"role": "development_pilot"}, "papers": papers}), encoding="utf-8")
+    manifest.write_text(json.dumps({"metadata": {"role": role}, "papers": papers}), encoding="utf-8")
     research_context = tmp_path / "research_context.txt"
     research_context.write_text("same research context", encoding="utf-8")
     return manifest, research_context

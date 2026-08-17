@@ -27,6 +27,7 @@ RAW_BASELINE_PROMPT_VERSION = "raw-baseline-multichunk-v2"
 RAW_BASELINE_CONTENT_SCHEMA_VERSION = "raw-baseline-content-v1"
 PROPOSED_CANDIDATE_PROMPT_VERSION = "chunk-constrained-evidence-v1"
 PROPOSED_FINAL_PROMPT_VERSION = "evidence-bank-note-v1"
+EVALUATION_ROLES = {"development_pilot", "held_out_production_validation"}
 
 
 class FrozenInputError(ValueError):
@@ -148,7 +149,7 @@ class EvaluationRunner:
             raise ValueError("thinking_mode must be enabled or disabled")
 
     def plan(self) -> dict[str, Any]:
-        papers, research_context = self._verified_inputs()
+        papers, research_context, role = self._verified_inputs()
         paper_plans = []
         for paper in papers:
             clean_context = _load_json(paper.clean_context_path)
@@ -175,7 +176,7 @@ class EvaluationRunner:
         candidate_calls = sum(item["proposed_candidate_expected_calls"] for item in paper_plans)
         final_calls = len(paper_plans)
         return {
-            "role": "development_pilot",
+            "role": role,
             "resolved_model": self.model,
             "manifest": str(self.frozen_manifest_path),
             "research_context": {
@@ -202,14 +203,14 @@ class EvaluationRunner:
         if self.client is None:
             raise LLMError("execute requires an explicitly injected LLM client")
         plan = self.plan()
-        papers, research_context = self._verified_inputs()
+        papers, research_context, role = self._verified_inputs()
         git_metadata = _git_metadata(self.frozen_manifest_path)
         if git_metadata["git_worktree_status"] == "dirty" and not self.allow_dirty:
             raise WorktreePolicyError("dirty worktree rejected; use allow_dirty only for an explicitly documented exception")
         if self.max_calls is not None and plan["estimated_calls"]["minimum_total"] > self.max_calls:
             raise CallLimitError("planned minimum LLM calls exceed max_calls")
         self.out_dir.mkdir(parents=True, exist_ok=True)
-        identity = self._run_identity(git_metadata)
+        identity = self._run_identity(git_metadata, role)
         _prepare_run_identity(self.out_dir, identity, resume=self.resume)
         recorder = _CallRecorder(
             self.model,
@@ -261,6 +262,7 @@ class EvaluationRunner:
         _write_json(
             self.out_dir / "run_manifest.json",
             {
+                "role": role,
                 "plan": plan,
                 "executed_at": _now(),
                 "model": self.model,
@@ -284,8 +286,9 @@ class EvaluationRunner:
         _write_manual_review_csv(self.out_dir / "manual_claim_evidence_review.csv", comparisons, papers)
         return {"plan": plan, "aggregate": aggregate, "errors": errors}
 
-    def _run_identity(self, git_metadata: dict[str, str | None]) -> dict[str, Any]:
+    def _run_identity(self, git_metadata: dict[str, str | None], role: str) -> dict[str, Any]:
         return {
+            "role": role,
             "frozen_manifest_sha256": _sha256_file(self.frozen_manifest_path),
             "research_context_sha256": _sha256_file(self.research_context_path),
             "model": self.model,
@@ -307,10 +310,17 @@ class EvaluationRunner:
             "response_format": {"type": "json_object"},
         }
 
-    def _verified_inputs(self) -> tuple[list[FrozenPaper], str]:
+    def _verified_inputs(self) -> tuple[list[FrozenPaper], str, str]:
         if not self.research_context_path.is_file():
             raise FrozenInputError(f"research context file not found: {self.research_context_path}")
         payload = _load_json(self.frozen_manifest_path)
+        metadata = payload.get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise FrozenInputError("frozen manifest metadata must be an object")
+        # Legacy Run 002 manifests omitted role; new manifests must declare one explicitly.
+        role = metadata.get("role", "development_pilot")
+        if not isinstance(role, str) or role not in EVALUATION_ROLES:
+            raise FrozenInputError(f"unsupported frozen manifest role: {role!r}")
         papers = payload.get("papers")
         if not isinstance(papers, list) or len(papers) != 3:
             raise FrozenInputError("frozen manifest must contain exactly three papers")
@@ -349,7 +359,7 @@ class EvaluationRunner:
             frozen = [paper for paper in frozen if paper.zotero_key == self.paper_key]
             if not frozen:
                 raise FrozenInputError(f"paper_key is not present in frozen manifest: {self.paper_key}")
-        return frozen, self.research_context_path.read_text(encoding="utf-8-sig")
+        return frozen, self.research_context_path.read_text(encoding="utf-8-sig"), role
 
 
 def _run_raw_baseline(
