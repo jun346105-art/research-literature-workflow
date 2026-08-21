@@ -29,6 +29,7 @@ from litflow.llm.structured_reader import read_paper_with_llm
 from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
 from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
+from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -160,6 +161,19 @@ def main(argv: list[str] | None = None) -> int:
     rag_evaluate.add_argument("--queries", required=True, type=Path)
     rag_evaluate.add_argument("--out-dir", required=True, type=Path)
     rag_evaluate.add_argument("--mode", required=True, choices=["en", "zh_raw"])
+
+    dense_build = subparsers.add_parser("build-dense-cache")
+    dense_build.add_argument("--corpus", required=True, type=Path)
+    dense_build.add_argument("--cache-dir", required=True, type=Path)
+    dense_build.add_argument("--model", default=MODEL_NAME)
+    dense_build.add_argument("--revision", default=MODEL_REVISION)
+
+    dense_evaluate = subparsers.add_parser("evaluate-dense-retriever")
+    dense_evaluate.add_argument("--corpus", required=True, type=Path)
+    dense_evaluate.add_argument("--queries", required=True, type=Path)
+    dense_evaluate.add_argument("--cache-dir", required=True, type=Path)
+    dense_evaluate.add_argument("--out-dir", required=True, type=Path)
+    dense_evaluate.add_argument("--mode", required=True, choices=["dense_en", "dense_zh", "hybrid_zh", "hybrid_bilingual"])
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -391,6 +405,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "evaluate-bm25":
             report = evaluate_bm25(args.corpus, args.queries, args.out_dir, mode=args.mode)
             print(json.dumps(report, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "build-dense-cache":
+            print(json.dumps(build_dense_cache(args.corpus, args.cache_dir, model_name=args.model, revision=args.revision), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "evaluate-dense-retriever":
+            print(json.dumps(evaluate_retriever(args.corpus, args.queries, args.out_dir, mode=args.mode, cache_dir=args.cache_dir), ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "preview-obsidian-update":
