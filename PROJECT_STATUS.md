@@ -19,6 +19,7 @@
 - Minimal FastAPI wrapper: safe HTTP endpoints for health check, evidence candidate bank generation, evidence-bank note generation, and Obsidian preview generation.
 - v0.3A deep-reading object ingestion: experimental and currently unvalidated. Two development responses were preserved, but neither satisfied the strict canonical object schema; it is not a production feature.
 - Passage-level BM25: an offline baseline built on AI-drafted silver qrels. Its retrieval metrics are preliminary and require human qrels review before external claims.
+- Multilingual Dense + RRF Hybrid: offline CPU baselines using a fixed multilingual embedding revision. Results remain preliminary on AI-drafted silver qrels; no retriever has been selected.
 
 For detailed acceptance metrics, see:
 
@@ -57,6 +58,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - No production job queue or database-backed task state.
 - No validated deep-reading object ingestion or methods-preview workflow yet.
 - BM25 qrels are AI-drafted silver labels, not human-validated benchmarks.
+- Dense and Hybrid retrieval results require the same qrels review before comparison claims.
 
 ## Recommended Next Steps
 

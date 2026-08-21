@@ -210,6 +210,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Evaluation Run 002 completed with guarded execution, frozen-manifest/hash validation, atomic checkpoint/resume, context/call limits, and reproducible aggregation.
 - v0.3A deep-reading object ingestion is experimental and currently unvalidated; it is not presented as a production capability.
 - Passage-level BM25 retrieval is evaluated only on AI-drafted silver qrels until author review is complete.
+- Multilingual Dense and RRF Hybrid retrieval are also preliminary silver-qrels baselines; no final retriever has been selected.
 - Current test count: 139 passed.
 
 ## Limitations
