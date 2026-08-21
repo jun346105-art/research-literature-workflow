@@ -48,6 +48,7 @@ def test_bm25_deterministic_ranking_and_evaluation(tmp_path):
     assert report["metrics"]["hit_at_1"] == 1.0
     assert report["metrics"]["mrr_at_10"] == 1.0
     assert report["no_answer_query_count"] == 1
+    assert report["failure_cases"] == []
 
 
 def test_unknown_qrels_passage_is_rejected(tmp_path):

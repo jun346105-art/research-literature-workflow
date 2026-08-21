@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from litflow.rag.bm25 import BM25Index, RagValidationError, _metrics, _percentile, _sha256_file, _tokenize, load_corpus
+from litflow.rag.bm25 import BM25Index, RagValidationError, _metrics, _percentile, _sha256_file, _tokenize, _top10_misses, load_corpus
 
 
 MODEL_NAME = "intfloat/multilingual-e5-small"
@@ -94,7 +94,7 @@ def evaluate_retriever(corpus_path: Path, queries_path: Path, out_dir: Path, *, 
         latencies.append(latency)
         records.append({"query_id": query["query_id"], "expected_answerable": query["expected_answerable"], "results": results, "latency_ms": round(latency, 6), "cold": index == 0})
     answerable = [query for query in queries if query["expected_answerable"]]
-    report = {"label": "preliminary_on_AI_drafted_silver_qrels", "mode": mode, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "metrics": _metrics(records, answerable), "answerable_query_count": len(answerable), "no_answer_query_count": len(queries) - len(answerable), "latency_ms": {"cold_query": round(latencies[0], 6), "warm_p50": _percentile(latencies[1:], .5), "warm_p95": _percentile(latencies[1:], .95)}, "embedding_cache": dense.manifest if dense else None, "failure_cases": [item["query_id"] for item in records if item["expected_answerable"] and not item["results"]]}
+    report = {"label": "preliminary_on_AI_drafted_silver_qrels", "mode": mode, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "metrics": _metrics(records, answerable), "answerable_query_count": len(answerable), "no_answer_query_count": len(queries) - len(answerable), "latency_ms": {"cold_query": round(latencies[0], 6), "warm_p50": _percentile(latencies[1:], .5), "warm_p95": _percentile(latencies[1:], .95)}, "embedding_cache": dense.manifest if dense else None, "failure_cases": _top10_misses(records, answerable)}
     out_dir.mkdir(parents=True)
     (out_dir / f"per_query_{mode}.jsonl").write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
     (out_dir / f"metrics_{mode}.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
