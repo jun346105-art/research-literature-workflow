@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 import uuid
 from pathlib import Path
@@ -17,6 +18,7 @@ from litflow.rag.qrels import load_queries
 
 QA_PROMPT_VERSION = "evidence-grounded-qa-v1"
 SAFE_INSUFFICIENT_ZH = "基于当前检索到的文献片段，证据不足，无法给出可验证回答。"
+SAFE_EXECUTION_FAILURE_ZH = "系统暂时无法生成经过验证的回答，请稍后重试。"
 
 
 class RawCitation(BaseModel):
@@ -60,7 +62,7 @@ class VerifiedCitation(BaseModel):
 class QAResult(BaseModel):
     query_id: str
     answer_status: Literal["answered", "insufficient_evidence"]
-    execution_status: Literal["success", "provider_failed", "parse_failed", "schema_failed", "citation_validation_failed", "quote_grounding_failed"]
+    execution_status: Literal["success", "provider_failed", "parse_failed", "transport_failed", "schema_failed", "citation_validation_failed", "quote_grounding_failed"]
     answer_zh: str
     claims: list[dict[str, Any]] = Field(default_factory=list)
     limitations_zh: str = ""
@@ -90,10 +92,22 @@ def run_qa(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, 
     identity = _sha256_text(json.dumps({**plan, "git": _git_sha()}, sort_keys=True))
     run_dir.mkdir(parents=True, exist_ok=True)
     results = []
-    for query in queries:
+    signatures: list[str] = []
+    stop_reason = None
+    for position, query in enumerate(queries):
         top = retriever.search(query["query_zh"], top_k=top_k)
-        results.append(_run_query(query, top, by_id, run_dir, client, model, identity, resume))
-    _write_json(run_dir / "run_manifest.json", {"plan": plan, "identity_sha256": identity, "git_commit_sha": _git_sha(), "request_config": {"thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "resume": resume})
+        result = _run_query(query, top, by_id, run_dir, client, model, identity, resume)
+        results.append(result)
+        signature = f"{result.execution_status}:{result.validation_error or ''}"
+        if position == 0 and result.execution_status in {"parse_failed", "transport_failed", "schema_failed"}:
+            stop_reason = "canary_failed"
+            break
+        if result.execution_status != "success":
+            signatures.append(signature)
+            if len(signatures) >= 2 and signatures[-1] == signatures[-2]:
+                stop_reason = "repeated_structural_error"
+                break
+    _write_json(run_dir / "run_manifest.json", {"plan": plan, "identity_sha256": identity, "git_commit_sha": _git_sha(), "request_config": {"thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "resume": resume, "canary_gate": True, "structural_circuit_breaker": True, "stop_reason": stop_reason})
     _write_json(run_dir / "results.json", [item.model_dump() for item in results])
     return {"plan": plan, "results": results}
 
@@ -144,8 +158,14 @@ def _run_query(query: dict[str, Any], top: list[dict[str, Any]], passages: dict[
             _write_json(checkpoint, {"identity_sha256": identity, "raw_sha256": _sha256_file(raw_path), "prompt_sha256": _sha256_text(prompt)})
         raw_paths.append(str(raw_path.relative_to(run_dir)))
         try:
-            parsed = RawAnswer.model_validate_json(raw)
+            parsed, ledger = _parse_transport(raw, query)
+            _write_json(query_dir / f"transport_attempt_{attempt}.json", ledger)
             return _verify(query["query_id"], parsed, passages, retrieval_ids, raw_paths)
+        except TransportError as exc:
+            if attempt == 1:
+                prompt = prompt + "\n\nREPAIR: Return JSON matching the exact schema only."
+                continue
+            return _failed(query["query_id"], "transport_failed", str(exc), raw_paths)
         except ValidationError as exc:
             if attempt == 1:
                 prompt = prompt + "\n\nREPAIR: Return JSON matching the exact schema only."
@@ -178,7 +198,84 @@ def _verify(query_id: str, raw: RawAnswer, passages: dict[str, dict[str, Any]], 
 
 
 def _failed(query_id: str, status: str, error: str, raw_paths: list[str]) -> QAResult:
-    return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status=status, answer_zh=SAFE_INSUFFICIENT_ZH, raw_response_artifacts=raw_paths, validation_error=error)
+    return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status=status, answer_zh=SAFE_EXECUTION_FAILURE_ZH, raw_response_artifacts=raw_paths, validation_error=error)
+
+
+class TransportError(ValueError):
+    pass
+
+
+def normalize_transport_payload(payload: Any, query: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not isinstance(payload, dict):
+        raise TransportError("transport payload must be a JSON object")
+    direct_fields = {"status", "claims", "limitations_zh"}
+    if set(payload) <= direct_fields and "status" in payload:
+        return payload, {"original_transport_shape": "canonical_direct", "canonical_transport_shape": "canonical_direct", "envelope_unwrapped": False, "query_identity_verified": None, "normalization_warning": None}
+    allowed = {"query_id", "query_zh", "schema"}
+    if set(payload) != set(payload) & allowed or "schema" not in payload:
+        raise TransportError("unknown transport envelope fields")
+    if payload.get("query_id") != query["query_id"]:
+        raise TransportError("transport query_id mismatch")
+    if _normalize_query_text(str(payload.get("query_zh", ""))) != _normalize_query_text(query["query_zh"]):
+        raise TransportError("transport query_zh mismatch")
+    if not isinstance(payload["schema"], dict):
+        raise TransportError("transport schema must be a JSON object")
+    return payload["schema"], {"original_transport_shape": "legacy_query_schema_envelope", "canonical_transport_shape": "canonical_direct", "envelope_unwrapped": True, "query_identity_verified": True, "normalization_warning": "exact legacy envelope unwrapped", "raw_response_sha256": None}
+
+
+def _parse_transport(raw: str, query: dict[str, Any]) -> tuple[RawAnswer, dict[str, Any]]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise TransportError(f"invalid JSON: {exc}") from exc
+    canonical, ledger = normalize_transport_payload(payload, query)
+    ledger["raw_response_sha256"] = _sha256_text(raw)
+    try:
+        return RawAnswer.model_validate(canonical), ledger
+    except ValidationError as exc:
+        raise TransportError(f"strict schema validation failed after transport normalization: {exc}") from exc
+
+
+def _normalize_query_text(value: str) -> str:
+    import unicodedata
+
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", value)).strip()
+
+
+def replay_qa_transport(source_run_dir: Path, corpus_path: Path, queries_path: Path, out_dir: Path) -> dict[str, Any]:
+    if out_dir.exists() and any(out_dir.iterdir()):
+        raise ValueError("offline QA replay output directory already exists and is nonempty")
+    passages = {item["passage_id"]: item for item in load_corpus(corpus_path)}
+    queries = load_queries(queries_path)
+    results = []
+    ledger = []
+    for query in queries:
+        top_ids = _load_json(source_run_dir / "retrieval" / f"{query['query_id']}.json")
+        query_dir = source_run_dir / "queries" / query["query_id"]
+        attempts = []
+        selected = None
+        for attempt in (1, 2):
+            raw_path = query_dir / f"raw_response_attempt_{attempt}.txt"
+            raw = raw_path.read_text(encoding="utf-8")
+            try:
+                parsed, transport = _parse_transport(raw, query)
+                result = _verify(query["query_id"], parsed, passages, top_ids, [str(raw_path.relative_to(source_run_dir))])
+                attempts.append({"attempt": attempt, "valid": result.execution_status == "success", "transport": transport, "reason": None if result.execution_status == "success" else result.validation_error})
+                if result.execution_status == "success":
+                    selected = result
+                    break
+            except TransportError as exc:
+                attempts.append({"attempt": attempt, "valid": False, "transport": None, "reason": str(exc)})
+        if selected is None:
+            selected = _failed(query["query_id"], "transport_failed", attempts[-1]["reason"], [f"queries/{query['query_id']}/raw_response_attempt_1.txt", f"queries/{query['query_id']}/raw_response_attempt_2.txt"])
+        results.append(selected)
+        ledger.append({"query_id": query["query_id"], "attempts": attempts, "selected_attempt": next((item["attempt"] for item in attempts if item["valid"]), None), "unselected_reason": attempts[0]["reason"] if len(attempts) > 1 and attempts[1]["valid"] else None})
+        _write_json(out_dir / "retrieval" / f"{query['query_id']}.json", top_ids)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(out_dir / "replay_manifest.json", {"role": "offline_transport_replay", "external_llm_called": False, "source_online_run": source_run_dir.name, "source_online_status": "failed", "raw_responses_modified": False, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path)})
+    _write_json(out_dir / "normalization_ledger.json", ledger)
+    _write_json(out_dir / "results.json", [result.model_dump() for result in results])
+    return {"results": results, "ledger": ledger}
 
 
 def _prompt(query: dict[str, Any], passages: list[dict[str, Any]]) -> str:

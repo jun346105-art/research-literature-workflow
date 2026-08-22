@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import RawAnswer, _verify, evaluate_qa, plan_qa, run_qa
+from litflow.rag.qa import RawAnswer, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _verify, evaluate_qa, plan_qa, replay_qa_transport, run_qa
 
 
 class FakeClient:
@@ -28,6 +28,20 @@ def test_answer_contract_and_quote_validation():
     assert _verify("Q1", bad, passages, ["P1:P1_chunk_0001"], []).execution_status == "citation_validation_failed"
 
 
+def test_transport_envelope_validation_and_strict_domain_contract():
+    query = {"query_id": "Q1", "query_zh": "中文 问题"}
+    direct, ledger = _parse_transport(json.dumps({"status": "insufficient_evidence", "claims": [], "limitations_zh": ""}), query)
+    assert direct.status == "insufficient_evidence" and ledger["envelope_unwrapped"] is False
+    wrapped = {"query_id": "Q1", "query_zh": "中文\n问题", "schema": {"status": "answered", "claims": [], "limitations_zh": ""}}
+    with pytest.raises(TransportError, match="strict schema"):
+        _parse_transport(json.dumps(wrapped), query)
+    wrapped["query_id"] = "Q2"
+    with pytest.raises(TransportError, match="query_id mismatch"):
+        _parse_transport(json.dumps(wrapped), query)
+    with pytest.raises(TransportError, match="unknown transport"):
+        _parse_transport(json.dumps({"status": "answered", "claims": [], "limitations_zh": "", "extra": 1}), query)
+
+
 def test_qa_runner_no_qrels_in_prompt_and_resume(tmp_path):
     corpus, queries = _inputs(tmp_path)
     client = FakeClient({"status": "answered", "claims": [{"claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
@@ -40,6 +54,23 @@ def test_qa_runner_no_qrels_in_prompt_and_resume(tmp_path):
     report = evaluate_qa(tmp_path / "run", corpus, queries, tmp_path / "report.json")
     assert report["false_answer_count"] == 0
     assert report["execution_failure_count"] == 1
+
+
+def test_offline_replay_uses_main_before_repair_and_never_constructs_client(tmp_path, monkeypatch):
+    corpus, queries = _inputs(tmp_path)
+    source = tmp_path / "source"; (source / "queries" / "Q1").mkdir(parents=True); (source / "queries" / "Q2").mkdir(parents=True); (source / "retrieval").mkdir()
+    for query_id in ["Q1", "Q2"]:
+        (source / "retrieval" / f"{query_id}.json").write_text(json.dumps(["P1:P1_chunk_0001"]), encoding="utf-8")
+    valid = {"query_id": "Q1", "query_zh": "alpha", "schema": {"status": "answered", "claims": [{"claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}}
+    (source / "queries" / "Q1" / "raw_response_attempt_1.txt").write_text(json.dumps(valid), encoding="utf-8")
+    (source / "queries" / "Q1" / "raw_response_attempt_2.txt").write_text("{}", encoding="utf-8")
+    bad = {"query_id": "Q2", "query_zh": "unknown", "schema": {"status": "answered", "claims": [], "limitations_zh": ""}}
+    (source / "queries" / "Q2" / "raw_response_attempt_1.txt").write_text(json.dumps(bad), encoding="utf-8")
+    (source / "queries" / "Q2" / "raw_response_attempt_2.txt").write_text(json.dumps({"status": "insufficient_evidence", "claims": [], "limitations_zh": ""}), encoding="utf-8")
+    replay = replay_qa_transport(source, corpus, queries, tmp_path / "replay")
+    assert replay["results"][0].execution_status == "success"
+    assert replay["results"][1].answer_status == "insufficient_evidence"
+    assert (tmp_path / "replay" / "replay_manifest.json").is_file()
 
 
 def _inputs(tmp_path):
