@@ -38,5 +38,14 @@ def test_ai_assisted_import_preserves_ids_and_pending_status(tmp_path):
     assert all(item["review_status"] == "ai_assisted_review_pending_author_confirmation" for item in queries)
 
 
+def test_ai_assisted_import_can_replace_corrupted_historical_query_zh(tmp_path):
+    original = tmp_path / "original.json"
+    original.write_text(json.dumps({"queries": [_query("Q01", "????")]}, ensure_ascii=False), encoding="utf-8")
+    source = tmp_path / "assisted.csv"
+    source.write_text("query_id,query_zh,query_en,relevant_paper_keys,relevant_passage_ids\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001\n", encoding="utf-8")
+    imported = import_ai_assisted_qrels(source, original, tmp_path / "imported.json")
+    assert imported[0]["query_zh"] == "修复中文"
+
+
 def _query(query_id: str, query_zh: str) -> dict:
     return {"query_id": query_id, "query_zh": query_zh, "query_en": "alpha", "query_type": "method", "expected_answerable": True, "relevant_paper_keys": ["P1"], "relevant_passage_ids": ["P1:P1_chunk_0001"], "gold_evidence_summary": "", "review_status": "human_review_pending"}

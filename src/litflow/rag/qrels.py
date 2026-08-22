@@ -54,7 +54,11 @@ def write_qrels_review_csv(path: Path, queries: list[dict[str, Any]]) -> None:
 def import_ai_assisted_qrels(source_csv: Path, original_queries_path: Path, output_path: Path) -> list[dict[str, Any]]:
     with source_csv.open(encoding="utf-8-sig", newline="") as handle:
         rows = list(csv.DictReader(handle))
-    original = {query["query_id"]: query for query in load_queries(original_queries_path)}
+    original_payload = json.loads(original_queries_path.read_text(encoding="utf-8-sig"))
+    historical_queries = original_payload.get("queries")
+    if not isinstance(historical_queries, list) or any(not isinstance(query.get("query_id"), str) for query in historical_queries):
+        raise QrelsUnicodeError("historical qrels must contain structured query IDs")
+    original = {query["query_id"]: query for query in historical_queries}
     if set(row.get("query_id") for row in rows) != set(original):
         raise QrelsUnicodeError("AI-assisted qrels query IDs do not match original query IDs")
     queries = []
