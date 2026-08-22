@@ -32,7 +32,7 @@ from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
-from litflow.rag.qa import evaluate_qa, plan_qa, run_qa, write_qa_review_packet
+from litflow.rag.qa import evaluate_qa, plan_qa, replay_qa_transport, run_qa, write_qa_review_packet
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
