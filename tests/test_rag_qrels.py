@@ -31,7 +31,7 @@ def test_ai_assisted_import_preserves_ids_and_pending_status(tmp_path):
     original = tmp_path / "original.json"
     write_queries_json(original, {}, [_query("Q01", "原始中文"), _query("Q02", "原始中文二")])
     source = tmp_path / "assisted.csv"
-    source.write_text("query_id,query_zh,query_en,relevant_paper_keys,relevant_passage_ids\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001\nQ02,修复中文二,beta,P2,P2:P2_chunk_0001\n", encoding="utf-8")
+    source.write_text("query_id,query_zh,query_en,ai_draft_relevant_paper_keys,ai_draft_relevant_passage_ids,passages_to_add,passages_to_remove,reviewer_notes\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001,,,\nQ02,修复中文二,beta,P2,P2:P2_chunk_0001,,,范围收窄\n", encoding="utf-8")
     output = tmp_path / "imported.json"
     queries = import_ai_assisted_qrels(source, original, output)
     assert [item["query_id"] for item in queries] == ["Q01", "Q02"]
@@ -42,9 +42,22 @@ def test_ai_assisted_import_can_replace_corrupted_historical_query_zh(tmp_path):
     original = tmp_path / "original.json"
     original.write_text(json.dumps({"queries": [_query("Q01", "????")]}, ensure_ascii=False), encoding="utf-8")
     source = tmp_path / "assisted.csv"
-    source.write_text("query_id,query_zh,query_en,relevant_paper_keys,relevant_passage_ids\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001\n", encoding="utf-8")
+    source.write_text("query_id,query_zh,query_en,ai_draft_relevant_paper_keys,ai_draft_relevant_passage_ids,passages_to_add,passages_to_remove,reviewer_notes\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001,,,\n", encoding="utf-8")
     imported = import_ai_assisted_qrels(source, original, tmp_path / "imported.json")
     assert imported[0]["query_zh"] == "修复中文"
+
+
+def test_ai_assisted_import_applies_passage_revision_and_preserves_en_audit(tmp_path):
+    original = tmp_path / "original.json"
+    write_queries_json(original, {}, [{**_query("Q01", "原始中文"), "query_en": "broad question", "relevant_passage_ids": ["P1:old"]}])
+    source = tmp_path / "assisted.csv"
+    source.write_text("query_id,query_zh,query_en,ai_draft_relevant_paper_keys,ai_draft_relevant_passage_ids,passages_to_add,passages_to_remove,reviewer_notes\nQ01,修复中文,narrow question,P1,P1:old,P1:new,P1:old,scope revised\n", encoding="utf-8")
+    output = tmp_path / "imported.json"
+    imported = import_ai_assisted_qrels(source, original, output)
+    assert imported[0]["relevant_passage_ids"] == ["P1:new"]
+    assert imported[0]["query_revision"]["original_query_en"] == "broad question"
+    assert imported[0]["query_revision"]["revised_query_en"] == "narrow question"
+    assert json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))["query_scope_revised_during_ai_assisted_review"] == ["Q01"]
 
 
 def _query(query_id: str, query_zh: str) -> dict:

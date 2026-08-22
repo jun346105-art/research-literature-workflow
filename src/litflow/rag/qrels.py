@@ -62,13 +62,24 @@ def import_ai_assisted_qrels(source_csv: Path, original_queries_path: Path, outp
     if set(row.get("query_id") for row in rows) != set(original):
         raise QrelsUnicodeError("AI-assisted qrels query IDs do not match original query IDs")
     queries = []
+    revisions = []
     for row in rows:
         baseline = original[row["query_id"]]
-        query = {**baseline, "query_zh": row["query_zh"], "query_en": row.get("query_en") or baseline["query_en"], "review_status": "ai_assisted_review_pending_author_confirmation"}
-        if row.get("relevant_passage_ids"):
-            query["relevant_passage_ids"] = [item for item in row["relevant_passage_ids"].split(";") if item]
-        if row.get("relevant_paper_keys"):
-            query["relevant_paper_keys"] = [item for item in row["relevant_paper_keys"].split(";") if item]
+        revised_en = row.get("query_en") or baseline["query_en"]
+        passages = set(_split(row.get("ai_draft_relevant_passage_ids")) or baseline.get("relevant_passage_ids", []))
+        passages.update(_split(row.get("passages_to_add")))
+        passages.difference_update(_split(row.get("passages_to_remove")))
+        query = {**baseline, "query_zh": row["query_zh"], "query_en": revised_en, "relevant_paper_keys": _split(row.get("ai_draft_relevant_paper_keys")) or baseline.get("relevant_paper_keys", []), "relevant_passage_ids": sorted(passages), "review_status": "ai_assisted_review_pending_author_confirmation", "query_revision": {"original_query_en": baseline["query_en"], "revised_query_en": revised_en, "revision_reason": row.get("reviewer_notes") or "", "query_scope_revised_during_ai_assisted_review": revised_en != baseline["query_en"]}}
+        if query["review_status"] != "ai_assisted_review_pending_author_confirmation":
+            raise QrelsUnicodeError("AI-assisted import cannot mark qrels as human-reviewed")
+        if query["query_revision"]["query_scope_revised_during_ai_assisted_review"]:
+            revisions.append(query["query_id"])
         queries.append(query)
-    write_queries_json(output_path, {"qrels_status": "AI-assisted review pending author confirmation", "source_csv": source_csv.name}, queries)
+    write_queries_json(output_path, {"qrels_status": "AI-assisted review pending author confirmation", "source_csv": source_csv.name, "query_scope_revised_during_ai_assisted_review": revisions}, queries)
+    manifest_path = output_path.with_suffix(".manifest.json")
+    manifest_path.write_text(json.dumps({"role": "ai_assisted_qrels_import", "source_csv": source_csv.name, "query_count": len(queries), "query_scope_revised_during_ai_assisted_review": revisions, "original_query_en": {query["query_id"]: query["query_revision"]["original_query_en"] for query in queries}, "revised_query_en": {query["query_id"]: query["query_revision"]["revised_query_en"] for query in queries}, "revision_reason": {query["query_id"]: query["query_revision"]["revision_reason"] for query in queries if query["query_revision"]["query_scope_revised_during_ai_assisted_review"]}}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return queries
+
+
+def _split(value: str | None) -> list[str]:
+    return [item.strip() for item in (value or "").split(";") if item.strip()]
