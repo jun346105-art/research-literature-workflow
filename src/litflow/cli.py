@@ -31,6 +31,7 @@ from litflow.reading_context import build_reading_contexts
 from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
+from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -186,6 +187,17 @@ def main(argv: list[str] | None = None) -> int:
     qrels_freeze.add_argument("--source-csv", required=True, type=Path)
     qrels_freeze.add_argument("--corpus", required=True, type=Path)
     qrels_freeze.add_argument("--out", required=True, type=Path)
+
+    window_build = subparsers.add_parser("build-windowed-dense-cache")
+    window_build.add_argument("--corpus", required=True, type=Path)
+    window_build.add_argument("--cache-dir", required=True, type=Path)
+
+    window_evaluate = subparsers.add_parser("evaluate-windowed-retriever")
+    window_evaluate.add_argument("--corpus", required=True, type=Path)
+    window_evaluate.add_argument("--queries", required=True, type=Path)
+    window_evaluate.add_argument("--cache-dir", required=True, type=Path)
+    window_evaluate.add_argument("--out-dir", required=True, type=Path)
+    window_evaluate.add_argument("--mode", required=True, choices=["dense_zh_windowed", "hybrid_zh_windowed"])
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -435,6 +447,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "freeze-human-reviewed-qrels":
             manifest = freeze_human_reviewed_qrels(args.pending_queries, args.source_csv, args.corpus, args.out)
             print(json.dumps(manifest, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "build-windowed-dense-cache":
+            print(json.dumps(build_windowed_dense_cache(args.corpus, args.cache_dir), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "evaluate-windowed-retriever":
+            print(json.dumps(evaluate_windowed(args.corpus, args.queries, args.cache_dir, args.out_dir, mode=args.mode), ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "preview-obsidian-update":
