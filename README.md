@@ -212,6 +212,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Passage-level BM25 retrieval is evaluated only on AI-drafted silver qrels until author review is complete.
 - Multilingual Dense and RRF Hybrid retrieval are also preliminary silver-qrels baselines; no final retriever has been selected.
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
+- On the 20-query human-reviewed pilot, fixed Dense windowing did not exceed BM25-ZH-raw on Recall@10; BM25-ZH-raw remains the MVP retriever pending broader evaluation.
 - Current test count: 139 passed.
 
 ## Limitations

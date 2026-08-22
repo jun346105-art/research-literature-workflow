@@ -61,6 +61,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - Dense and Hybrid retrieval results require the same qrels review before comparison claims.
 - Historical Chinese retrieval artifacts generated from corrupted `query_zh` values are invalid and must not be cited; only a future author-confirmed UTF-8 qrels rerun can replace them.
 - The human-reviewed pilot qrels freeze is limited to 20 queries. The current dense baseline right-truncates most 3500/400 passages at 512 tokens, so it is not a final retriever selection.
+- Minimal fixed windowing (512 tokens, 64 overlap, max parent score) did not exceed BM25-ZH-raw on the human-reviewed pilot's Recall@10. BM25-ZH-raw is the MVP retriever; no further retrieval tuning is planned in this milestone.
 
 ## Recommended Next Steps
 
