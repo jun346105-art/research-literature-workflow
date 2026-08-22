@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from litflow.rag.qrels import QrelsUnicodeError, freeze_human_reviewed_qrels, import_ai_assisted_qrels, load_queries, write_qrels_review_csv, write_queries_json
+from litflow.rag.qrels import QrelsUnicodeError, freeze_human_reviewed_qrels, import_ai_assisted_qrels, load_queries, qrels_evaluation_label, write_qrels_review_csv, write_queries_json
 
 
 def test_query_json_and_csv_round_trip_unicode(tmp_path):
@@ -71,6 +71,7 @@ def test_human_freeze_writes_pilot_manifest(tmp_path):
     manifest = freeze_human_reviewed_qrels(pending, source, corpus, output)
     assert manifest["benchmark_id"] == "human_reviewed_pilot_qrels_v1"
     assert load_queries(output)[0]["review_status"] == "human_reviewed_pilot"
+    assert qrels_evaluation_label(output) == "human_reviewed_pilot_qrels_v1"
 
 
 def _query(query_id: str, query_zh: str) -> dict:

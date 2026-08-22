@@ -60,6 +60,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - BM25 qrels are AI-drafted silver labels, not human-validated benchmarks.
 - Dense and Hybrid retrieval results require the same qrels review before comparison claims.
 - Historical Chinese retrieval artifacts generated from corrupted `query_zh` values are invalid and must not be cited; only a future author-confirmed UTF-8 qrels rerun can replace them.
+- The human-reviewed pilot qrels freeze is limited to 20 queries. The current dense baseline right-truncates most 3500/400 passages at 512 tokens, so it is not a final retriever selection.
 
 ## Recommended Next Steps
 
