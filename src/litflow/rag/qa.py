@@ -290,9 +290,22 @@ def _render_answer(claims: list[dict[str, Any]]) -> str:
 
 def write_qa_review_packet(run_dir: Path, corpus_path: Path, output_path: Path) -> None:
     passages = {item["passage_id"]: item for item in load_corpus(corpus_path)}
-    results = [QAResult.model_validate(item) for item in _load_json(run_dir / "results.json")]
-    lines = ["# Evidence-Grounded QA Human Review Packet", "", "> Content review only. Answer status and execution status are shown separately.", ""]
-    for result in results:
+    results = [
+        QAResult.model_validate(item)
+        for item in _load_json(run_dir / "results.json")
+    ]
+    verified_results = [
+        result
+        for result in results
+        if result.execution_status == "success" and result.answer_status == "answered"
+    ]
+    lines = [
+        "# Evidence-Grounded QA Human Review Packet",
+        "",
+        "> Contains only answers that passed all automatic validation checks.",
+        "",
+    ]
+    for result in verified_results:
         lines += [f"## {result.query_id}", f"- answer_status: `{result.answer_status}`", f"- execution_status: `{result.execution_status}`", "", "### Rendered Answer", result.answer_zh, "", "### Claims and Evidence"]
         for claim in result.claims:
             lines.append(f"- Claim: {claim['claim_text_zh']}")

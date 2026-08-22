@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import RawAnswer, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _verify, evaluate_qa, plan_qa, replay_qa_transport, run_qa
+from litflow.rag.qa import RawAnswer, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _verify, evaluate_qa, plan_qa, replay_qa_transport, run_qa, write_qa_review_packet
 
 
 class FakeClient:
@@ -71,6 +71,17 @@ def test_offline_replay_uses_main_before_repair_and_never_constructs_client(tmp_
     assert replay["results"][0].execution_status == "success"
     assert replay["results"][1].answer_status == "insufficient_evidence"
     assert (tmp_path / "replay" / "replay_manifest.json").is_file()
+
+
+def test_review_packet_contains_only_verified_answered_results(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    client = FakeClient({"status": "answered", "claims": [{"claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    run_qa(corpus, queries, tmp_path / "run", model="fake", client=client)
+    packet = tmp_path / "verified_packet.md"
+    write_qa_review_packet(tmp_path / "run", corpus, packet)
+    rendered = packet.read_text(encoding="utf-8")
+    assert "## Q1" in rendered
+    assert "## Q2" not in rendered
 
 
 def _inputs(tmp_path):
