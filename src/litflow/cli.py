@@ -225,6 +225,12 @@ def main(argv: list[str] | None = None) -> int:
     qa_packet.add_argument("--corpus", required=True, type=Path)
     qa_packet.add_argument("--out", required=True, type=Path)
 
+    qa_replay = subparsers.add_parser("replay-evidence-qa-transport")
+    qa_replay.add_argument("--source-run-dir", required=True, type=Path)
+    qa_replay.add_argument("--corpus", required=True, type=Path)
+    qa_replay.add_argument("--queries", required=True, type=Path)
+    qa_replay.add_argument("--out-dir", required=True, type=Path)
+
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
     preview_update.add_argument("--vault", required=True, type=Path)
@@ -499,6 +505,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "make-evidence-qa-review-packet":
             write_qa_review_packet(args.run_dir, args.corpus, args.out)
             print(f"Review packet: {args.out}")
+            return 0
+
+        if args.command == "replay-evidence-qa-transport":
+            result = replay_qa_transport(args.source_run_dir, args.corpus, args.queries, args.out_dir)
+            print(json.dumps({"run_dir": str(args.out_dir), "query_count": len(result["results"])}, ensure_ascii=False))
             return 0
 
         if args.command == "preview-obsidian-update":
