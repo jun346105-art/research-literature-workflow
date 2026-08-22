@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from litflow.rag.bm25 import BM25Index, RagValidationError, _metrics, _percentile, _sha256_file, _tokenize, _top10_misses, load_corpus
+from litflow.rag.qrels import load_queries
 
 
 MODEL_NAME = "intfloat/multilingual-e5-small"
@@ -77,7 +78,7 @@ def rrf_fuse(rankings: list[list[dict[str, Any]]], *, k: int = 60, top_k: int = 
 def evaluate_retriever(corpus_path: Path, queries_path: Path, out_dir: Path, *, mode: str, cache_dir: Path | None = None) -> dict[str, Any]:
     if out_dir.exists() and any(out_dir.iterdir()):
         raise RagValidationError("evaluation output directory already exists and is nonempty")
-    passages, queries = load_corpus(corpus_path), _load(queries_path)["queries"]
+    passages, queries = load_corpus(corpus_path), load_queries(queries_path)
     _validate_qrels(queries, passages)
     dense = DenseIndex(corpus_path, cache_dir) if cache_dir else None
     bm25 = BM25Index(passages) if mode.startswith("hybrid") else None

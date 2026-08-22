@@ -30,6 +30,7 @@ from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
 from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
+from litflow.rag.qrels import import_ai_assisted_qrels
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -174,6 +175,11 @@ def main(argv: list[str] | None = None) -> int:
     dense_evaluate.add_argument("--cache-dir", required=True, type=Path)
     dense_evaluate.add_argument("--out-dir", required=True, type=Path)
     dense_evaluate.add_argument("--mode", required=True, choices=["dense_en", "dense_zh", "hybrid_zh", "hybrid_bilingual"])
+
+    qrels_import = subparsers.add_parser("import-ai-assisted-qrels")
+    qrels_import.add_argument("--source-csv", required=True, type=Path)
+    qrels_import.add_argument("--original-queries", required=True, type=Path)
+    qrels_import.add_argument("--out", required=True, type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -413,6 +419,11 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "evaluate-dense-retriever":
             print(json.dumps(evaluate_retriever(args.corpus, args.queries, args.out_dir, mode=args.mode, cache_dir=args.cache_dir), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "import-ai-assisted-qrels":
+            queries = import_ai_assisted_qrels(args.source_csv, args.original_queries, args.out)
+            print(f"Imported {len(queries)} AI-assisted qrels queries to {args.out}")
             return 0
 
         if args.command == "preview-obsidian-update":

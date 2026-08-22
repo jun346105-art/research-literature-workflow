@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+import csv
+import json
+
+import pytest
+
+from litflow.rag.qrels import QrelsUnicodeError, import_ai_assisted_qrels, load_queries, write_qrels_review_csv, write_queries_json
+
+
+def test_query_json_and_csv_round_trip_unicode(tmp_path):
+    queries = [_query("Q01", "中文 query with English YOLO"), _query("Q02", "混合 Chinese-English RGB-D 检索")]
+    json_path = tmp_path / "queries.json"
+    csv_path = tmp_path / "queries.csv"
+    write_queries_json(json_path, {"status": "test"}, queries)
+    write_qrels_review_csv(csv_path, queries)
+    assert load_queries(json_path) == queries
+    assert csv_path.read_bytes().startswith(b"\xef\xbb\xbf")
+    with csv_path.open(encoding="utf-8-sig", newline="") as handle:
+        assert [row["query_zh"] for row in csv.DictReader(handle)] == [item["query_zh"] for item in queries]
+
+
+def test_corrupted_query_zh_is_rejected(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text(json.dumps({"queries": [_query("Q01", "????")]}, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(QrelsUnicodeError, match="corrupted query_zh"):
+        load_queries(path)
+
+
+def test_ai_assisted_import_preserves_ids_and_pending_status(tmp_path):
+    original = tmp_path / "original.json"
+    write_queries_json(original, {}, [_query("Q01", "原始中文"), _query("Q02", "原始中文二")])
+    source = tmp_path / "assisted.csv"
+    source.write_text("query_id,query_zh,query_en,relevant_paper_keys,relevant_passage_ids\nQ01,修复中文,alpha,P1,P1:P1_chunk_0001\nQ02,修复中文二,beta,P2,P2:P2_chunk_0001\n", encoding="utf-8")
+    output = tmp_path / "imported.json"
+    queries = import_ai_assisted_qrels(source, original, output)
+    assert [item["query_id"] for item in queries] == ["Q01", "Q02"]
+    assert all(item["review_status"] == "ai_assisted_review_pending_author_confirmation" for item in queries)
+
+
+def _query(query_id: str, query_zh: str) -> dict:
+    return {"query_id": query_id, "query_zh": query_zh, "query_en": "alpha", "query_type": "method", "expected_answerable": True, "relevant_paper_keys": ["P1"], "relevant_passage_ids": ["P1:P1_chunk_0001"], "gold_evidence_summary": "", "review_status": "human_review_pending"}

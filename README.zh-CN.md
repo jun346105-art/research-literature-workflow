@@ -235,6 +235,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - v0.3A 方法精读对象抽取目前属于实验性且未验证能力，不作为生产功能宣传。
 - Passage-level BM25 当前仅在 AI-drafted silver qrels 上进行初步评估，需完成作者 qrels 审核后才能对外解释指标。
 - 多语言 Dense 与 RRF Hybrid 同样仅是 silver qrels 初步基线，当前未选择最终 Retriever。
+- 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
 - 当前测试：139 passed。
 
 ## 当前限制

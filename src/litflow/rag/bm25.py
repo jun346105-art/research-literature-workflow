@@ -9,6 +9,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from litflow.rag.qrels import load_queries
+
 
 class RagValidationError(ValueError):
     pass
@@ -87,7 +89,7 @@ def evaluate_bm25(corpus_path: Path, queries_path: Path, out_dir: Path, *, mode:
     if mode not in {"en", "zh_raw"}:
         raise RagValidationError("mode must be en or zh_raw")
     passages = load_corpus(corpus_path)
-    queries = _load_json(queries_path).get("queries", [])
+    queries = load_queries(queries_path)
     known_ids = {row["passage_id"] for row in passages}
     for query in queries:
         unknown = set(query.get("relevant_passage_ids", [])) - known_ids

@@ -211,6 +211,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - v0.3A deep-reading object ingestion is experimental and currently unvalidated; it is not presented as a production capability.
 - Passage-level BM25 retrieval is evaluated only on AI-drafted silver qrels until author review is complete.
 - Multilingual Dense and RRF Hybrid retrieval are also preliminary silver-qrels baselines; no final retriever has been selected.
+- Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
 - Current test count: 139 passed.
 
 ## Limitations

@@ -59,6 +59,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - No validated deep-reading object ingestion or methods-preview workflow yet.
 - BM25 qrels are AI-drafted silver labels, not human-validated benchmarks.
 - Dense and Hybrid retrieval results require the same qrels review before comparison claims.
+- Historical Chinese retrieval artifacts generated from corrupted `query_zh` values are invalid and must not be cited; only a future author-confirmed UTF-8 qrels rerun can replace them.
 
 ## Recommended Next Steps
 
