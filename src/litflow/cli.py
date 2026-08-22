@@ -32,6 +32,7 @@ from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
+from litflow.rag.qa import evaluate_qa, plan_qa, run_qa, write_qa_review_packet
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -198,6 +199,31 @@ def main(argv: list[str] | None = None) -> int:
     window_evaluate.add_argument("--cache-dir", required=True, type=Path)
     window_evaluate.add_argument("--out-dir", required=True, type=Path)
     window_evaluate.add_argument("--mode", required=True, choices=["dense_zh_windowed", "hybrid_zh_windowed"])
+
+    qa_plan = subparsers.add_parser("plan-evidence-qa")
+    qa_plan.add_argument("--corpus", required=True, type=Path)
+    qa_plan.add_argument("--queries", required=True, type=Path)
+    qa_plan.add_argument("--model", required=True)
+    qa_plan.add_argument("--top-k", type=int, default=10)
+
+    qa_run = subparsers.add_parser("run-evidence-qa")
+    qa_run.add_argument("--corpus", required=True, type=Path)
+    qa_run.add_argument("--queries", required=True, type=Path)
+    qa_run.add_argument("--run-dir", required=True, type=Path)
+    qa_run.add_argument("--model", required=True)
+    qa_run.add_argument("--top-k", type=int, default=10)
+    qa_run.add_argument("--resume", action="store_true")
+
+    qa_eval = subparsers.add_parser("evaluate-evidence-qa")
+    qa_eval.add_argument("--run-dir", required=True, type=Path)
+    qa_eval.add_argument("--corpus", required=True, type=Path)
+    qa_eval.add_argument("--queries", required=True, type=Path)
+    qa_eval.add_argument("--out", required=True, type=Path)
+
+    qa_packet = subparsers.add_parser("make-evidence-qa-review-packet")
+    qa_packet.add_argument("--run-dir", required=True, type=Path)
+    qa_packet.add_argument("--corpus", required=True, type=Path)
+    qa_packet.add_argument("--out", required=True, type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -455,6 +481,24 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "evaluate-windowed-retriever":
             print(json.dumps(evaluate_windowed(args.corpus, args.queries, args.cache_dir, args.out_dir, mode=args.mode), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "plan-evidence-qa":
+            print(json.dumps(plan_qa(args.corpus, args.queries, model=args.model, top_k=args.top_k), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "run-evidence-qa":
+            result = run_qa(args.corpus, args.queries, args.run_dir, model=args.model, top_k=args.top_k, resume=args.resume)
+            print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"])}, ensure_ascii=False))
+            return 0
+
+        if args.command == "evaluate-evidence-qa":
+            print(json.dumps(evaluate_qa(args.run_dir, args.corpus, args.queries, args.out), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "make-evidence-qa-review-packet":
+            write_qa_review_packet(args.run_dir, args.corpus, args.out)
+            print(f"Review packet: {args.out}")
             return 0
 
         if args.command == "preview-obsidian-update":
