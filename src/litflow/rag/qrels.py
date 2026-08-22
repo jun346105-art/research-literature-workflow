@@ -81,5 +81,37 @@ def import_ai_assisted_qrels(source_csv: Path, original_queries_path: Path, outp
     return queries
 
 
+def freeze_human_reviewed_qrels(pending_queries_path: Path, source_csv: Path, corpus_path: Path, output_path: Path) -> dict[str, Any]:
+    queries = load_queries(pending_queries_path)
+    passages = {json.loads(line)["passage_id"] for line in corpus_path.read_text(encoding="utf-8-sig").splitlines() if line.strip()}
+    unknown = {item for query in queries for item in query.get("relevant_passage_ids", []) if item not in passages}
+    if unknown:
+        raise QrelsUnicodeError(f"human-reviewed qrels reference unknown passages: {sorted(unknown)}")
+    frozen_queries = [{**query, "review_status": "human_reviewed_pilot"} for query in queries]
+    write_queries_json(output_path, {"qrels_status": "human-reviewed pilot benchmark", "benchmark_id": "human_reviewed_pilot_qrels_v1", "reviewer": "author", "ai_assisted_review_provenance": source_csv.name, "query_count": len(frozen_queries)}, frozen_queries)
+    source_rows = {row["query_id"]: row for row in _read_csv(source_csv)}
+    revisions = [query["query_id"] for query in frozen_queries if query.get("query_revision", {}).get("query_scope_revised_during_ai_assisted_review")]
+    manifest = {"benchmark_id": "human_reviewed_pilot_qrels_v1", "reviewer": "author", "source_csv_sha256": _sha256_file(source_csv), "corpus_sha256": _sha256_file(corpus_path), "query_sha256": _sha256_file(output_path), "query_ids": [query["query_id"] for query in frozen_queries], "ai_assisted_review_provenance": source_csv.name, "q08_passage_revision": {"add": _split(source_rows.get("Q08", {}).get("passages_to_add")), "remove": _split(source_rows.get("Q08", {}).get("passages_to_remove"))}, "query_scope_revised_during_ai_assisted_review": revisions}
+    output_path.with_suffix(".manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    output_path.with_suffix(".validation.json").write_text(json.dumps({"valid": True, "query_count": len(frozen_queries), "answerable_query_count": sum(bool(q["expected_answerable"]) for q in frozen_queries), "no_answer_query_count": sum(not q["expected_answerable"] for q in frozen_queries), "unicode_question_mark_runs": sum(bool(re.search(r"\?{3,}", q["query_zh"])) for q in frozen_queries), "replacement_character_count": sum(q["query_zh"].count("\ufffd") for q in frozen_queries)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return manifest
+
+
+def qrels_evaluation_label(path: Path) -> str:
+    metadata = json.loads(path.read_text(encoding="utf-8-sig")).get("metadata", {})
+    return "human_reviewed_pilot_qrels_v1" if metadata.get("benchmark_id") == "human_reviewed_pilot_qrels_v1" else "preliminary_on_AI_drafted_silver_qrels"
+
+
 def _split(value: str | None) -> list[str]:
     return [item.strip() for item in (value or "").split(";") if item.strip()]
+
+
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        return list(csv.DictReader(handle))
+
+
+def _sha256_file(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()

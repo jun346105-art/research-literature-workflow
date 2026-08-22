@@ -9,7 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from litflow.rag.qrels import load_queries
+from litflow.rag.qrels import load_queries, qrels_evaluation_label
 
 
 class RagValidationError(ValueError):
@@ -108,7 +108,7 @@ def evaluate_bm25(corpus_path: Path, queries_path: Path, out_dir: Path, *, mode:
         records.append({"query_id": query["query_id"], "expected_answerable": query["expected_answerable"], "results": results, "latency_ms": round(latency, 6)})
     answerable = [query for query in queries if query["expected_answerable"]]
     metrics = _metrics(records, answerable)
-    report = {"label": "preliminary_on_AI_drafted_silver_qrels", "mode": mode, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "query_count": len(queries), "answerable_query_count": len(answerable), "no_answer_query_count": len(queries) - len(answerable), "metrics": metrics, "latency_ms": {"p50": _percentile(latencies, .5), "p95": _percentile(latencies, .95), "total": round((time.perf_counter() - started) * 1000, 6)}, "failure_cases": _top10_misses(records, answerable)}
+    report = {"label": qrels_evaluation_label(queries_path), "mode": mode, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "query_count": len(queries), "answerable_query_count": len(answerable), "no_answer_query_count": len(queries) - len(answerable), "metrics": metrics, "latency_ms": {"p50": _percentile(latencies, .5), "p95": _percentile(latencies, .95), "total": round((time.perf_counter() - started) * 1000, 6)}, "failure_cases": _top10_misses(records, answerable)}
     out_dir.mkdir(parents=True)
     (out_dir / f"per_query_{mode}.jsonl").write_text("".join(json.dumps(item, ensure_ascii=False) + "\n" for item in records), encoding="utf-8")
     (out_dir / f"metrics_{mode}.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

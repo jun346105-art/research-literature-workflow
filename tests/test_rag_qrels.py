@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from litflow.rag.qrels import QrelsUnicodeError, import_ai_assisted_qrels, load_queries, write_qrels_review_csv, write_queries_json
+from litflow.rag.qrels import QrelsUnicodeError, freeze_human_reviewed_qrels, import_ai_assisted_qrels, load_queries, write_qrels_review_csv, write_queries_json
 
 
 def test_query_json_and_csv_round_trip_unicode(tmp_path):
@@ -58,6 +58,19 @@ def test_ai_assisted_import_applies_passage_revision_and_preserves_en_audit(tmp_
     assert imported[0]["query_revision"]["original_query_en"] == "broad question"
     assert imported[0]["query_revision"]["revised_query_en"] == "narrow question"
     assert json.loads(output.with_suffix(".manifest.json").read_text(encoding="utf-8"))["query_scope_revised_during_ai_assisted_review"] == ["Q01"]
+
+
+def test_human_freeze_writes_pilot_manifest(tmp_path):
+    pending = tmp_path / "pending.json"
+    write_queries_json(pending, {}, [_query("Q01", "确认中文")])
+    source = tmp_path / "source.csv"
+    source.write_text("query_id,passages_to_add,passages_to_remove\nQ01,P1:P1_chunk_0001,\n", encoding="utf-8")
+    corpus = tmp_path / "passages.jsonl"
+    corpus.write_text(json.dumps({"passage_id": "P1:P1_chunk_0001"}) + "\n", encoding="utf-8")
+    output = tmp_path / "reviewed.json"
+    manifest = freeze_human_reviewed_qrels(pending, source, corpus, output)
+    assert manifest["benchmark_id"] == "human_reviewed_pilot_qrels_v1"
+    assert load_queries(output)[0]["review_status"] == "human_reviewed_pilot"
 
 
 def _query(query_id: str, query_zh: str) -> dict:

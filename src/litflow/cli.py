@@ -30,7 +30,7 @@ from litflow.obsidian.deep_reading_preview import preview_deep_reading_objects
 from litflow.reading_context import build_reading_contexts
 from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
-from litflow.rag.qrels import import_ai_assisted_qrels
+from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -180,6 +180,12 @@ def main(argv: list[str] | None = None) -> int:
     qrels_import.add_argument("--source-csv", required=True, type=Path)
     qrels_import.add_argument("--original-queries", required=True, type=Path)
     qrels_import.add_argument("--out", required=True, type=Path)
+
+    qrels_freeze = subparsers.add_parser("freeze-human-reviewed-qrels")
+    qrels_freeze.add_argument("--pending-queries", required=True, type=Path)
+    qrels_freeze.add_argument("--source-csv", required=True, type=Path)
+    qrels_freeze.add_argument("--corpus", required=True, type=Path)
+    qrels_freeze.add_argument("--out", required=True, type=Path)
 
     preview_update = subparsers.add_parser("preview-obsidian-update")
     preview_update.add_argument("--structured-note", required=True, type=Path)
@@ -424,6 +430,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "import-ai-assisted-qrels":
             queries = import_ai_assisted_qrels(args.source_csv, args.original_queries, args.out)
             print(f"Imported {len(queries)} AI-assisted qrels queries to {args.out}")
+            return 0
+
+        if args.command == "freeze-human-reviewed-qrels":
+            manifest = freeze_human_reviewed_qrels(args.pending_queries, args.source_csv, args.corpus, args.out)
+            print(json.dumps(manifest, ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "preview-obsidian-update":
