@@ -17,6 +17,7 @@ from litflow.rag.qrels import load_queries
 
 
 QA_PROMPT_VERSION = "evidence-grounded-qa-v1"
+QA_V11_PROMPT_VERSION = "evidence-grounded-qa-v1.1"
 SAFE_INSUFFICIENT_ZH = "基于当前检索到的文献片段，证据不足，无法给出可验证回答。"
 SAFE_EXECUTION_FAILURE_ZH = "系统暂时无法生成经过验证的回答，请稍后重试。"
 
@@ -50,6 +51,30 @@ class RawAnswer(BaseModel):
         return self
 
 
+class RawClaimV11(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    subject_paper_key: str
+    claim_text_zh: str
+    citations: list[RawCitation] = Field(default_factory=list)
+
+
+class RawAnswerV11(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["answered", "insufficient_evidence"]
+    claims: list[RawClaimV11] = Field(default_factory=list)
+    limitations_zh: str
+
+    @model_validator(mode="after")
+    def validate_answer_contract(self):
+        if self.status == "answered" and not self.claims:
+            raise ValueError("answered requires at least one claim")
+        if self.status == "answered" and any(not claim.citations for claim in self.claims):
+            raise ValueError("every answered claim requires a citation")
+        if self.status == "insufficient_evidence" and self.claims:
+            raise ValueError("insufficient_evidence requires empty claims")
+        return self
+
+
 class VerifiedCitation(BaseModel):
     passage_id: str
     evidence_quote: str
@@ -62,12 +87,13 @@ class VerifiedCitation(BaseModel):
 class QAResult(BaseModel):
     query_id: str
     answer_status: Literal["answered", "insufficient_evidence"]
-    execution_status: Literal["success", "provider_failed", "parse_failed", "transport_failed", "schema_failed", "citation_validation_failed", "quote_grounding_failed"]
+    execution_status: Literal["success", "provider_failed", "parse_failed", "transport_failed", "schema_failed", "answer_domain_failed", "citation_validation_failed", "quote_grounding_failed"]
     answer_zh: str
     claims: list[dict[str, Any]] = Field(default_factory=list)
     limitations_zh: str = ""
     retrieval_qrels_miss: bool | None = None
     semantic_evidence_absent: bool = False
+    semantic_review_status: Literal["pending_author_review", "not_applicable"] = "not_applicable"
     raw_response_artifacts: list[str] = Field(default_factory=list)
     validation_error: str | None = None
 
@@ -77,6 +103,91 @@ def plan_qa(corpus_path: Path, queries_path: Path, *, model: str, top_k: int = 1
     if top_k != 10:
         raise ValueError("MVP QA is frozen at top_k=10")
     return {"role": "evidence_grounded_qa", "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "query_count": len(queries), "top_k": top_k, "prompt_version": QA_PROMPT_VERSION, "model": model, "minimum_calls": len(queries), "maximum_calls_with_parse_schema_retry": len(queries) * 2, "passage_count": len(passages)}
+
+
+def _select_query(queries: list[dict[str, Any]], query_id: str) -> dict[str, Any]:
+    selected = [query for query in queries if query["query_id"] == query_id]
+    if len(selected) != 1:
+        raise ValueError("query_id must identify exactly one frozen query")
+    return selected[0]
+
+
+def plan_qa_v11(corpus_path: Path, queries_path: Path, *, model: str, query_id: str, top_k: int = 10) -> dict[str, Any]:
+    passages, queries = load_corpus(corpus_path), load_queries(queries_path)
+    if top_k != 10:
+        raise ValueError("MVP QA is frozen at top_k=10")
+    query = _select_query(queries, query_id)
+    by_id = {passage["passage_id"]: passage for passage in passages}
+    top = [by_id[item["passage_id"]] for item in BM25Index(passages).search(query["query_zh"], top_k=top_k)]
+    prompt = _prompt_v11(query, top)
+    input_identity = {
+        "query_id": query_id,
+        "query_sha256": _sha256_text(json.dumps(query, ensure_ascii=False, sort_keys=True)),
+        "top_passage_ids": [passage["passage_id"] for passage in top],
+    }
+    return {
+        "role": "evidence_grounded_qa_v11_canary",
+        "corpus_sha256": _sha256_file(corpus_path),
+        "queries_sha256": _sha256_file(queries_path),
+        "selected_query_sha256": input_identity["query_sha256"],
+        "query_id": query_id,
+        "query_count": 1,
+        "top_k": top_k,
+        "top_passage_ids": input_identity["top_passage_ids"],
+        "prompt_version": QA_V11_PROMPT_VERSION,
+        "prompt_sha256": _sha256_text(prompt),
+        "input_sha256": _sha256_text(json.dumps(input_identity, ensure_ascii=False, sort_keys=True)),
+        "model": model,
+        "minimum_calls": 1,
+        "maximum_calls": 1,
+        "retry_enabled": False,
+        "passage_count": len(passages),
+    }
+
+
+def run_qa_v11(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, query_id: str, top_k: int = 10, client: Any | None = None) -> dict[str, Any]:
+    if run_dir.exists():
+        raise LLMError("QA v1.1 canary output directory must not already exist")
+    plan = plan_qa_v11(corpus_path, queries_path, model=model, query_id=query_id, top_k=top_k)
+    passages, queries = load_corpus(corpus_path), load_queries(queries_path)
+    query = _select_query(queries, query_id)
+    by_id = {passage["passage_id"]: passage for passage in passages}
+    top = [by_id[item["passage_id"]] for item in BM25Index(passages).search(query["query_zh"], top_k=top_k)]
+    top_ids = [passage["passage_id"] for passage in top]
+    prompt = _prompt_v11(query, top)
+    identity = _sha256_text(json.dumps({**plan, "git_commit_sha": _git_sha()}, sort_keys=True))
+    query_dir = run_dir / "queries" / query_id
+    raw_path = query_dir / "raw_response_attempt_1.txt"
+    run_dir.mkdir(parents=True, exist_ok=False)
+    _write_json(run_dir / "preflight_identity.json", {**plan, "git_commit_sha": _git_sha(), "identity_sha256": identity})
+    _write_json(run_dir / "run_manifest.json", {"plan": plan, "identity_sha256": identity, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "external_llm_called": True, "retry_enabled": False})
+    _write_json(run_dir / "retrieval" / f"{query_id}.json", top_ids)
+    client = client or OpenAICompatibleClient.from_env(thinking_mode="disabled")
+    if isinstance(client, OpenAICompatibleClient) and client.model != model:
+        raise LLMError("--model must match LLM_MODEL when QA execute is used")
+    raw_paths: list[str] = []
+    try:
+        started = time.perf_counter()
+        completion = client.complete_json_with_usage(prompt, temperature=0)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(completion.content, encoding="utf-8")
+        raw_paths.append(str(raw_path.relative_to(run_dir)))
+        _write_json(query_dir / "usage_attempt_1.json", {"input_tokens": completion.input_tokens, "output_tokens": completion.output_tokens, "total_tokens": completion.total_tokens, "usage_status": "provider_reported" if completion.total_tokens is not None else "usage_unavailable", "model": model, "latency_ms": round((time.perf_counter() - started) * 1000, 6), "temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}, "prompt_sha256": plan["prompt_sha256"], "input_sha256": plan["input_sha256"], "git_commit_sha": _git_sha()})
+        _write_json(query_dir / "checkpoint_1.json", {"identity_sha256": identity, "raw_sha256": _sha256_file(raw_path), "prompt_sha256": plan["prompt_sha256"], "input_sha256": plan["input_sha256"]})
+        parsed = _parse_v11(completion.content)
+        result = _verify_v11(query_id, parsed, by_id, top_ids, raw_paths)
+    except CanonicalTransportError as exc:
+        status = "parse_failed" if str(exc).startswith("raw JSON parse failed") else "transport_failed"
+        result = _failed(query_id, status, str(exc), raw_paths)
+    except ValidationError as exc:
+        status = "answer_domain_failed" if any(error.get("loc") == () for error in exc.errors()) else "schema_failed"
+        result = _failed(query_id, status, str(exc), raw_paths)
+    except Exception as exc:
+        result = _failed(query_id, "provider_failed", str(exc), raw_paths)
+    _write_json(run_dir / "validation_report.json", {"query_id": query_id, "execution_status": result.execution_status, "answer_status": result.answer_status, "validation_error": result.validation_error, "canonical_transport_required": True, "subject_paper_key_required": True, "citation_top10_required": True, "quote_grounding_required": True})
+    _write_json(run_dir / "results.json", [result.model_dump()])
+    (run_dir / "rendered_answer.md").write_text(result.answer_zh + "\n", encoding="utf-8")
+    return {"plan": plan, "results": [result]}
 
 
 def run_qa(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, top_k: int = 10, resume: bool = False, client: Any | None = None) -> dict[str, Any]:
@@ -197,12 +308,53 @@ def _verify(query_id: str, raw: RawAnswer, passages: dict[str, dict[str, Any]], 
     return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer(claims), claims=claims, limitations_zh=raw.limitations_zh, raw_response_artifacts=raw_paths)
 
 
+def _verify_v11(query_id: str, raw: RawAnswerV11, passages: dict[str, dict[str, Any]], top_ids: list[str], raw_paths: list[str]) -> QAResult:
+    if raw.status == "insufficient_evidence":
+        return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status="success", answer_zh=SAFE_INSUFFICIENT_ZH, limitations_zh=raw.limitations_zh, semantic_evidence_absent=True, raw_response_artifacts=raw_paths)
+    top_paper_keys = {passages[passage_id]["paper_key"] for passage_id in top_ids}
+    claims = []
+    for claim in raw.claims:
+        if claim.subject_paper_key not in top_paper_keys:
+            return _failed(query_id, "citation_validation_failed", "subject_paper_key is not in this query top-10", raw_paths)
+        verified = []
+        seen_passage_ids: set[str] = set()
+        for citation in claim.citations:
+            if citation.passage_id not in top_ids or citation.passage_id not in passages:
+                return _failed(query_id, "citation_validation_failed", "citation passage_id is not in this query top-10", raw_paths)
+            passage = passages[citation.passage_id]
+            if passage["paper_key"] != claim.subject_paper_key:
+                return _failed(query_id, "citation_validation_failed", "citation paper_key does not match subject_paper_key", raw_paths)
+            mapped = map_verbatim_span(citation.evidence_quote, passage["text"])
+            if mapped.status != "ok":
+                return _failed(query_id, "quote_grounding_failed", mapped.error_type, raw_paths)
+            if citation.passage_id not in seen_passage_ids:
+                verified.append({"passage_id": citation.passage_id, "evidence_quote": mapped.evidence_text, "page_start": passage["page_start"], "page_end": passage["page_end"], "anchor_status": "exact_match" if mapped.method == "exact_match" else "normalized_exact_match", "mapper_method": mapped.method})
+                seen_passage_ids.add(citation.passage_id)
+        claims.append({"subject_paper_key": claim.subject_paper_key, "claim_text_zh": claim.claim_text_zh, "citations": verified})
+    return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v11(claims, passages), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths)
+
+
 def _failed(query_id: str, status: str, error: str, raw_paths: list[str]) -> QAResult:
     return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status=status, answer_zh=SAFE_EXECUTION_FAILURE_ZH, raw_response_artifacts=raw_paths, validation_error=error)
 
 
 class TransportError(ValueError):
     pass
+
+
+class CanonicalTransportError(ValueError):
+    pass
+
+
+def _parse_v11(raw: str) -> RawAnswerV11:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise CanonicalTransportError("raw JSON parse failed") from exc
+    fields = {"status", "claims", "limitations_zh"}
+    if not isinstance(payload, dict) or set(payload) != fields:
+        raise CanonicalTransportError("canonical top-level fields must be exactly status, claims, limitations_zh")
+    return RawAnswerV11.model_validate(payload)
 
 
 def normalize_transport_payload(payload: Any, query: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -284,8 +436,64 @@ def _prompt(query: dict[str, Any], passages: list[dict[str, Any]]) -> str:
     return "Answer only from the supplied passages. Return JSON only. Do not output answer_zh.\nIf status is answered, every claim needs at least one citation. If evidence is insufficient, claims must be empty. evidence_quote must be a short exact English quote from the cited passage.\n" + json.dumps({"query_id": query["query_id"], "query_zh": query["query_zh"], "schema": schema, "passages": allowed}, ensure_ascii=False)
 
 
+def _prompt_v11(query: dict[str, Any], passages: list[dict[str, Any]]) -> str:
+    allowed = [
+        {
+            key: passage[key]
+            for key in (
+                "passage_id",
+                "paper_key",
+                "citation_key",
+                "title",
+                "page_start",
+                "page_end",
+                "text",
+            )
+        }
+        for passage in passages
+    ]
+    output_schema = {
+        "status": "answered | insufficient_evidence",
+        "claims": [
+            {
+                "subject_paper_key": "paper_key from supplied passages",
+                "claim_text_zh": "Chinese atomic claim without a paper-title prefix",
+                "citations": [
+                    {
+                        "passage_id": "supplied passage_id",
+                        "evidence_quote": "short exact contiguous English quote",
+                    }
+                ],
+            }
+        ],
+        "limitations_zh": "evidence scope or limitation",
+    }
+    instructions = (
+        "Answer only from the supplied passages. Return JSON only, with exactly the top-level fields in OUTPUT_SCHEMA. "
+        "Do not output query_id, query_zh, schema, data, result, answer, Markdown code fences, or any other fields. "
+        "For answered, provide at least one claim and at least one citation per claim. Each subject_paper_key and citation passage_id must come from the supplied passages, and every citation in one claim must have the same paper_key as subject_paper_key. "
+        "evidence_quote must copy one short, contiguous English source span exactly. Do not translate, paraphrase, join non-contiguous spans, use ellipses, or alter numbers, symbols, or proper nouns. "
+        "If no such quote supports the answer, return insufficient_evidence with an empty claims list and explain the limitation in limitations_zh."
+    )
+    return instructions + "\nOUTPUT_SCHEMA:\n" + json.dumps(output_schema, ensure_ascii=False) + "\nQUESTION:\n" + json.dumps({"query_zh": query["query_zh"]}, ensure_ascii=False) + "\nSUPPLIED_PASSAGES:\n" + json.dumps(allowed, ensure_ascii=False)
+
+
 def _render_answer(claims: list[dict[str, Any]]) -> str:
     return "\n".join(f"{index}. {claim['claim_text_zh']}（来源：" + "; ".join(f"{citation['passage_id']} pp.{citation['page_start']}-{citation['page_end']}" for citation in claim["citations"]) + "）" for index, claim in enumerate(claims, 1))
+
+
+def _render_answer_v11(claims: list[dict[str, Any]], passages: dict[str, dict[str, Any]]) -> str:
+    lines = ["根据当前检索到的证据，可以确认："]
+    for index, claim in enumerate(claims, 1):
+        first_passage = passages[claim["citations"][0]["passage_id"]]
+        title = first_passage["title"]
+        citation_key = first_passage["citation_key"]
+        references = "; ".join(
+            f"{citation['passage_id']} pp.{citation['page_start']}-{citation['page_end']}"
+            for citation in claim["citations"]
+        )
+        lines.append(f"{index}. 【{title} ({citation_key})】{claim['claim_text_zh']}（来源：{references}）")
+    return "\n".join(lines)
 
 
 def write_qa_review_packet(run_dir: Path, corpus_path: Path, output_path: Path) -> None:

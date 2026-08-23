@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import RawAnswer, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _verify, evaluate_qa, plan_qa, replay_qa_transport, run_qa, write_qa_review_packet
+from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
 
 
 class FakeClient:
@@ -82,6 +82,62 @@ def test_review_packet_contains_only_verified_answered_results(tmp_path):
     rendered = packet.read_text(encoding="utf-8")
     assert "## Q1" in rendered
     assert "## Q2" not in rendered
+
+
+def test_v11_accepts_only_canonical_transport_payload():
+    query = {"query_id": "Q1", "query_zh": "alpha"}
+    canonical = {"status": "insufficient_evidence", "claims": [], "limitations_zh": "evidence is limited"}
+    assert _parse_v11(json.dumps(canonical)).status == "insufficient_evidence"
+    wrapped = {"query_id": "Q1", "query_zh": "alpha", "schema": canonical}
+    with pytest.raises(CanonicalTransportError, match="canonical top-level"):
+        _parse_v11(json.dumps(wrapped))
+    with pytest.raises(CanonicalTransportError, match="canonical top-level"):
+        _parse_v11(json.dumps({**canonical, "data": {}}))
+
+
+def test_v11_requires_subject_paper_and_matching_citation_paper():
+    passages = {
+        "P1:P1_chunk_0001": {"text": "alpha evidence", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+        "P2:P2_chunk_0001": {"text": "beta evidence", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "Paper Two", "citation_key": "two"},
+    }
+    raw = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "beta evidence"}]}], "limitations_zh": ""})
+    result = _verify_v11("Q1", raw, passages, ["P1:P1_chunk_0001", "P2:P2_chunk_0001"], [])
+    assert result.execution_status == "citation_validation_failed"
+    assert result.validation_error == "citation paper_key does not match subject_paper_key"
+    unknown_subject = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P3", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    assert _verify_v11("Q1", unknown_subject, passages, ["P1:P1_chunk_0001", "P2:P2_chunk_0001"], []).validation_error == "subject_paper_key is not in this query top-10"
+
+
+def test_v11_quote_validation_and_deterministic_rendering_deduplicate_passages():
+    passages = {
+        "P1:P1_chunk_0001": {"text": "alpha evidence", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+    }
+    raw = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}, {"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    result = _verify_v11("Q1", raw, passages, ["P1:P1_chunk_0001"], [])
+    assert result.execution_status == "success"
+    assert result.claims[0]["citations"] == [result.claims[0]["citations"][0]]
+    rendered = _render_answer_v11(result.claims, passages)
+    assert rendered.startswith("根据当前检索到的证据，可以确认：")
+    assert rendered.count("P1:P1_chunk_0001") == 1
+    paraphrase = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha paraphrase"}]}], "limitations_zh": ""})
+    assert _verify_v11("Q1", paraphrase, passages, ["P1:P1_chunk_0001"], []).execution_status == "quote_grounding_failed"
+
+
+def test_v11_canary_executes_only_selected_query_without_retry(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    response = {"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    client = FakeClient(response)
+    plan = plan_qa_v11(corpus, queries, model="fake", query_id="Q1")
+    assert plan["query_count"] == 1
+    assert plan["maximum_calls"] == 1
+    run = run_qa_v11(corpus, queries, tmp_path / "canary", model="fake", query_id="Q1", client=client)
+    assert client.calls == 1
+    assert [result.query_id for result in run["results"]] == ["Q1"]
+    assert run["results"][0].execution_status == "success"
+    wrapped_client = FakeClient({"query_id": "Q1", "query_zh": "alpha", "schema": response})
+    failed = run_qa_v11(corpus, queries, tmp_path / "failed_canary", model="fake", query_id="Q1", client=wrapped_client)
+    assert wrapped_client.calls == 1
+    assert failed["results"][0].execution_status == "transport_failed"
 
 
 def _inputs(tmp_path):

@@ -32,7 +32,7 @@ from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
-from litflow.rag.qa import evaluate_qa, plan_qa, replay_qa_transport, run_qa, write_qa_review_packet
+from litflow.rag.qa import evaluate_qa, plan_qa, plan_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -213,6 +213,22 @@ def main(argv: list[str] | None = None) -> int:
     qa_run.add_argument("--model", required=True)
     qa_run.add_argument("--top-k", type=int, default=10)
     qa_run.add_argument("--resume", action="store_true")
+
+    qa_v11_plan = subparsers.add_parser("plan-evidence-qa-v1-1")
+    qa_v11_plan.add_argument("--corpus", required=True, type=Path)
+    qa_v11_plan.add_argument("--queries", required=True, type=Path)
+    qa_v11_plan.add_argument("--model", required=True)
+    qa_v11_plan.add_argument("--query-id", required=True)
+    qa_v11_plan.add_argument("--top-k", type=int, default=10)
+
+    qa_v11_run = subparsers.add_parser("run-evidence-qa-v1-1")
+    qa_v11_run.add_argument("--corpus", required=True, type=Path)
+    qa_v11_run.add_argument("--queries", required=True, type=Path)
+    qa_v11_run.add_argument("--run-dir", required=True, type=Path)
+    qa_v11_run.add_argument("--model", required=True)
+    qa_v11_run.add_argument("--query-id", required=True)
+    qa_v11_run.add_argument("--top-k", type=int, default=10)
+    qa_v11_run.add_argument("--execute", action="store_true")
 
     qa_eval = subparsers.add_parser("evaluate-evidence-qa")
     qa_eval.add_argument("--run-dir", required=True, type=Path)
@@ -495,6 +511,17 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "run-evidence-qa":
             result = run_qa(args.corpus, args.queries, args.run_dir, model=args.model, top_k=args.top_k, resume=args.resume)
+            print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"])}, ensure_ascii=False))
+            return 0
+
+        if args.command == "plan-evidence-qa-v1-1":
+            print(json.dumps(plan_qa_v11(args.corpus, args.queries, model=args.model, query_id=args.query_id, top_k=args.top_k), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "run-evidence-qa-v1-1":
+            if not args.execute:
+                raise ValueError("run-evidence-qa-v1-1 requires explicit --execute")
+            result = run_qa_v11(args.corpus, args.queries, args.run_dir, model=args.model, query_id=args.query_id, top_k=args.top_k)
             print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"])}, ensure_ascii=False))
             return 0
 
