@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
+from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, plan_qa_v11_batch, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, run_qa_v11_batch, write_qa_review_packet
 
 
 class FakeClient:
@@ -197,6 +197,29 @@ def test_v11_ambiguity_replay_is_offline_and_preserves_source_raw(tmp_path, monk
     assert replay["results"][0].execution_status == "success"
     assert __import__("hashlib").sha256(raw_path.read_bytes()).hexdigest() == original_sha
     assert (tmp_path / "replay" / "replay_manifest.json").is_file()
+
+
+def test_v11_small_batch_runs_only_explicit_queries_once_each(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    response = {"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    client = FakeClient(response)
+    plan = plan_qa_v11_batch(corpus, queries, model="fake", query_ids=["Q1", "Q2"])
+    assert plan["query_count"] == 2
+    assert plan["maximum_calls"] == 2
+    run = run_qa_v11_batch(corpus, queries, tmp_path / "batch", model="fake", query_ids=["Q1", "Q2"], client=client)
+    assert client.calls == 2
+    assert [item.query_id for item in run["results"]] == ["Q1", "Q2"]
+    assert run["stop_reason"] is None
+
+
+def test_v11_small_batch_stops_after_two_identical_structural_failures(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    wrapped = {"query_id": "unexpected", "query_zh": "alpha", "schema": {"status": "insufficient_evidence", "claims": [], "limitations_zh": ""}}
+    client = FakeClient(wrapped)
+    run = run_qa_v11_batch(corpus, queries, tmp_path / "batch", model="fake", query_ids=["Q1", "Q2"], client=client)
+    assert client.calls == 2
+    assert run["stop_reason"] == "repeated_structural_error"
+    assert all(item.execution_status == "transport_failed" for item in run["results"])
 
 
 def _inputs(tmp_path):

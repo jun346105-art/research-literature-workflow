@@ -146,6 +146,24 @@ def plan_qa_v11(corpus_path: Path, queries_path: Path, *, model: str, query_id: 
     }
 
 
+def plan_qa_v11_batch(corpus_path: Path, queries_path: Path, *, model: str, query_ids: list[str], top_k: int = 10) -> dict[str, Any]:
+    if not query_ids or len(query_ids) != len(set(query_ids)):
+        raise ValueError("batch query_ids must be nonempty and unique")
+    per_query = [
+        plan_qa_v11(corpus_path, queries_path, model=model, query_id=query_id, top_k=top_k)
+        for query_id in query_ids
+    ]
+    return {
+        "role": "evidence_grounded_qa_v11_small_batch",
+        "query_ids": query_ids,
+        "query_count": len(query_ids),
+        "minimum_calls": len(query_ids),
+        "maximum_calls": len(query_ids),
+        "retry_enabled": False,
+        "per_query": per_query,
+    }
+
+
 def run_qa_v11(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, query_id: str, top_k: int = 10, client: Any | None = None) -> dict[str, Any]:
     if run_dir.exists():
         raise LLMError("QA v1.1 canary output directory must not already exist")
@@ -190,6 +208,34 @@ def run_qa_v11(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: s
     _write_json(run_dir / "results.json", [result.model_dump()])
     (run_dir / "rendered_answer.md").write_text(result.answer_zh + "\n", encoding="utf-8")
     return {"plan": plan, "results": [result]}
+
+
+def run_qa_v11_batch(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, query_ids: list[str], top_k: int = 10, client: Any | None = None) -> dict[str, Any]:
+    if run_dir.exists():
+        raise LLMError("QA v1.1 small-batch output directory must not already exist")
+    plan = plan_qa_v11_batch(corpus_path, queries_path, model=model, query_ids=query_ids, top_k=top_k)
+    run_dir.mkdir(parents=True, exist_ok=False)
+    results: list[QAResult] = []
+    checkpointed_query_ids: list[str] = []
+    previous_signature: str | None = None
+    stop_reason = None
+    _write_json(run_dir / "batch_manifest.json", {"plan": plan, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "stop_reason": stop_reason, "checkpointed_query_ids": checkpointed_query_ids})
+    for query_id in query_ids:
+        child_run = run_qa_v11(corpus_path, queries_path, run_dir / "query_runs" / query_id, model=model, query_id=query_id, top_k=top_k, client=client)
+        child_result = child_run["results"][0]
+        result = child_result.model_copy(update={"raw_response_artifacts": [f"query_runs/{query_id}/{path}" for path in child_result.raw_response_artifacts]})
+        results.append(result)
+        checkpointed_query_ids.append(query_id)
+        _write_json(run_dir / "results.json", [item.model_dump() for item in results])
+        structural = result.execution_status in {"transport_failed", "schema_failed", "parse_failed", "answer_domain_failed"}
+        signature = f"{result.execution_status}:{result.validation_error or ''}" if structural else None
+        if signature and signature == previous_signature:
+            stop_reason = "repeated_structural_error"
+            break
+        previous_signature = signature
+        _write_json(run_dir / "batch_manifest.json", {"plan": plan, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "stop_reason": stop_reason, "checkpointed_query_ids": checkpointed_query_ids})
+    _write_json(run_dir / "batch_manifest.json", {"plan": plan, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "stop_reason": stop_reason, "checkpointed_query_ids": checkpointed_query_ids})
+    return {"plan": plan, "results": results, "stop_reason": stop_reason}
 
 
 def replay_qa_v11(source_run_dir: Path, corpus_path: Path, queries_path: Path, out_dir: Path) -> dict[str, Any]:
