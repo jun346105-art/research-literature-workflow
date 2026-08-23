@@ -260,6 +260,16 @@ def test_v12_fake_runner_applies_entity_metadata(tmp_path):
     assert rejected["results"][0].execution_status == "entity_binding_failed"
 
 
+def test_v12_rejects_answer_when_a_requested_model_entity_is_missing_from_top_k(tmp_path):
+    metadata = _entity_metadata(tmp_path)
+    passages = {"P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "CCFM and Focal Loss improve the YOLOv8 model.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"}}
+    answer = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "Improved YOLOv8", "claim_text_zh": "该方法使用CCFM。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "CCFM and Focal Loss improve the YOLOv8 model."}]}], "limitations_zh": ""})
+    query = {"query_zh": "TPMN和改进YOLOv8如何处理缺陷？", "query_en": "How do TPMN and Improved YOLOv8 handle defects?"}
+    result = _verify_v12("Q1", answer, passages, ["P2:P2_chunk_0001"], [], metadata, query)
+    assert result.execution_status == "entity_binding_failed"
+    assert result.validation_error == "requested subject entity is absent from top-10"
+
+
 def _entity_metadata(tmp_path):
     path = tmp_path / "entities.json"
     path.write_text(json.dumps({"schema_version": "paper-entity-metadata-v1", "entities": [

@@ -210,6 +210,8 @@ def plan_qa_v12(corpus_path: Path, queries_path: Path, *, model: str, query_id: 
     query = _select_query(load_queries(queries_path), query_id)
     top = [passages[passage_id] for passage_id in base["top_passage_ids"]]
     prompt = _prompt_v12(query, top, entities)
+    required_entities = _required_model_entities(query, entities)
+    top_paper_keys = {passage["paper_key"] for passage in top}
     return {
         **base,
         "role": "evidence_grounded_qa_v12_canary",
@@ -217,6 +219,8 @@ def plan_qa_v12(corpus_path: Path, queries_path: Path, *, model: str, query_id: 
         "prompt_sha256": _sha256_text(prompt),
         "entity_metadata_sha256": _sha256_file(entity_metadata_path),
         "entity_metadata_schema_version": entities["schema_version"],
+        "required_subject_entities": required_entities,
+        "missing_required_subject_entities_in_top_k": [entity for entity in required_entities if entity["paper_key"] not in top_paper_keys],
     }
 
 
@@ -323,7 +327,7 @@ def run_qa_v12(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: s
         raw_paths.append(str(raw_path.relative_to(run_dir)))
         _write_json(query_dir / "usage_attempt_1.json", {"input_tokens": completion.input_tokens, "output_tokens": completion.output_tokens, "total_tokens": completion.total_tokens, "usage_status": "provider_reported" if completion.total_tokens is not None else "usage_unavailable", "model": model, "latency_ms": round((time.perf_counter() - started) * 1000, 6), "temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}, "prompt_sha256": plan["prompt_sha256"], "input_sha256": plan["input_sha256"], "git_commit_sha": _git_sha()})
         _write_json(query_dir / "checkpoint_1.json", {"identity_sha256": identity, "raw_sha256": _sha256_file(raw_path), "prompt_sha256": plan["prompt_sha256"], "input_sha256": plan["input_sha256"]})
-        result = _verify_v12(query_id, _parse_v12(completion.content), by_id, plan["top_passage_ids"], raw_paths, entity_metadata)
+        result = _verify_v12(query_id, _parse_v12(completion.content), by_id, plan["top_passage_ids"], raw_paths, entity_metadata, query)
     except CanonicalTransportError as exc:
         status = "parse_failed" if str(exc).startswith("raw JSON parse failed") else "transport_failed"
         result = _failed(query_id, status, str(exc), raw_paths)
@@ -526,7 +530,7 @@ def _verify_v11(query_id: str, raw: RawAnswerV11, passages: dict[str, dict[str, 
     return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v11(claims, passages), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths, quote_grounding_ledger=ledger)
 
 
-def _verify_v12(query_id: str, raw: RawAnswerV12, passages: dict[str, dict[str, Any]], top_ids: list[str], raw_paths: list[str], entity_metadata: dict[str, Any]) -> QAResult:
+def _verify_v12(query_id: str, raw: RawAnswerV12, passages: dict[str, dict[str, Any]], top_ids: list[str], raw_paths: list[str], entity_metadata: dict[str, Any], query: dict[str, Any] | None = None) -> QAResult:
     if raw.status == "insufficient_evidence":
         return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status="success", answer_zh=SAFE_INSUFFICIENT_ZH, limitations_zh=raw.limitations_zh, semantic_evidence_absent=True, raw_response_artifacts=raw_paths)
     top_paper_keys = {passages[passage_id]["paper_key"] for passage_id in top_ids}
@@ -560,11 +564,38 @@ def _verify_v12(query_id: str, raw: RawAnswerV12, passages: dict[str, dict[str, 
         if entity_check["status"] != "ok":
             return _failed(query_id, "entity_binding_failed", entity_check["error"], raw_paths, quote_ledger, entity_ledger)
         claims.append({"subject_paper_key": claim.subject_paper_key, "subject_entity_name": claim.subject_entity_name, "subject_entity_type": entity_check["entity_type"], "claim_text_zh": claim.claim_text_zh, "citations": verified})
+    if query is not None:
+        required_entities = _required_model_entities(query, entity_metadata)
+        claimed_entities = {(claim["subject_paper_key"], _normalized_entity(claim["subject_entity_name"])) for claim in claims}
+        for entity in required_entities:
+            requirement = {"required_subject_entity": entity}
+            if entity["paper_key"] not in top_paper_keys:
+                entity_ledger.append({"status": "error", "error": "requested subject entity is absent from top-10", **requirement})
+                return _failed(query_id, "entity_binding_failed", "requested subject entity is absent from top-10", raw_paths, quote_ledger, entity_ledger)
+            if (entity["paper_key"], _normalized_entity(entity["entity_name"])) not in claimed_entities:
+                entity_ledger.append({"status": "error", "error": "answered response omits requested subject entity", **requirement})
+                return _failed(query_id, "entity_binding_failed", "answered response omits requested subject entity", raw_paths, quote_ledger, entity_ledger)
     return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v12(claims, passages, entity_metadata), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths, quote_grounding_ledger=quote_ledger, entity_binding_ledger=entity_ledger)
 
 
 def _normalized_entity(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+
+
+def _required_model_entities(query: dict[str, Any], entity_metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    query_text = _normalized_entity(f"{query.get('query_zh', '')} {query.get('query_en', '')}")
+    required = []
+    seen = set()
+    for entity in entity_metadata["entities"]:
+        if entity["entity_type"] != "model":
+            continue
+        aliases = {_normalized_entity(alias) for alias in entity["aliases"] + [entity["entity_name"]]}
+        if any(alias and re.search(rf"(?:^| ){re.escape(alias)}(?: |$)", query_text) for alias in aliases):
+            key = (entity["paper_key"], entity["entity_name"])
+            if key not in seen:
+                required.append({"paper_key": entity["paper_key"], "entity_name": entity["entity_name"]})
+                seen.add(key)
+    return required
 
 
 def _validate_entity_binding(subject_paper_key: str, subject_entity_name: str, claim_text_zh: str, cited_passages: list[dict[str, Any]], entity_metadata: dict[str, Any]) -> dict[str, Any]:
