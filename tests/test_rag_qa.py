@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
+from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
 
 
 class FakeClient:
@@ -138,6 +138,65 @@ def test_v11_canary_executes_only_selected_query_without_retry(tmp_path):
     failed = run_qa_v11(corpus, queries, tmp_path / "failed_canary", model="fake", query_id="Q1", client=wrapped_client)
     assert wrapped_client.calls == 1
     assert failed["results"][0].execution_status == "transport_failed"
+
+
+def test_v11_allows_only_duplicate_identical_quote_in_declared_passage():
+    passages = {
+        "P1:P1_chunk_0001": {"text": "alpha evidence then alpha evidence", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+    }
+    raw = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    result = _verify_v11("Q1", raw, passages, ["P1:P1_chunk_0001"], [])
+    citation = result.claims[0]["citations"][0]
+    assert result.execution_status == "success"
+    assert citation["anchor_status"] == "grounded_multiple_identical_occurrences"
+    assert citation["match_count"] == 2
+    assert citation["selected_offset"] == 0
+    assert result.quote_grounding_ledger[0]["ambiguity_preserved"] is True
+    assert len(result.quote_grounding_ledger[0]["matches"]) == 2
+
+
+def test_v11_rejects_duplicate_quote_when_it_exists_in_another_passage_or_paper():
+    passages = {
+        "P1:P1_chunk_0001": {"text": "alpha evidence then alpha evidence", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+        "P2:P2_chunk_0001": {"text": "alpha evidence", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "Paper Two", "citation_key": "two"},
+    }
+    raw = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    result = _verify_v11("Q1", raw, passages, ["P1:P1_chunk_0001"], [])
+    assert result.execution_status == "quote_grounding_failed"
+    assert result.validation_error == "evidence_anchor_ambiguous"
+    assert result.quote_grounding_ledger[0]["classification"] == "matches_across_papers"
+
+
+def test_v11_rejects_duplicate_quote_when_it_exists_in_another_passage_of_same_paper():
+    passages = {
+        "P1:P1_chunk_0001": {"text": "alpha evidence then alpha evidence", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+        "P1:P1_chunk_0002": {"text": "alpha evidence", "page_start": 2, "page_end": 2, "paper_key": "P1", "title": "Paper One", "citation_key": "one"},
+    }
+    raw = RawAnswerV11.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""})
+    result = _verify_v11("Q1", raw, passages, ["P1:P1_chunk_0001"], [])
+    assert result.execution_status == "quote_grounding_failed"
+    assert result.quote_grounding_ledger[0]["classification"] == "matches_across_passages"
+
+
+def test_v11_ambiguity_replay_is_offline_and_preserves_source_raw(tmp_path, monkeypatch):
+    corpus, queries = _inputs(tmp_path)
+    source = tmp_path / "source"
+    raw = {"status": "answered", "claims": [{"subject_paper_key": "P1", "claim_text_zh": "alpha", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    (source / "queries" / "Q1").mkdir(parents=True)
+    raw_path = source / "queries" / "Q1" / "raw_response_attempt_1.txt"
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    (source / "queries" / "Q1" / "checkpoint_1.json").write_text(json.dumps({"raw_sha256": __import__("hashlib").sha256(raw_path.read_bytes()).hexdigest()}), encoding="utf-8")
+    (source / "retrieval").mkdir()
+    (source / "retrieval" / "Q1.json").write_text(json.dumps(["P1:P1_chunk_0001"]), encoding="utf-8")
+    (source / "preflight_identity.json").write_text(json.dumps({"query_id": "Q1", "corpus_sha256": __import__("hashlib").sha256(corpus.read_bytes()).hexdigest(), "queries_sha256": __import__("hashlib").sha256(queries.read_bytes()).hexdigest()}), encoding="utf-8")
+    original_sha = __import__("hashlib").sha256(raw_path.read_bytes()).hexdigest()
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    replay = replay_qa_v11(source, corpus, queries, tmp_path / "replay")
+    assert replay["results"][0].execution_status == "success"
+    assert __import__("hashlib").sha256(raw_path.read_bytes()).hexdigest() == original_sha
+    assert (tmp_path / "replay" / "replay_manifest.json").is_file()
 
 
 def _inputs(tmp_path):

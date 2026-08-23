@@ -32,7 +32,7 @@ from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
-from litflow.rag.qa import evaluate_qa, plan_qa, plan_qa_v11, replay_qa_transport, run_qa, run_qa_v11, write_qa_review_packet
+from litflow.rag.qa import evaluate_qa, plan_qa, plan_qa_v11, replay_qa_transport, replay_qa_v11, run_qa, run_qa_v11, write_qa_review_packet
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -229,6 +229,12 @@ def main(argv: list[str] | None = None) -> int:
     qa_v11_run.add_argument("--query-id", required=True)
     qa_v11_run.add_argument("--top-k", type=int, default=10)
     qa_v11_run.add_argument("--execute", action="store_true")
+
+    qa_v11_replay = subparsers.add_parser("replay-evidence-qa-v1-1")
+    qa_v11_replay.add_argument("--source-run-dir", required=True, type=Path)
+    qa_v11_replay.add_argument("--corpus", required=True, type=Path)
+    qa_v11_replay.add_argument("--queries", required=True, type=Path)
+    qa_v11_replay.add_argument("--out-dir", required=True, type=Path)
 
     qa_eval = subparsers.add_parser("evaluate-evidence-qa")
     qa_eval.add_argument("--run-dir", required=True, type=Path)
@@ -523,6 +529,11 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("run-evidence-qa-v1-1 requires explicit --execute")
             result = run_qa_v11(args.corpus, args.queries, args.run_dir, model=args.model, query_id=args.query_id, top_k=args.top_k)
             print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"])}, ensure_ascii=False))
+            return 0
+
+        if args.command == "replay-evidence-qa-v1-1":
+            result = replay_qa_v11(args.source_run_dir, args.corpus, args.queries, args.out_dir)
+            print(json.dumps({"run_dir": str(args.out_dir), "query_count": len(result["results"])}, ensure_ascii=False))
             return 0
 
         if args.command == "evaluate-evidence-qa":

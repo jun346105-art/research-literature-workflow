@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from litflow.llm.client import LLMError, OpenAICompatibleClient
-from litflow.llm.span_mapping import map_verbatim_span
+from litflow.llm.span_mapping import SAFE_NORMALIZATION_PROFILE, SpanMapping, map_verbatim_span, safe_normalize, safe_span_matches
 from litflow.rag.bm25 import BM25Index, _percentile, _sha256_file, load_corpus
 from litflow.rag.qrels import load_queries
 
@@ -96,6 +96,7 @@ class QAResult(BaseModel):
     semantic_review_status: Literal["pending_author_review", "not_applicable"] = "not_applicable"
     raw_response_artifacts: list[str] = Field(default_factory=list)
     validation_error: str | None = None
+    quote_grounding_ledger: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def plan_qa(corpus_path: Path, queries_path: Path, *, model: str, top_k: int = 10) -> dict[str, Any]:
@@ -185,9 +186,48 @@ def run_qa_v11(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: s
     except Exception as exc:
         result = _failed(query_id, "provider_failed", str(exc), raw_paths)
     _write_json(run_dir / "validation_report.json", {"query_id": query_id, "execution_status": result.execution_status, "answer_status": result.answer_status, "validation_error": result.validation_error, "canonical_transport_required": True, "subject_paper_key_required": True, "citation_top10_required": True, "quote_grounding_required": True})
+    _write_json(run_dir / "quote_grounding_ledger.json", result.quote_grounding_ledger)
     _write_json(run_dir / "results.json", [result.model_dump()])
     (run_dir / "rendered_answer.md").write_text(result.answer_zh + "\n", encoding="utf-8")
     return {"plan": plan, "results": [result]}
+
+
+def replay_qa_v11(source_run_dir: Path, corpus_path: Path, queries_path: Path, out_dir: Path) -> dict[str, Any]:
+    if out_dir.exists():
+        raise ValueError("QA v1.1 replay output directory must not already exist")
+    source_identity = _load_json(source_run_dir / "preflight_identity.json")
+    if source_identity["corpus_sha256"] != _sha256_file(corpus_path) or source_identity["queries_sha256"] != _sha256_file(queries_path):
+        raise ValueError("source canary frozen input SHA mismatch")
+    query_id = source_identity["query_id"]
+    passages, queries = load_corpus(corpus_path), load_queries(queries_path)
+    query = _select_query(queries, query_id)
+    by_id = {passage["passage_id"]: passage for passage in passages}
+    top_ids = _load_json(source_run_dir / "retrieval" / f"{query_id}.json")
+    if any(passage_id not in by_id for passage_id in top_ids):
+        raise ValueError("source canary retrieval contains an unknown passage")
+    raw_path = source_run_dir / "queries" / query_id / "raw_response_attempt_1.txt"
+    checkpoint = _load_json(source_run_dir / "queries" / query_id / "checkpoint_1.json")
+    if checkpoint.get("raw_sha256") != _sha256_file(raw_path):
+        raise ValueError("source canary raw response SHA mismatch")
+    raw_paths = [str(raw_path.relative_to(source_run_dir))]
+    try:
+        result = _verify_v11(query_id, _parse_v11(raw_path.read_text(encoding="utf-8")), by_id, top_ids, raw_paths)
+    except CanonicalTransportError as exc:
+        status = "parse_failed" if str(exc).startswith("raw JSON parse failed") else "transport_failed"
+        result = _failed(query_id, status, str(exc), raw_paths)
+    except ValidationError as exc:
+        status = "answer_domain_failed" if any(error.get("loc") == () for error in exc.errors()) else "schema_failed"
+        result = _failed(query_id, status, str(exc), raw_paths)
+    out_dir.mkdir(parents=True, exist_ok=False)
+    _write_json(out_dir / "replay_manifest.json", {"role": "offline_validator_replay", "original_flash_canary": "failed", "external_llm_called": False, "raw_response_modified": False, "validator_rule": "multiple_identical_occurrences_in_declared_passage", "ambiguity_preserved": True, "source_run_dir": source_run_dir.name, "source_raw_sha256": _sha256_file(raw_path), "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "query_id": query_id})
+    _write_json(out_dir / "preflight_identity.json", {"query_id": query_id, "corpus_sha256": _sha256_file(corpus_path), "queries_sha256": _sha256_file(queries_path), "source_preflight_identity_sha256": _sha256_file(source_run_dir / "preflight_identity.json")})
+    _write_json(out_dir / "retrieval" / f"{query_id}.json", top_ids)
+    _write_json(out_dir / "ambiguity_audit.json", result.quote_grounding_ledger)
+    _write_json(out_dir / "quote_grounding_ledger.json", result.quote_grounding_ledger)
+    _write_json(out_dir / "validation_report.json", {"query_id": query_id, "execution_status": result.execution_status, "answer_status": result.answer_status, "validation_error": result.validation_error, "canonical_transport_required": True, "subject_paper_key_required": True, "citation_top10_required": True, "quote_grounding_required": True})
+    _write_json(out_dir / "results.json", [result.model_dump()])
+    (out_dir / "rendered_answer.md").write_text(result.answer_zh + "\n", encoding="utf-8")
+    return {"results": [result]}
 
 
 def run_qa(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, top_k: int = 10, resume: bool = False, client: Any | None = None) -> dict[str, Any]:
@@ -313,29 +353,105 @@ def _verify_v11(query_id: str, raw: RawAnswerV11, passages: dict[str, dict[str, 
         return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status="success", answer_zh=SAFE_INSUFFICIENT_ZH, limitations_zh=raw.limitations_zh, semantic_evidence_absent=True, raw_response_artifacts=raw_paths)
     top_paper_keys = {passages[passage_id]["paper_key"] for passage_id in top_ids}
     claims = []
+    ledger = []
     for claim in raw.claims:
         if claim.subject_paper_key not in top_paper_keys:
             return _failed(query_id, "citation_validation_failed", "subject_paper_key is not in this query top-10", raw_paths)
         verified = []
         seen_passage_ids: set[str] = set()
-        for citation in claim.citations:
+        for citation_index, citation in enumerate(claim.citations, 1):
             if citation.passage_id not in top_ids or citation.passage_id not in passages:
                 return _failed(query_id, "citation_validation_failed", "citation passage_id is not in this query top-10", raw_paths)
             passage = passages[citation.passage_id]
             if passage["paper_key"] != claim.subject_paper_key:
                 return _failed(query_id, "citation_validation_failed", "citation paper_key does not match subject_paper_key", raw_paths)
-            mapped = map_verbatim_span(citation.evidence_quote, passage["text"])
+            mapped, citation_ledger = _map_v11_quote(citation.evidence_quote, citation.passage_id, passages)
+            citation_ledger.update({"claim_index": len(claims) + 1, "citation_index": citation_index})
+            ledger.append(citation_ledger)
             if mapped.status != "ok":
-                return _failed(query_id, "quote_grounding_failed", mapped.error_type, raw_paths)
+                return _failed(query_id, "quote_grounding_failed", mapped.error_type, raw_paths, ledger)
             if citation.passage_id not in seen_passage_ids:
-                verified.append({"passage_id": citation.passage_id, "evidence_quote": mapped.evidence_text, "page_start": passage["page_start"], "page_end": passage["page_end"], "anchor_status": "exact_match" if mapped.method == "exact_match" else "normalized_exact_match", "mapper_method": mapped.method})
+                anchor_status = "grounded_multiple_identical_occurrences" if mapped.method == "safe_normalized_multiple_identical_first" else "exact_match" if mapped.method == "exact_match" else "normalized_exact_match"
+                verified.append({"passage_id": citation.passage_id, "evidence_quote": mapped.evidence_text, "page_start": passage["page_start"], "page_end": passage["page_end"], "anchor_status": anchor_status, "mapper_method": mapped.method, "match_count": mapped.occurrence_count, "selected_offset": mapped.start, "ambiguity_preserved": mapped.method == "safe_normalized_multiple_identical_first"})
                 seen_passage_ids.add(citation.passage_id)
         claims.append({"subject_paper_key": claim.subject_paper_key, "claim_text_zh": claim.claim_text_zh, "citations": verified})
-    return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v11(claims, passages), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths)
+    return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v11(claims, passages), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths, quote_grounding_ledger=ledger)
 
 
-def _failed(query_id: str, status: str, error: str, raw_paths: list[str]) -> QAResult:
-    return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status=status, answer_zh=SAFE_EXECUTION_FAILURE_ZH, raw_response_artifacts=raw_paths, validation_error=error)
+def _map_v11_quote(quote: str, declared_passage_id: str, passages: dict[str, dict[str, Any]]) -> tuple[SpanMapping, dict[str, Any]]:
+    declared_text = passages[declared_passage_id]["text"]
+    mapped = map_verbatim_span(quote, declared_text)
+    normalized_quote = safe_normalize(quote)[0]
+    declared_matches = safe_span_matches(quote, declared_text)
+    matches = [
+        {
+            "start": start,
+            "end": end,
+            "raw_span": declared_text[start:end],
+            "normalized_equal": safe_normalize(declared_text[start:end])[0] == normalized_quote,
+        }
+        for start, end in declared_matches
+    ]
+    cross_matches = [
+        {
+            "passage_id": passage_id,
+            "paper_key": passage["paper_key"],
+            "offsets": safe_span_matches(quote, passage["text"]),
+        }
+        for passage_id, passage in passages.items()
+        if passage_id != declared_passage_id and safe_span_matches(quote, passage["text"])
+    ]
+    ledger = {
+        "declared_passage_id": declared_passage_id,
+        "declared_paper_key": passages[declared_passage_id]["paper_key"],
+        "evidence_quote": quote,
+        "normalized_quote": normalized_quote,
+        "initial_mapper_status": mapped.status,
+        "initial_mapper_method": mapped.method,
+        "initial_mapper_error": mapped.error_type,
+        "match_count": len(matches),
+        "matches": matches,
+        "cross_matches": cross_matches,
+        "ambiguity_preserved": False,
+        "selection_rule": None,
+        "selected_offset": None,
+        "classification": "unique_or_not_found",
+    }
+    if mapped.status != "ambiguous":
+        if cross_matches:
+            ledger["global_match_scope"] = "matches_across_papers" if any(item["paper_key"] != passages[declared_passage_id]["paper_key"] for item in cross_matches) else "matches_across_passages"
+        return mapped, ledger
+    if not matches:
+        ledger["classification"] = "quote_not_found"
+        return mapped, ledger
+    if cross_matches:
+        ledger["classification"] = "matches_across_papers" if any(item["paper_key"] != passages[declared_passage_id]["paper_key"] for item in cross_matches) else "matches_across_passages"
+        return mapped, ledger
+    if len(matches) < 2 or not all(item["normalized_equal"] for item in matches):
+        ledger["classification"] = "multiple_nonidentical_normalized_spans"
+        return mapped, ledger
+    selected = min(matches, key=lambda item: item["start"])
+    ledger.update({
+        "classification": "multiple_identical_occurrences_in_declared_passage",
+        "ambiguity_preserved": True,
+        "selection_rule": "deterministic_first_occurrence",
+        "selected_offset": selected["start"],
+    })
+    return SpanMapping(
+        status="ok",
+        method="safe_normalized_multiple_identical_first",
+        start=selected["start"],
+        end=selected["end"],
+        evidence_text=selected["raw_span"],
+        occurrence_count=len(matches),
+        roundtrip_verified=True,
+        normalization_profile=SAFE_NORMALIZATION_PROFILE,
+        local_features=tuple(sorted(safe_normalize(quote)[2] | safe_normalize(selected["raw_span"])[2])),
+    ), ledger
+
+
+def _failed(query_id: str, status: str, error: str, raw_paths: list[str], quote_grounding_ledger: list[dict[str, Any]] | None = None) -> QAResult:
+    return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status=status, answer_zh=SAFE_EXECUTION_FAILURE_ZH, raw_response_artifacts=raw_paths, validation_error=error, quote_grounding_ledger=quote_grounding_ledger or [])
 
 
 class TransportError(ValueError):
