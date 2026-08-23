@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _render_answer_v11, _verify, _verify_v11, evaluate_qa, plan_qa, plan_qa_v11, plan_qa_v11_batch, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, run_qa_v11_batch, write_qa_review_packet
+from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, RawAnswerV12, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _parse_v12, _render_answer_v11, _render_answer_v12, _verify, _verify_v11, _verify_v12, evaluate_qa, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, write_qa_review_packet
 
 
 class FakeClient:
@@ -220,6 +220,56 @@ def test_v11_small_batch_stops_after_two_identical_structural_failures(tmp_path)
     assert client.calls == 2
     assert run["stop_reason"] == "repeated_structural_error"
     assert all(item.execution_status == "transport_failed" for item in run["results"])
+
+
+def test_v12_entity_binding_rejects_foreign_method_and_accepts_correct_model(tmp_path):
+    metadata = _entity_metadata(tmp_path)
+    passages = {
+        "P1:P1_chunk_0001": {"passage_id": "P1:P1_chunk_0001", "text": "TPMN uses texture prior attention.", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "TPMN paper", "citation_key": "tp"},
+        "P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "CCFM and Focal Loss improve the YOLOv8 model.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"},
+    }
+    foreign = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "TPMN", "claim_text_zh": "TPMN使用CCFM和Focal Loss。", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "TPMN uses texture prior attention."}]}], "limitations_zh": ""})
+    rejected = _verify_v12("Q1", foreign, passages, ["P1:P1_chunk_0001", "P2:P2_chunk_0001"], [], metadata)
+    assert rejected.execution_status == "entity_binding_failed"
+    correct = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "Improved YOLOv8", "claim_text_zh": "该方法使用CCFM和Focal Loss。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "CCFM and Focal Loss improve the YOLOv8 model."}]}], "limitations_zh": ""})
+    accepted = _verify_v12("Q1", correct, passages, ["P1:P1_chunk_0001", "P2:P2_chunk_0001"], [], metadata)
+    assert accepted.execution_status == "success"
+
+
+def test_v12_dataset_is_rendered_as_dataset_and_unknown_entity_fails(tmp_path):
+    metadata = _entity_metadata(tmp_path)
+    passages = {"P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "QZU-DET is a dataset.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"}}
+    dataset = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "QZU-DET", "claim_text_zh": "QZU-DET用于评估。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "QZU-DET is a dataset."}]}], "limitations_zh": ""})
+    accepted = _verify_v12("Q1", dataset, passages, ["P2:P2_chunk_0001"], [], metadata)
+    rendered = _render_answer_v12(accepted.claims, passages, metadata)
+    assert "dataset: QZU-DET" in rendered
+    assert "model: QZU-DET" not in rendered
+    unknown = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "Unknown Model", "claim_text_zh": "未知模型。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "QZU-DET is a dataset."}]}], "limitations_zh": ""})
+    assert _verify_v12("Q1", unknown, passages, ["P2:P2_chunk_0001"], [], metadata).execution_status == "entity_binding_failed"
+
+
+def test_v12_fake_runner_applies_entity_metadata(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    _entity_metadata(tmp_path)
+    metadata_path = tmp_path / "entities.json"
+    correct = {"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "TPMN", "claim_text_zh": "TPMN提取纹理特征。", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    accepted = run_qa_v12(corpus, queries, tmp_path / "correct", model="fake", query_id="Q1", entity_metadata_path=metadata_path, client=FakeClient(correct))
+    assert accepted["results"][0].execution_status == "success"
+    foreign = {"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "TPMN", "claim_text_zh": "TPMN使用CCFM。", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    rejected = run_qa_v12(corpus, queries, tmp_path / "foreign", model="fake", query_id="Q1", entity_metadata_path=metadata_path, client=FakeClient(foreign))
+    assert rejected["results"][0].execution_status == "entity_binding_failed"
+
+
+def _entity_metadata(tmp_path):
+    path = tmp_path / "entities.json"
+    path.write_text(json.dumps({"schema_version": "paper-entity-metadata-v1", "entities": [
+        {"paper_key": "P1", "entity_name": "TPMN", "entity_type": "model", "aliases": ["TPMN"], "evidence_passage_ids": ["P1:P1_chunk_0001"]},
+        {"paper_key": "P2", "entity_name": "Improved YOLOv8", "entity_type": "model", "aliases": ["Improved YOLOv8", "YOLOv8"], "evidence_passage_ids": ["P2:P2_chunk_0001"]},
+        {"paper_key": "P2", "entity_name": "QZU-DET", "entity_type": "dataset", "aliases": ["QZU-DET"], "evidence_passage_ids": ["P2:P2_chunk_0001"]},
+        {"paper_key": "P2", "entity_name": "CCFM", "entity_type": "method_component", "aliases": ["CCFM"], "evidence_passage_ids": ["P2:P2_chunk_0001"]},
+        {"paper_key": "P2", "entity_name": "Focal Loss", "entity_type": "method_component", "aliases": ["Focal Loss"], "evidence_passage_ids": ["P2:P2_chunk_0001"]}
+    ]}), encoding="utf-8")
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _inputs(tmp_path):

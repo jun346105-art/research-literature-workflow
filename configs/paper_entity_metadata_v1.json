@@ -1,0 +1,96 @@
+{
+  "schema_version": "paper-entity-metadata-v1",
+  "entities": [
+    {
+      "paper_key": "L4DLHQUZ",
+      "entity_name": "TPMN",
+      "entity_type": "model",
+      "aliases": ["TPMN"],
+      "evidence_passage_ids": ["L4DLHQUZ:L4DLHQUZ_chunk_0001", "L4DLHQUZ:L4DLHQUZ_chunk_0003"]
+    },
+    {
+      "paper_key": "L4DLHQUZ",
+      "entity_name": "Texture Prior Attention",
+      "entity_type": "method_component",
+      "aliases": ["Texture Prior Attention", "TPA"],
+      "evidence_passage_ids": ["L4DLHQUZ:L4DLHQUZ_chunk_0006"]
+    },
+    {
+      "paper_key": "L4DLHQUZ",
+      "entity_name": "Multi-Level Feature Fusion",
+      "entity_type": "method_component",
+      "aliases": ["Multi-Level Feature Fusion", "MFF"],
+      "evidence_passage_ids": ["L4DLHQUZ:L4DLHQUZ_chunk_0003"]
+    },
+    {
+      "paper_key": "DZ6TYBIQ",
+      "entity_name": "Merge-YOLO",
+      "entity_type": "model",
+      "aliases": ["Merge-YOLO"],
+      "evidence_passage_ids": ["DZ6TYBIQ:DZ6TYBIQ_chunk_0001"]
+    },
+    {
+      "paper_key": "DZ6TYBIQ",
+      "entity_name": "WT-C3k2",
+      "entity_type": "method_component",
+      "aliases": ["WT-C3k2", "WTConv"],
+      "evidence_passage_ids": ["DZ6TYBIQ:DZ6TYBIQ_chunk_0007"]
+    },
+    {
+      "paper_key": "DZ6TYBIQ",
+      "entity_name": "QA Transformer",
+      "entity_type": "method_component",
+      "aliases": ["QA Transformer", "QA Block"],
+      "evidence_passage_ids": ["DZ6TYBIQ:DZ6TYBIQ_chunk_0006"]
+    },
+    {
+      "paper_key": "DZ6TYBIQ",
+      "entity_name": "DySample",
+      "entity_type": "method_component",
+      "aliases": ["DySample"],
+      "evidence_passage_ids": ["DZ6TYBIQ:DZ6TYBIQ_chunk_0006"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "Improved YOLOv8",
+      "entity_type": "model",
+      "aliases": ["Improved YOLOv8", "YOLOv8"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0002"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "QZU-DET",
+      "entity_type": "dataset",
+      "aliases": ["QZU-DET"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0012"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "DBB",
+      "entity_type": "method_component",
+      "aliases": ["DBB", "Diverse Branch Blocks"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0002"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "CCFM",
+      "entity_type": "method_component",
+      "aliases": ["CCFM"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0005"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "C2fiRMA",
+      "entity_type": "method_component",
+      "aliases": ["C2fiRMA", "IRMA"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0005"]
+    },
+    {
+      "paper_key": "3NLKTSIP",
+      "entity_name": "Focal Loss",
+      "entity_type": "method_component",
+      "aliases": ["Focal Loss"],
+      "evidence_passage_ids": ["3NLKTSIP:3NLKTSIP_chunk_0005"]
+    }
+  ]
+}
