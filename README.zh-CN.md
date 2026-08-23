@@ -233,11 +233,13 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - 已完成 Dogfood Run 001：在新论文上验证 anchored preview，并对 1 篇执行人工确认后的 marker 区域写入。
 - 已完成 Evaluation Run 002：具备 guarded execution、frozen-manifest/hash validation、atomic checkpoint/resume、context/call limit 和 reproducible aggregation。
 - v0.3A 方法精读对象抽取目前属于实验性且未验证能力，不作为生产功能宣传。
-- Passage-level BM25 当前仅在 AI-drafted silver qrels 上进行初步评估，需完成作者 qrels 审核后才能对外解释指标。
-- 多语言 Dense 与 RRF Hybrid 同样仅是 silver qrels 初步基线，当前未选择最终 Retriever。
+- 在 20 条作者审核的 pilot qrels 上，MVP Retriever 已冻结为 `BM25-ZH-raw`、`top_k=10`；固定 Dense Windowing 与 Hybrid 在该受限设置下未超过其 Recall@10。
+- QA v1.2 Flash pilot 已完成：所有展示答案均通过 citation ID、严格 quote grounding 和 claim-citation coverage 自动验证。作者审核确认 9/9 展示答案可用（6 条 pass、3 条小修），3/3 no-answer 问题正确拒答。
+- 同一 pilot 也暴露了核心限制：17 条 answerable query 中只有 9 条生成 grounded answer（52.9%）。检索 miss、保守拒答和验证失败会显式保留，不会被转换为无证据答案。
+- QA Contract 在当前阶段冻结。下一里程碑 M2：Minimal Bilingual Evidence Core，目标是提升中文 query 对英文和中英文混合文献的 evidence coverage；FastAPI 服务化尚未达到条件。
 - 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
 - 在20条作者确认的 pilot qrels 上，固定 Dense Windowing 未超过 BM25-ZH-raw 的 Recall@10；当前 MVP Retriever 保持为 BM25-ZH-raw，等待更大规模评测。
-- 当前测试：139 passed。
+- 当前测试：206 passed。
 
 ## 当前限制
 

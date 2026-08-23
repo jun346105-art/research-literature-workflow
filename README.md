@@ -209,11 +209,13 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Dogfood run validated anchored previews on new papers, with one manual-approved marker-region apply.
 - Evaluation Run 002 completed with guarded execution, frozen-manifest/hash validation, atomic checkpoint/resume, context/call limits, and reproducible aggregation.
 - v0.3A deep-reading object ingestion is experimental and currently unvalidated; it is not presented as a production capability.
-- Passage-level BM25 retrieval is evaluated only on AI-drafted silver qrels until author review is complete.
-- Multilingual Dense and RRF Hybrid retrieval are also preliminary silver-qrels baselines; no final retriever has been selected.
+- The 20-query human-reviewed pilot freezes `BM25-ZH-raw` with `top_k=10` as the MVP retriever; fixed Dense Windowing and Hybrid did not exceed its Recall@10 in this bounded setting.
+- QA v1.2 Flash pilot is complete: all displayed answers had validated citation IDs, strict quote grounding, and claim-citation coverage. Author review found 9/9 displayed answers usable (6 pass, 3 minor revision), and 3/3 no-answer queries correctly abstained.
+- The same pilot also exposes the central limitation: only 9/17 answerable queries produced a grounded answer (52.9%). Retrieval misses, conservative abstentions, and validation failures remain visible rather than being converted into unsupported answers.
+- The QA contract is frozen at this point. M2, Minimal Bilingual Evidence Core, targets evidence coverage for Chinese queries over English and mixed-language literature; FastAPI service readiness is not yet reached.
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
 - On the 20-query human-reviewed pilot, fixed Dense windowing did not exceed BM25-ZH-raw on Recall@10; BM25-ZH-raw remains the MVP retriever pending broader evaluation.
-- Current test count: 139 passed.
+- Current test count: 206 passed.
 
 ## Limitations
 
