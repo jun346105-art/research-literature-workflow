@@ -347,6 +347,44 @@ def run_qa_v12(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: s
     return {"plan": plan, "results": [result]}
 
 
+def plan_qa_v12_batch(corpus_path: Path, queries_path: Path, *, model: str, query_ids: list[str], entity_metadata_path: Path, top_k: int = 10) -> dict[str, Any]:
+    if not query_ids or len(query_ids) != len(set(query_ids)):
+        raise ValueError("batch query_ids must be nonempty and unique")
+    per_query = [
+        plan_qa_v12(corpus_path, queries_path, model=model, query_id=query_id, entity_metadata_path=entity_metadata_path, top_k=top_k)
+        for query_id in query_ids
+    ]
+    return {"role": "evidence_grounded_qa_v12_unified_pilot", "query_ids": query_ids, "query_count": len(query_ids), "minimum_calls": len(query_ids), "maximum_calls": len(query_ids), "retry_enabled": False, "per_query": per_query}
+
+
+def run_qa_v12_batch(corpus_path: Path, queries_path: Path, run_dir: Path, *, model: str, query_ids: list[str], entity_metadata_path: Path, top_k: int = 10, client: Any | None = None) -> dict[str, Any]:
+    if run_dir.exists():
+        raise LLMError("QA v1.2 unified-pilot output directory must not already exist")
+    plan = plan_qa_v12_batch(corpus_path, queries_path, model=model, query_ids=query_ids, entity_metadata_path=entity_metadata_path, top_k=top_k)
+    run_dir.mkdir(parents=True, exist_ok=False)
+    results: list[QAResult] = []
+    checkpointed_query_ids: list[str] = []
+    signatures: list[str] = []
+    stop_reason = None
+    for query_id in query_ids:
+        child = run_qa_v12(corpus_path, queries_path, run_dir / "query_runs" / query_id, model=model, query_id=query_id, entity_metadata_path=entity_metadata_path, top_k=top_k, client=client)
+        child_result = child["results"][0]
+        result = child_result.model_copy(update={"raw_response_artifacts": [f"query_runs/{query_id}/{path}" for path in child_result.raw_response_artifacts]})
+        results.append(result)
+        checkpointed_query_ids.append(query_id)
+        _write_json(run_dir / "results.json", [item.model_dump() for item in results])
+        if result.execution_status in {"transport_failed", "schema_failed", "parse_failed", "answer_domain_failed"}:
+            signatures.append(f"{result.execution_status}:{result.validation_error or ''}")
+            if len(signatures) >= 3 and len(set(signatures[-3:])) == 1:
+                stop_reason = "repeated_structural_error"
+                break
+        else:
+            signatures.clear()
+        _write_json(run_dir / "batch_manifest.json", {"plan": plan, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "stop_reason": stop_reason, "checkpointed_query_ids": checkpointed_query_ids, "structural_circuit_breaker_threshold": 3})
+    _write_json(run_dir / "batch_manifest.json", {"plan": plan, "git_commit_sha": _git_sha(), "request_config": {"temperature": 0, "thinking_mode": "disabled", "response_format": {"type": "json_object"}}, "stop_reason": stop_reason, "checkpointed_query_ids": checkpointed_query_ids, "structural_circuit_breaker_threshold": 3})
+    return {"plan": plan, "results": results, "stop_reason": stop_reason}
+
+
 def replay_qa_v11(source_run_dir: Path, corpus_path: Path, queries_path: Path, out_dir: Path) -> dict[str, Any]:
     if out_dir.exists():
         raise ValueError("QA v1.1 replay output directory must not already exist")
@@ -988,6 +1026,53 @@ def write_qa_review_packet(run_dir: Path, corpus_path: Path, output_path: Path) 
                 lines += [f"  - `{citation['passage_id']}` pp.{citation['page_start']}-{citation['page_end']} ({citation['anchor_status']})", "```text", citation["evidence_quote"], "```", "```text", passage["text"], "```"]
         lines += ["review_decision: ", "reviewer_notes: ", ""]
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_qa_v12_review_packets(run_dir: Path, corpus_path: Path, queries_path: Path, answer_output_path: Path, abstention_output_path: Path) -> None:
+    passages = {item["passage_id"]: item for item in load_corpus(corpus_path)}
+    queries = {item["query_id"]: item for item in load_queries(queries_path)}
+    results = [QAResult.model_validate(item) for item in _load_json(run_dir / "results.json")]
+    answers = [item for item in results if item.execution_status == "success" and item.final_answer_status in {"answered", "partial_answer"}]
+    abstentions = [item for item in results if item.execution_status == "success" and item.final_answer_status == "insufficient_evidence"]
+    answer_lines = ["# Valid QA Answers Review Packet", "", "> Includes only fully validated answered or partial-answer outcomes.", ""]
+    for result in answers:
+        answer_lines += [f"## {result.query_id}", f"- final_answer_status: `{result.final_answer_status}`", f"- coverage_status: `{result.coverage_status}`", "", "### Rendered Answer", result.answer_zh, "", "### Claims and Evidence"]
+        for claim in result.claims:
+            answer_lines.append(f"- subject: `{claim['subject_paper_key']}` / `{claim.get('subject_entity_name', '')}`")
+            answer_lines.append(f"- claim: {claim['claim_text_zh']}")
+            for citation in claim["citations"]:
+                passage = passages[citation["passage_id"]]
+                answer_lines += [f"  - `{citation['passage_id']}` pp.{citation['page_start']}-{citation['page_end']} ({citation['anchor_status']})", "```text", citation["evidence_quote"], "```", "```text", passage["text"], "```"]
+        answer_lines += ["### Author Review", "author_decision: ", "author_notes: ", "human_reviewed_correction: ", ""]
+    abstention_lines = ["# Valid QA Abstentions Review Packet", "", "> Includes only execution-success insufficient-evidence outcomes.", ""]
+    for result in abstentions:
+        query = queries[result.query_id]
+        abstention_lines += [f"## {result.query_id}", f"- query_zh: {query['query_zh']}", f"- coverage_status: `{result.coverage_status}`", "", "### User-Facing Result", result.answer_zh, "", "### Author Review", "author_decision: ", "author_notes: ", ""]
+    answer_output_path.write_text("\n".join(answer_lines) + "\n", encoding="utf-8")
+    abstention_output_path.write_text("\n".join(abstention_lines) + "\n", encoding="utf-8")
+
+
+def evaluate_qa_v12_batch(run_dir: Path, corpus_path: Path, queries_path: Path, evaluation_output_path: Path, taxonomy_output_path: Path, usage_output_path: Path) -> dict[str, Any]:
+    results = [QAResult.model_validate(item) for item in _load_json(run_dir / "results.json")]
+    queries = {item["query_id"]: item for item in load_queries(queries_path)}
+    usage = []
+    rows = []
+    for result in results:
+        query_id = result.query_id
+        query = queries[query_id]
+        retrieval = set(_load_json(run_dir / "query_runs" / query_id / "retrieval" / f"{query_id}.json"))
+        gold = set(query.get("relevant_passage_ids", []))
+        cited = {citation["passage_id"] for claim in result.claims for citation in claim["citations"]}
+        usage.append(_load_json(run_dir / "query_runs" / query_id / "queries" / query_id / "usage_attempt_1.json"))
+        rows.append({"query_id": query_id, "execution_status": result.execution_status, "final_answer_status": result.final_answer_status, "coverage_status": result.coverage_status, "validation_error": result.validation_error, "expected_answerable": query["expected_answerable"], "retrieval_qrels_miss": bool(query["expected_answerable"] and not (retrieval & gold)), "cited_gold_passage_hit": bool(cited & gold), "claim_count": len(result.claims), "citation_count": sum(len(claim["citations"]) for claim in result.claims)})
+    valid_answers = [item for item in results if item.execution_status == "success" and item.final_answer_status in {"answered", "partial_answer"}]
+    valid_abstentions = [item for item in results if item.execution_status == "success" and item.final_answer_status == "insufficient_evidence"]
+    report = {"label": "human_reviewed_pilot_qrels_v1_1", "actual_calls": len(usage), "execution_success_count": sum(item.execution_status == "success" for item in results), "execution_failure_count": sum(item.execution_status != "success" for item in results), "valid_answer_count": len(valid_answers), "valid_abstention_count": len(valid_abstentions), "citation_id_validity": 1.0 if valid_answers else None, "strict_quote_grounding_rate": 1.0 if valid_answers else None, "claim_citation_coverage": 1.0 if valid_answers else None, "usage": {"input_tokens": sum(item.get("input_tokens") or 0 for item in usage), "output_tokens": sum(item.get("output_tokens") or 0 for item in usage), "total_tokens": sum(item.get("total_tokens") or 0 for item in usage), "latency_ms": {"p50": _percentile([item["latency_ms"] for item in usage], .5), "p95": _percentile([item["latency_ms"] for item in usage], .95)}, "provider_status": "provider_reported", "reference_estimated_cost": None, "cost_status": "not_configured"}, "per_query": rows, "boundary": "qrels are used only for post-run evaluation and are not provided to the LLM."}
+    taxonomy = [{"query_id": item["query_id"], "failure_stage": item["execution_status"] if item["execution_status"] != "success" else None, "failure_reason": item["validation_error"], "final_answer_status": item["final_answer_status"], "coverage_status": item["coverage_status"]} for item in rows]
+    _write_json(evaluation_output_path, report)
+    _write_json(taxonomy_output_path, taxonomy)
+    _write_json(usage_output_path, {"actual_calls": len(usage), **report["usage"]})
+    return report
 
 
 def _rate(values: list[bool]) -> float | None:

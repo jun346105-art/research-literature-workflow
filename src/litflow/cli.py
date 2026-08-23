@@ -32,7 +32,7 @@ from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
-from litflow.rag.qa import evaluate_qa, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, replay_qa_transport, replay_qa_v11, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, write_qa_review_packet
+from litflow.rag.qa import evaluate_qa, evaluate_qa_v12_batch, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, plan_qa_v12_batch, replay_qa_transport, replay_qa_v11, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, run_qa_v12_batch, write_qa_review_packet, write_qa_v12_review_packets
 from litflow.selection.export import export_zotero_import
 from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
@@ -269,6 +269,39 @@ def main(argv: list[str] | None = None) -> int:
     qa_v12_run.add_argument("--query-id", required=True)
     qa_v12_run.add_argument("--top-k", type=int, default=10)
     qa_v12_run.add_argument("--execute", action="store_true")
+
+    qa_v12_batch_plan = subparsers.add_parser("plan-evidence-qa-v1-2-batch")
+    qa_v12_batch_plan.add_argument("--corpus", required=True, type=Path)
+    qa_v12_batch_plan.add_argument("--queries", required=True, type=Path)
+    qa_v12_batch_plan.add_argument("--entity-metadata", required=True, type=Path)
+    qa_v12_batch_plan.add_argument("--model", required=True)
+    qa_v12_batch_plan.add_argument("--query-id", required=True, action="append")
+    qa_v12_batch_plan.add_argument("--top-k", type=int, default=10)
+
+    qa_v12_batch_run = subparsers.add_parser("run-evidence-qa-v1-2-batch")
+    qa_v12_batch_run.add_argument("--corpus", required=True, type=Path)
+    qa_v12_batch_run.add_argument("--queries", required=True, type=Path)
+    qa_v12_batch_run.add_argument("--entity-metadata", required=True, type=Path)
+    qa_v12_batch_run.add_argument("--run-dir", required=True, type=Path)
+    qa_v12_batch_run.add_argument("--model", required=True)
+    qa_v12_batch_run.add_argument("--query-id", required=True, action="append")
+    qa_v12_batch_run.add_argument("--top-k", type=int, default=10)
+    qa_v12_batch_run.add_argument("--execute", action="store_true")
+
+    qa_v12_packets = subparsers.add_parser("make-evidence-qa-v1-2-review-packets")
+    qa_v12_packets.add_argument("--run-dir", required=True, type=Path)
+    qa_v12_packets.add_argument("--corpus", required=True, type=Path)
+    qa_v12_packets.add_argument("--queries", required=True, type=Path)
+    qa_v12_packets.add_argument("--answer-out", required=True, type=Path)
+    qa_v12_packets.add_argument("--abstention-out", required=True, type=Path)
+
+    qa_v12_eval = subparsers.add_parser("evaluate-evidence-qa-v1-2-batch")
+    qa_v12_eval.add_argument("--run-dir", required=True, type=Path)
+    qa_v12_eval.add_argument("--corpus", required=True, type=Path)
+    qa_v12_eval.add_argument("--queries", required=True, type=Path)
+    qa_v12_eval.add_argument("--out", required=True, type=Path)
+    qa_v12_eval.add_argument("--taxonomy-out", required=True, type=Path)
+    qa_v12_eval.add_argument("--usage-out", required=True, type=Path)
 
     qa_eval = subparsers.add_parser("evaluate-evidence-qa")
     qa_eval.add_argument("--run-dir", required=True, type=Path)
@@ -590,6 +623,26 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("run-evidence-qa-v1-2 requires explicit --execute")
             result = run_qa_v12(args.corpus, args.queries, args.run_dir, model=args.model, query_id=args.query_id, entity_metadata_path=args.entity_metadata, top_k=args.top_k)
             print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"])}, ensure_ascii=False))
+            return 0
+
+        if args.command == "plan-evidence-qa-v1-2-batch":
+            print(json.dumps(plan_qa_v12_batch(args.corpus, args.queries, model=args.model, query_ids=args.query_id, entity_metadata_path=args.entity_metadata, top_k=args.top_k), ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "run-evidence-qa-v1-2-batch":
+            if not args.execute:
+                raise ValueError("run-evidence-qa-v1-2-batch requires explicit --execute")
+            result = run_qa_v12_batch(args.corpus, args.queries, args.run_dir, model=args.model, query_ids=args.query_id, entity_metadata_path=args.entity_metadata, top_k=args.top_k)
+            print(json.dumps({"run_dir": str(args.run_dir), "query_count": len(result["results"]), "stop_reason": result["stop_reason"]}, ensure_ascii=False))
+            return 0
+
+        if args.command == "make-evidence-qa-v1-2-review-packets":
+            write_qa_v12_review_packets(args.run_dir, args.corpus, args.queries, args.answer_out, args.abstention_out)
+            print(json.dumps({"answer_packet": str(args.answer_out), "abstention_packet": str(args.abstention_out)}, ensure_ascii=False))
+            return 0
+
+        if args.command == "evaluate-evidence-qa-v1-2-batch":
+            print(json.dumps(evaluate_qa_v12_batch(args.run_dir, args.corpus, args.queries, args.out, args.taxonomy_out, args.usage_out), ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "evaluate-evidence-qa":

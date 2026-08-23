@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, RawAnswerV12, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _parse_v12, _render_answer_v11, _render_answer_v12, _verify, _verify_v11, _verify_v12, evaluate_qa, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, write_qa_review_packet
+from litflow.rag.qa import CanonicalTransportError, RawAnswer, RawAnswerV11, RawAnswerV12, SAFE_EXECUTION_FAILURE_ZH, TransportError, _parse_transport, _parse_v11, _parse_v12, _render_answer_v11, _render_answer_v12, _verify, _verify_v11, _verify_v12, evaluate_qa, evaluate_qa_v12_batch, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, plan_qa_v12_batch, replay_qa_v11, replay_qa_transport, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, run_qa_v12_batch, write_qa_review_packet, write_qa_v12_review_packets
 
 
 class FakeClient:
@@ -301,6 +301,38 @@ def test_v12_returns_complete_or_none_without_using_qrels(tmp_path):
     none_result = _verify_v12("Q1", none, {}, [], [], metadata, query)
     assert none_result.coverage_status == "none"
     assert none_result.final_answer_status == "insufficient_evidence"
+
+
+def test_v12_batch_runs_selected_queries_once_and_writes_separate_valid_packets(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    _entity_metadata(tmp_path)
+    metadata_path = tmp_path / "entities.json"
+    response = {"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "TPMN", "claim_text_zh": "TPMN提取纹理特征。", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "alpha evidence"}]}], "limitations_zh": ""}
+    client = FakeClient(response)
+    plan = plan_qa_v12_batch(corpus, queries, model="fake", query_ids=["Q1", "Q2"], entity_metadata_path=metadata_path)
+    assert plan["maximum_calls"] == 2
+    run = run_qa_v12_batch(corpus, queries, tmp_path / "batch", model="fake", query_ids=["Q1", "Q2"], entity_metadata_path=metadata_path, client=client)
+    assert client.calls == 2
+    answer_packet = tmp_path / "answers.md"
+    abstention_packet = tmp_path / "abstentions.md"
+    write_qa_v12_review_packets(tmp_path / "batch", corpus, queries, answer_packet, abstention_packet)
+    assert "## Q1" in answer_packet.read_text(encoding="utf-8")
+    assert "## Q2" not in abstention_packet.read_text(encoding="utf-8")
+    report = evaluate_qa_v12_batch(tmp_path / "batch", corpus, queries, tmp_path / "evaluation.json", tmp_path / "taxonomy.json", tmp_path / "usage.json")
+    assert report["actual_calls"] == 2
+
+
+def test_v12_batch_stops_after_three_identical_structural_failures(tmp_path):
+    corpus, queries = _inputs(tmp_path)
+    payload = json.loads(queries.read_text(encoding="utf-8"))
+    payload["queries"].append({**payload["queries"][0], "query_id": "Q3", "query_zh": "third"})
+    queries.write_text(json.dumps(payload), encoding="utf-8")
+    _entity_metadata(tmp_path)
+    wrapped = {"query_id": "unexpected", "query_zh": "alpha", "schema": {"status": "insufficient_evidence", "claims": [], "limitations_zh": ""}}
+    client = FakeClient(wrapped)
+    run = run_qa_v12_batch(corpus, queries, tmp_path / "batch", model="fake", query_ids=["Q1", "Q2", "Q3"], entity_metadata_path=tmp_path / "entities.json", client=client)
+    assert client.calls == 3
+    assert run["stop_reason"] == "repeated_structural_error"
 
 
 def _entity_metadata(tmp_path):
