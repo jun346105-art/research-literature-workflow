@@ -124,6 +124,9 @@ class QAResult(BaseModel):
     validation_error: str | None = None
     quote_grounding_ledger: list[dict[str, Any]] = Field(default_factory=list)
     entity_binding_ledger: list[dict[str, Any]] = Field(default_factory=list)
+    coverage_status: Literal["complete", "partial", "none"] | None = None
+    final_answer_status: Literal["answered", "partial_answer", "insufficient_evidence"] | None = None
+    coverage_ledger: dict[str, Any] = Field(default_factory=dict)
 
 
 def plan_qa(corpus_path: Path, queries_path: Path, *, model: str, top_k: int = 10) -> dict[str, Any]:
@@ -220,7 +223,7 @@ def plan_qa_v12(corpus_path: Path, queries_path: Path, *, model: str, query_id: 
         "entity_metadata_sha256": _sha256_file(entity_metadata_path),
         "entity_metadata_schema_version": entities["schema_version"],
         "required_subject_entities": required_entities,
-        "missing_required_subject_entities_in_top_k": [entity for entity in required_entities if entity["paper_key"] not in top_paper_keys],
+        "missing_required_subject_entities_in_top_k": [entity for entity in required_entities if entity["bound_paper_key"] not in top_paper_keys],
     }
 
 
@@ -532,7 +535,8 @@ def _verify_v11(query_id: str, raw: RawAnswerV11, passages: dict[str, dict[str, 
 
 def _verify_v12(query_id: str, raw: RawAnswerV12, passages: dict[str, dict[str, Any]], top_ids: list[str], raw_paths: list[str], entity_metadata: dict[str, Any], query: dict[str, Any] | None = None) -> QAResult:
     if raw.status == "insufficient_evidence":
-        return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status="success", answer_zh=SAFE_INSUFFICIENT_ZH, limitations_zh=raw.limitations_zh, semantic_evidence_absent=True, raw_response_artifacts=raw_paths)
+        coverage = _build_coverage_ledger(query, passages, top_ids, [], entity_metadata) if query is not None else {"coverage_status": "none", "requested_entities": [], "covered_entities": [], "uncovered_entities": [], "coverage_reason": "model_returned_insufficient_evidence"}
+        return QAResult(query_id=query_id, answer_status="insufficient_evidence", execution_status="success", answer_zh=SAFE_INSUFFICIENT_ZH, limitations_zh=raw.limitations_zh, semantic_evidence_absent=True, raw_response_artifacts=raw_paths, coverage_status="none", final_answer_status="insufficient_evidence", coverage_ledger=coverage)
     top_paper_keys = {passages[passage_id]["paper_key"] for passage_id in top_ids}
     claims = []
     quote_ledger = []
@@ -564,18 +568,21 @@ def _verify_v12(query_id: str, raw: RawAnswerV12, passages: dict[str, dict[str, 
         if entity_check["status"] != "ok":
             return _failed(query_id, "entity_binding_failed", entity_check["error"], raw_paths, quote_ledger, entity_ledger)
         claims.append({"subject_paper_key": claim.subject_paper_key, "subject_entity_name": claim.subject_entity_name, "subject_entity_type": entity_check["entity_type"], "claim_text_zh": claim.claim_text_zh, "citations": verified})
-    if query is not None:
-        required_entities = _required_model_entities(query, entity_metadata)
-        claimed_entities = {(claim["subject_paper_key"], _normalized_entity(claim["subject_entity_name"])) for claim in claims}
-        for entity in required_entities:
-            requirement = {"required_subject_entity": entity}
-            if entity["paper_key"] not in top_paper_keys:
-                entity_ledger.append({"status": "error", "error": "requested subject entity is absent from top-10", **requirement})
-                return _failed(query_id, "entity_binding_failed", "requested subject entity is absent from top-10", raw_paths, quote_ledger, entity_ledger)
-            if (entity["paper_key"], _normalized_entity(entity["entity_name"])) not in claimed_entities:
-                entity_ledger.append({"status": "error", "error": "answered response omits requested subject entity", **requirement})
-                return _failed(query_id, "entity_binding_failed", "answered response omits requested subject entity", raw_paths, quote_ledger, entity_ledger)
-    return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v12(claims, passages, entity_metadata), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths, quote_grounding_ledger=quote_ledger, entity_binding_ledger=entity_ledger)
+    coverage = _build_coverage_ledger(query, passages, top_ids, claims, entity_metadata) if query is not None else {"coverage_status": "complete", "requested_entities": [], "covered_entities": [], "uncovered_entities": [], "coverage_reason": "no_named_entity_requirement"}
+    covered_model_keys = {
+        (entity["bound_paper_key"], _normalized_entity(entity["entity_name"]))
+        for entity in coverage["covered_entities"]
+        if entity["entity_type"] == "model"
+    }
+    for entity in coverage["requested_entities"]:
+        if entity["entity_type"] == "model" and entity["bound_paper_key"] in top_paper_keys and (entity["bound_paper_key"], _normalized_entity(entity["entity_name"])) not in covered_model_keys:
+            entity_ledger.append({"status": "error", "error": "answered response omits requested subject entity", "required_subject_entity": entity})
+            return _failed(query_id, "entity_binding_failed", "answered response omits requested subject entity", raw_paths, quote_ledger, entity_ledger)
+    if coverage["coverage_status"] == "none":
+        entity_ledger.append({"status": "error", "error": "answered response has no covered requested entity"})
+        return _failed(query_id, "entity_binding_failed", "answered response has no covered requested entity", raw_paths, quote_ledger, entity_ledger)
+    final_status = "partial_answer" if coverage["coverage_status"] == "partial" else "answered"
+    return QAResult(query_id=query_id, answer_status="answered", execution_status="success", answer_zh=_render_answer_v12(claims, passages, entity_metadata, coverage), claims=claims, limitations_zh=raw.limitations_zh, semantic_review_status="pending_author_review", raw_response_artifacts=raw_paths, quote_grounding_ledger=quote_ledger, entity_binding_ledger=entity_ledger, coverage_status=coverage["coverage_status"], final_answer_status=final_status, coverage_ledger=coverage)
 
 
 def _normalized_entity(value: str) -> str:
@@ -583,19 +590,57 @@ def _normalized_entity(value: str) -> str:
 
 
 def _required_model_entities(query: dict[str, Any], entity_metadata: dict[str, Any]) -> list[dict[str, Any]]:
+    return [entity for entity in _requested_entities(query, entity_metadata) if entity["entity_type"] == "model"]
+
+
+def _requested_entities(query: dict[str, Any], entity_metadata: dict[str, Any]) -> list[dict[str, Any]]:
     query_text = _normalized_entity(f"{query.get('query_zh', '')} {query.get('query_en', '')}")
     required = []
     seen = set()
     for entity in entity_metadata["entities"]:
-        if entity["entity_type"] != "model":
-            continue
         aliases = {_normalized_entity(alias) for alias in entity["aliases"] + [entity["entity_name"]]}
         if any(alias and re.search(rf"(?:^| ){re.escape(alias)}(?: |$)", query_text) for alias in aliases):
             key = (entity["paper_key"], entity["entity_name"])
             if key not in seen:
-                required.append({"paper_key": entity["paper_key"], "entity_name": entity["entity_name"]})
+                required.append({"bound_paper_key": entity["paper_key"], "entity_name": entity["entity_name"], "entity_type": entity["entity_type"], "aliases": entity["aliases"], "evidence_passage_ids": entity.get("evidence_passage_ids", [])})
                 seen.add(key)
     return required
+
+
+def _build_coverage_ledger(query: dict[str, Any], passages: dict[str, dict[str, Any]], top_ids: list[str], claims: list[dict[str, Any]], entity_metadata: dict[str, Any]) -> dict[str, Any]:
+    requested = _requested_entities(query, entity_metadata)
+    covered = []
+    uncovered = []
+    for entity in requested:
+        aliases = {_normalized_entity(alias) for alias in entity["aliases"] + [entity["entity_name"]]}
+        top_supporting = [
+            passage_id
+            for passage_id in top_ids
+            if passages[passage_id]["paper_key"] == entity["bound_paper_key"]
+            and (passage_id in entity["evidence_passage_ids"] or any(alias and re.search(rf"(?:^| ){re.escape(alias)}(?: |$)", _normalized_entity(f"{passages[passage_id]['title']} {passages[passage_id]['text']}")) for alias in aliases))
+        ]
+        claim_supporting = [
+            citation["passage_id"]
+            for claim in claims
+            if claim["subject_paper_key"] == entity["bound_paper_key"] and _normalized_entity(claim["subject_entity_name"]) in aliases
+            for citation in claim["citations"]
+        ]
+        entry = {**entity, "supporting_passage_ids": sorted(set(claim_supporting or top_supporting))}
+        if entity["entity_type"] == "model":
+            is_covered = bool(claim_supporting)
+            reason = "covered_by_verified_claim" if is_covered else "missing_from_top10" if not top_supporting else "no_verified_claim_for_retrieved_entity"
+        else:
+            is_covered = bool(top_supporting)
+            reason = "covered_by_top10_entity_evidence" if is_covered else "missing_from_top10"
+        entry["coverage_reason"] = reason
+        (covered if is_covered else uncovered).append(entry)
+    if not requested or len(covered) == len(requested):
+        status = "complete"
+    elif any(entity["entity_type"] == "model" for entity in covered) and uncovered:
+        status = "partial"
+    else:
+        status = "none"
+    return {"requested_entities": requested, "covered_entities": covered, "uncovered_entities": uncovered, "coverage_status": status, "coverage_reason": "runtime_query_metadata_top10_and_verified_claims_only"}
 
 
 def _validate_entity_binding(subject_paper_key: str, subject_entity_name: str, claim_text_zh: str, cited_passages: list[dict[str, Any]], entity_metadata: dict[str, Any]) -> dict[str, Any]:
@@ -904,12 +949,16 @@ def _render_answer_v11(claims: list[dict[str, Any]], passages: dict[str, dict[st
     return "\n".join(lines)
 
 
-def _render_answer_v12(claims: list[dict[str, Any]], passages: dict[str, dict[str, Any]], entity_metadata: dict[str, Any]) -> str:
-    lines = ["根据当前检索到的证据，可以确认："]
+def _render_answer_v12(claims: list[dict[str, Any]], passages: dict[str, dict[str, Any]], entity_metadata: dict[str, Any], coverage: dict[str, Any] | None = None) -> str:
+    partial = coverage is not None and coverage["coverage_status"] == "partial"
+    lines = ["根据当前检索到的证据，可以确认以下部分：" if partial else "根据当前检索到的证据，可以确认："]
     for index, claim in enumerate(claims, 1):
         first_passage = passages[claim["citations"][0]["passage_id"]]
         references = "; ".join(f"{citation['passage_id']} pp.{citation['page_start']}-{citation['page_end']}" for citation in claim["citations"])
         lines.append(f"{index}. 【{first_passage['title']} ({first_passage['citation_key']}) | {claim['subject_entity_type']}: {claim['subject_entity_name']}】{claim['claim_text_zh']}（来源：{references}）")
+    if partial:
+        missing = "、".join(entity["entity_name"] for entity in coverage["uncovered_entities"])
+        lines.append(f"当前检索结果未覆盖以下对象，无法给出可验证结论：{missing}。以上内容属于部分回答，不代表完整比较。")
     return "\n".join(lines)
 
 

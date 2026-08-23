@@ -260,14 +260,47 @@ def test_v12_fake_runner_applies_entity_metadata(tmp_path):
     assert rejected["results"][0].execution_status == "entity_binding_failed"
 
 
-def test_v12_rejects_answer_when_a_requested_model_entity_is_missing_from_top_k(tmp_path):
+def test_v12_marks_answer_partial_when_a_requested_model_entity_is_missing_from_top_k(tmp_path):
     metadata = _entity_metadata(tmp_path)
     passages = {"P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "CCFM and Focal Loss improve the YOLOv8 model.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"}}
     answer = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "Improved YOLOv8", "claim_text_zh": "该方法使用CCFM。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "CCFM and Focal Loss improve the YOLOv8 model."}]}], "limitations_zh": ""})
     query = {"query_zh": "TPMN和改进YOLOv8如何处理缺陷？", "query_en": "How do TPMN and Improved YOLOv8 handle defects?"}
     result = _verify_v12("Q1", answer, passages, ["P2:P2_chunk_0001"], [], metadata, query)
-    assert result.execution_status == "entity_binding_failed"
-    assert result.validation_error == "requested subject entity is absent from top-10"
+    assert result.execution_status == "success"
+    assert result.final_answer_status == "partial_answer"
+    assert result.coverage_status == "partial"
+
+
+def test_v12_returns_partial_answer_for_verified_covered_entity_and_missing_requested_entity(tmp_path):
+    metadata = _entity_metadata(tmp_path)
+    passages = {"P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "CCFM and Focal Loss improve the YOLOv8 model.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"}}
+    answer = RawAnswerV12.model_validate({"status": "answered", "claims": [{"subject_paper_key": "P2", "subject_entity_name": "Improved YOLOv8", "claim_text_zh": "该方法使用CCFM。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "CCFM and Focal Loss improve the YOLOv8 model."}]}], "limitations_zh": "TPMN is not available."})
+    query = {"query_zh": "TPMN和改进YOLOv8如何处理缺陷？", "query_en": "How do TPMN and Improved YOLOv8 handle defects?"}
+    result = _verify_v12("Q1", answer, passages, ["P2:P2_chunk_0001"], [], metadata, query)
+    assert result.execution_status == "success"
+    assert result.coverage_status == "partial"
+    assert result.final_answer_status == "partial_answer"
+    assert "TPMN" in result.answer_zh
+
+
+def test_v12_returns_complete_or_none_without_using_qrels(tmp_path):
+    metadata = _entity_metadata(tmp_path)
+    passages = {
+        "P1:P1_chunk_0001": {"passage_id": "P1:P1_chunk_0001", "text": "TPMN uses texture prior attention.", "page_start": 1, "page_end": 1, "paper_key": "P1", "title": "TPMN paper", "citation_key": "tp"},
+        "P2:P2_chunk_0001": {"passage_id": "P2:P2_chunk_0001", "text": "CCFM and Focal Loss improve the YOLOv8 model.", "page_start": 2, "page_end": 2, "paper_key": "P2", "title": "YOLOv8 paper", "citation_key": "y8"},
+    }
+    query = {"query_zh": "TPMN和改进YOLOv8如何处理缺陷？", "query_en": "How do TPMN and Improved YOLOv8 handle defects?", "relevant_passage_ids": ["not-used"]}
+    complete = RawAnswerV12.model_validate({"status": "answered", "claims": [
+        {"subject_paper_key": "P1", "subject_entity_name": "TPMN", "claim_text_zh": "TPMN使用纹理先验。", "citations": [{"passage_id": "P1:P1_chunk_0001", "evidence_quote": "TPMN uses texture prior attention."}]},
+        {"subject_paper_key": "P2", "subject_entity_name": "Improved YOLOv8", "claim_text_zh": "改进YOLOv8使用CCFM。", "citations": [{"passage_id": "P2:P2_chunk_0001", "evidence_quote": "CCFM and Focal Loss improve the YOLOv8 model."}]}
+    ], "limitations_zh": ""})
+    complete_result = _verify_v12("Q1", complete, passages, list(passages), [], metadata, query)
+    assert complete_result.coverage_status == "complete"
+    assert complete_result.final_answer_status == "answered"
+    none = RawAnswerV12.model_validate({"status": "insufficient_evidence", "claims": [], "limitations_zh": "No evidence."})
+    none_result = _verify_v12("Q1", none, {}, [], [], metadata, query)
+    assert none_result.coverage_status == "none"
+    assert none_result.final_answer_status == "insufficient_evidence"
 
 
 def _entity_metadata(tmp_path):
