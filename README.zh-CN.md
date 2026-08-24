@@ -237,10 +237,11 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - BM25-EN-machine-translated 的 Recall@10 从 BM25-ZH-raw 的 `0.6275` 提升到 `0.7157`（`+0.0882`），并恢复 Q10/Q11 的 Top-10 miss。human query_en 继续仅作为 oracle-style 参考，不属于部署路径。
 - QA v1.2 Flash pilot 已完成：所有展示答案均通过 citation ID、严格 quote grounding 和 claim-citation coverage 自动验证。作者审核确认 9/9 展示答案可用（6 条 pass、3 条小修），3/3 no-answer 问题正确拒答。
 - 同一 pilot 也暴露了核心限制：17 条 answerable query 中只有 9 条生成 grounded answer（52.9%）。检索 miss、保守拒答和验证失败会显式保留，不会被转换为无证据答案。
-- QA、M2A translation retrieval 与 M2B mixed-language smoke 已冻结。M3 已将 4 篇论文中的 16 条作者审核 QA Claim 转换为 review-ready Evidence Matrix；30 个稀疏对比字段明确标为尚无已审核证据。下一里程碑为 M4 Writing Vertical Slice。
+- QA、M2A translation retrieval 与 M2B mixed-language smoke 已冻结。M3 已将 4 篇论文中的 16 条作者审核 QA Claim 转换为 review-ready Evidence Matrix；30 个稀疏对比字段明确标为尚无已审核证据。M4 在中等人工修订后生成了作者审核的中英文 evidence-grounded 写作草稿，句子到 EvidenceRecord 的覆盖完整。该草稿可供作者编辑，不等同于可直接发表的稿件。
 - 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
 - 固定 Dense Windowing 与 Hybrid 在该受限设置下仍未被选择。当前 translation 路径仍只是 20 条 query 的 pilot 结果，不能宣传为广泛生产保证。
-- 当前测试：217 passed。
+- M4 已达到 MVP 服务集成的就绪条件；M5 FastAPI 与简单 UI 尚未开始。
+- 当前测试：220 passed。
 
 ## 当前限制
 
