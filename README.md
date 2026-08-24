@@ -1,255 +1,112 @@
-# Research Literature Workflow
+# LitFlow
 
-[Chinese README](README.zh-CN.md) | English
+[中文 README](README.zh-CN.md) | English
 
-Turn scattered papers into evidence-grounded Obsidian reading notes.
+> **LitFlow is a local-first, evidence-grounded bilingual research writing copilot for engineering literature.**
 
-![litflow architecture](docs/screenshots/litflow-architecture.svg)
+It turns local literature artifacts into reviewable research material with passage-level provenance. It is not an automatic whole-paper generator or a hosted SaaS product.
 
-`litflow` is a local-first literature workflow for students and researchers who use Zotero, Obsidian, PDFs, and OpenAI-compatible LLMs. It is not another one-shot AI paper summarizer. It helps you build reusable, reviewable, source-grounded reading notes for long-running research projects.
+![LitFlow persisted verified job with Evidence Inspector](docs/screenshots/litflow-mvp-workbench.png)
 
-## What Problem Does This Solve?
+## Why LitFlow
 
-When writing a thesis or research report, the hard part is rarely "getting an AI summary." The hard part is keeping a trustworthy chain from paper discovery to notes you can actually reuse.
+A general AI answer can sound plausible while losing the paper, page, passage, and quote that justify it. LitFlow keeps the researcher's local corpus in control:
 
-Before `litflow`, a common workflow looks like this:
+- the model sees only retrieved passages for a question;
+- every displayed claim carries a retrieved citation;
+- citation membership, quote anchoring, and claim-citation coverage are validated before display;
+- insufficient evidence and partial coverage remain visible instead of becoming unsupported prose;
+- human review, raw response, usage, manifest, SHA, and failure artifacts remain auditable.
 
-```text
-search papers
--> save some PDFs
--> ask an LLM for summaries
--> copy useful text into notes
--> later wonder where a claim came from
-```
+## Core Capabilities
 
-With `litflow`, the workflow becomes:
-
-```text
-Zotero metadata + local PDF
--> chunked reading context
--> evidence candidate bank
--> structured reading note
--> Obsidian preview
--> manual approval before writing
-```
-
-This is useful when you need literature notes that are not only readable, but also traceable: each important claim can point back to a source chunk, page range, and exact evidence text.
-
-## Why This Exists
-
-Typical AI paper summarizers are fast, but they are weak at the parts that matter during thesis writing:
-
-- bibliographic metadata drifts away from Zotero;
-- evidence snippets are hard to trace back to the PDF;
-- LLMs may normalize or rewrite quoted text;
-- generated notes can pollute an Obsidian vault;
-- one-off summaries do not become a reusable literature workflow.
-
-`litflow` keeps the durable tools in charge:
-
-- Zotero remains the source of truth for metadata, PDFs, annotations, and citation keys.
-- Obsidian remains the local knowledge base.
-- LLMs assist structured reading, but do not directly write final evidence text.
-- Every final `evidence_text` must be an exact substring of a source chunk.
-- Obsidian updates are preview-first, explicit, and backup-protected.
-
-## Workflow
+1. **Local ingestion and clean context**: Zotero metadata and local PDFs become quality-gated, page-provenanced chunks.
+2. **Language-aware retrieval**: Chinese queries use machine translation for English BM25 retrieval; English queries use their original wording.
+3. **Evidence-grounded QA**: answers expose verified claims, citations, continuous English quotes, pages, passage IDs, partial coverage, and safe failure states.
+4. **Evidence and writing views**: a review-ready Evidence Matrix feeds an author-editable bilingual method-comparison draft.
+5. **Local delivery boundary**: FastAPI, SSE job status, a native browser workbench, persisted jobs, and a localhost-only Docker demo.
 
 ```text
-paper-search-pro results
--> candidate_pool.json
--> manual selection
--> BibTeX / RIS export
--> user imports into Zotero
--> read-only Zotero snapshot
--> Obsidian inbox notes
--> PDF reading context
--> clean chunks + quality gate
--> evidence candidate bank
--> structured reading note
--> Obsidian preview
--> approved marker-region apply
-```
-
-## Try The Sample
-
-The sample data is sanitized toy text. It does not require Zotero, real PDFs, an Obsidian vault, or an LLM API key.
-
-```powershell
-$env:PYTHONPATH = "src"
-
-python -m litflow.cli preview-obsidian-update `
-  --structured-note ".\examples\structured_reading_notes\SAMPLE001_structured_reading_note.json" `
-  --vault ".\examples\obsidian_vault" `
-  --inbox "00_Inbox/LiteratureReview" `
-  --out ".\examples_output\SAMPLE001_preview.md" `
-  --manifest ".\examples_output\SAMPLE001_preview_manifest.json"
-```
-
-Expected output: [examples/expected_outputs/SAMPLE001_preview.md](examples/expected_outputs/SAMPLE001_preview.md)
-
-More steps: [docs/QUICKSTART.md](docs/QUICKSTART.md)
-
-## Evaluation Snapshot
-
-Evaluation Run 002 development pilot: 3 papers / 59 chunks.
-
-- 65 real LLM calls, 0 retries, and 0 runner errors.
-- Baseline strict exact grounding: 1 / 23; Proposed final strict exact grounding: 37 / 37.
-- Candidate anchoring: 57 / 100; candidate-bearing chunk coverage: 35 / 59.
-- Proposed human supported or partially supported: 36 / 37.
-- Tests: 139 passed.
-
-This is not a held-out benchmark. Strict exact grounding is not semantic accuracy, and the result does not claim to eliminate hallucination. Its clearest evidence is stronger evidence traceability. Details: [Evaluation Run 002](docs/EVALUATION_RUN_002.md).
-
-## What Makes It Different
-
-### Evidence-grounded, not summary-only
-
-The final evidence is not trusted just because the LLM wrote it. In the anchored pipeline, the model proposes quote hints or selects candidate IDs, and the program maps them back to source chunks.
-
-Final validation is strict:
-
-```python
-evidence_text in chunk_text
-```
-
-### Designed around real student workflows
-
-Many undergraduate and graduate students already use Zotero and Obsidian. `litflow` enhances that setup instead of replacing it.
-
-It helps turn:
-
-```text
-"I remember reading something about this"
-```
-
-into:
-
-```text
-claim + source chunk + page range + exact evidence text + reviewable note
-```
-
-### Human-in-the-loop by default
-
-Generated content is first written as structured JSON, then converted into a preview. Only an explicit `--approved` apply can update an Obsidian note, and a backup is created first.
-
-## Core Commands
-
-Anchored evidence path:
-
-```powershell
-python -m litflow.cli build-evidence-candidate-bank `
-  --clean-context ".\outputs\clean_reading_context\PAPER.json" `
-  --out ".\outputs\evidence_candidate_banks\PAPER_evidence_candidates.json" `
-  --report ".\outputs\evidence_candidate_banks\PAPER_evidence_candidates_report.json"
-
-python -m litflow.cli generate-note-from-evidence-bank `
-  --candidate-bank ".\outputs\evidence_candidate_banks\PAPER_evidence_candidates.json" `
-  --clean-context ".\outputs\clean_reading_context\PAPER.json" `
-  --out ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
-  --zotero-key "PAPER" `
-  --citation-key "paper2026sample" `
-  --title "Sample Paper Title"
-
-python -m litflow.cli preview-obsidian-update `
-  --structured-note ".\outputs\structured_reading_notes\PAPER_anchored_final.json" `
-  --vault "<ObsidianVault>" `
-  --inbox "00_Inbox/LiteratureReview" `
-  --out ".\outputs\obsidian_update_previews\PAPER_preview.md" `
-  --manifest ".\outputs\obsidian_update_preview_manifest.json"
-```
-
-Apply only after manual review:
-
-```powershell
-python -m litflow.cli apply-obsidian-update `
-  --preview ".\outputs\obsidian_update_previews\PAPER_preview.md" `
-  --target "<ObsidianVault>\00_Inbox\LiteratureReview\@paper2026sample.md" `
-  --manifest ".\outputs\obsidian_update_apply_manifest.json" `
-  --approved
-```
-
-## Documentation
-
-- [Quickstart](docs/QUICKSTART.md)
-- [Concepts](docs/CONCEPTS.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [Minimal FastAPI wrapper](docs/API.md)
-- [Docker offline/online demo](docs/DOCKER_DEMO.md)
-- [API demo with sample data](docs/API_DEMO.md)
-- [Evaluation and acceptance metrics](docs/EVALUATION.md)
-- [Evaluation Run 002 development pilot](docs/EVALUATION_RUN_002.md)
-- [Evidence grounding](docs/EVIDENCE_GROUNDING.md)
-- [Dogfood run 001](docs/DOGFOOD_RUN_001.md)
-- [Architecture](ARCHITECTURE.md)
-- [End-to-end workflow](docs/END_TO_END_WORKFLOW.md)
-- [Project status](PROJECT_STATUS.md)
-- [paper-search-pro local skill workflow](docs/PAPER_SEARCH_PRO_SKILL_WORKFLOW.md)
-- [Sanitized examples](examples/README.md)
-
-## Environment
-
-Copy `.env.example` and fill only local values. Do not commit real keys.
-
-```text
-LLM_BASE_URL=
-LLM_API_KEY=
-LLM_MODEL=
-ZOTERO_LIBRARY_ID=
-ZOTERO_API_KEY=
-OBSIDIAN_VAULT_PATH=
-PAPER_SEARCH_PRO_RESULT_DIR=
+Zotero / local PDF
+-> Clean Context
+-> Provenance Passage Corpus
+-> Language-aware Retrieval
+-> Evidence-grounded QA
+-> Claim / Citation / Quote Validation
+-> Evidence Matrix
+-> Bilingual Author-editable Draft
+-> FastAPI / SSE / UI
+-> Docker Demo
 ```
 
 ## Docker Quick Start
 
-The default Docker command runs a localhost-only Offline Demo. It mounts existing local demo artifacts read-only and does not need or read an API key.
+The default command starts an **Offline Demo** on `127.0.0.1`. It mounts local demo artifacts read-only and does not need or read an API key.
 
 ```powershell
 $env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
 docker compose up --build
 ```
 
-For the explicit Online QA profile, see [Docker Demo](docs/DOCKER_DEMO.md). Online calls may incur provider charges.
+Open `http://127.0.0.1:8015/`.
 
-## Current Status
+Online QA is an explicit opt-in profile and may incur provider charges. It is never enabled by the default command. See [Docker Demo](docs/DOCKER_DEMO.md).
 
-- `v0.1-small-batch-e2e`: completed and tagged.
-- `v0.1.1-anchored-evidence-pipeline`: anchored evidence pipeline and sanitized examples.
-- Small-batch workflow validated with local Zotero, PDFs, Obsidian, and OpenAI-compatible LLM calls.
-- Dogfood run validated anchored previews on new papers, with one manual-approved marker-region apply.
-- Evaluation Run 002 completed with guarded execution, frozen-manifest/hash validation, atomic checkpoint/resume, context/call limits, and reproducible aggregation.
-- v0.3A deep-reading object ingestion is experimental and currently unvalidated; it is not presented as a production capability.
-- M2A selected a bilingual retrieval path on the same 20-query human-reviewed pilot: Chinese query -> machine translation -> BM25-EN; English query -> original query -> BM25-EN. Machine translation was author-reviewed as usable for 20/20 queries.
-- BM25-EN-machine-translated improved Recall@10 from `0.6275` (BM25-ZH-raw) to `0.7157` (`+0.0882`) and recovered Q10/Q11 Top-10 misses. Human English queries remain an oracle-style reference, not a deployment path.
-- QA v1.2 Flash pilot is complete: all displayed answers had validated citation IDs, strict quote grounding, and claim-citation coverage. Author review found 9/9 displayed answers usable (6 pass, 3 minor revision), and 3/3 no-answer queries correctly abstained.
-- The same pilot also exposes the central limitation: only 9/17 answerable queries produced a grounded answer (52.9%). Retrieval misses, conservative abstentions, and validation failures remain visible rather than being converted into unsupported answers.
-- QA, M2A translation retrieval, and M2B mixed-language smoke are frozen. M3 produced a review-ready Evidence Matrix from 16 author-reviewed QA claims across four papers; 30 sparse comparison cells remain explicitly marked as lacking reviewed evidence. M4 produced an author-reviewed, evidence-grounded bilingual writing draft with complete sentence-to-record coverage after moderate revisions. It is an author-editable draft, not a publication-ready manuscript.
-- Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
-- Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
-- M5 now provides a localhost-only FastAPI plus native static UI for frozen corpus browsing, evidence retrieval, Evidence Matrix viewing, and author-reviewed bilingual writing-draft viewing. Offline demo mode never constructs an LLM client.
-- The historical Flash Q05 canary remains a safe rejection: its duplicate quote also occurred in another passage, so it is not eligible for the declared-passage duplicate rule. No validator was relaxed.
-- A separate Flash Q01 FastAPI/UI canary completed through cached Chinese-to-English retrieval, entity binding, citation membership, and strict quote grounding. M5 is `pass_with_known_qa_availability_limits`; M6 packaging readiness is reached, without claiming that every online query will succeed.
-- Current test count: 238 passed.
-- Docker packaging defaults to Offline Demo, binds the host port to `127.0.0.1`, uses a non-root container user, and requires explicit environment variables for Online QA.
+## Human-Reviewed Pilot Results
 
-## Pilot Boundaries
+These are **small human-reviewed pilot results, not a large-scale benchmark**.
 
-- LitFlow is an engineering-research writing Copilot MVP, not an automatic whole-paper generator.
-- Displayed QA answers use strict evidence anchoring. On the current pilot, 9/17 answerable queries produced grounded answers and all 9 displayed answers were author-reviewed as usable.
-- Chinese-to-English machine-translation BM25 reached Recall@10 `0.7157`; the mixed-language smoke reached expected-paper Hit@10 `5/6`. These are small human-reviewed pilot results, not broad benchmark claims.
+| Area | Conservative result | Boundary |
+| --- | --- | --- |
+| Retrieval | 20 pilot queries, 17 answerable | `query_en` is an oracle-style reference only |
+| Chinese retrieval | machine translation -> BM25-EN Recall@10 `0.7157` | BM25-ZH-raw Recall@10 `0.6275`; absolute improvement `+0.0882` |
+| Mixed-language smoke | expected-paper Hit@10 `5/6` | one known Chinese-to-Chinese miss; not a broad benchmark |
+| QA availability | grounded answer success `9/17` (`52.9%`) | retrieval and execution availability remain limited |
+| Displayed QA safety | author-reviewed usability `9/9`; citation validity, strict quote grounding, and claim coverage `100%` | automatic grounding is not semantic correctness |
+| No-answer handling | abstention `3/3` | limited pilot only |
+| Writing | bilingual method-comparison draft `pass_with_moderate_human_revision` | `publication_ready=false` |
+| Docker | image about `54.54 MB`; health in `1.20s`; health latency `142.04ms` | local Docker demonstration only |
 
-## Limitations
+## Architecture
 
-- Local CLI workflow, not a hosted SaaS product.
-- No OCR for scanned PDFs.
-- No automatic PDF download.
-- No automatic literature review generation.
-- No automatic tag governance.
-- No direct Zotero writes.
-- No automatic Obsidian promotion into formal folders.
-- Section detection is a lightweight heuristic.
+```mermaid
+flowchart LR
+  A[Input / Ingestion<br/>Zotero and local PDFs] --> B[Clean Context<br/>page-provenanced chunks]
+  B --> C[Retrieval<br/>language-aware BM25]
+  C --> D[Grounded QA<br/>claims and citations]
+  D --> E[Evidence / Writing<br/>Matrix and bilingual draft]
+  E --> F[API / UI / Docker<br/>local demo]
+```
+
+## Demo Materials
+
+- [Docker demo instructions](docs/DOCKER_DEMO.md)
+- [3-5 minute demo script](docs/DEMO_SCRIPT.md)
+- [Demo checklist](docs/DEMO_CHECKLIST.md)
+- [Evidence Matrix screenshot](docs/screenshots/litflow-mvp-evidence-matrix.png)
+- [Bilingual Writing Draft screenshot](docs/screenshots/litflow-mvp-writing-draft.png)
+
+The workbench screenshot above restores a **persisted verified Q01 job**. It is not presented as a new real-time call.
+
+## Known Limitations
+
+- Local-first MVP only. No cloud deployment, user accounts, database, or multi-user workflow.
+- No OCR for scanned PDFs and no automatic PDF download.
+- `v0.3A` deep-reading object ingestion is an `experimental_fail`, not a production feature.
+- Dense and Hybrid did not exceed the selected BM25 baseline in this bounded pilot.
+- QA availability is limited: `9/17` answerable pilot queries produced grounded answers.
+- Chinese source support is smoke-test level, not a broad multilingual benchmark.
+- Writing output is author-editable and review-gated, never publication-ready by default.
+
+## Documentation
+
+- [Architecture](ARCHITECTURE.md)
+- [API and local MVP](docs/API.md)
+- [Evaluation Run 002](docs/EVALUATION_RUN_002.md)
+- [Evidence grounding](docs/EVIDENCE_GROUNDING.md)
+- [Interview guide](docs/INTERVIEW_GUIDE.zh-CN.md)
+- [Resume project descriptions](docs/RESUME_PROJECT.en.md) and [中文版本](docs/RESUME_PROJECT.zh-CN.md)
+- [Release notes](RELEASE_NOTES_v1.0.0.md)
 
 ## Development Check
 
@@ -257,3 +114,5 @@ For the explicit Online QA profile, see [Docker Demo](docs/DOCKER_DEMO.md). Onli
 $env:PYTHONPATH = "src"
 python -m pytest -q -p no:cacheprovider
 ```
+
+Current suite: `238 passed`.

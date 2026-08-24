@@ -1,7 +1,7 @@
 paper_search_pro:
   mode: "local_skill"
   skill_name: "paper-search-pro"
-  default_result_dir: "D:/论文写作/文献/paper-search-results"
+  default_result_dir: "<PAPER_SEARCH_PRO_RESULT_DIR>"
   expected_files:
     - "papers.json"
     - "papers.csv"
@@ -14,5 +14,5 @@ candidate_pool:
   output_path: "data/discovery/candidate_pool.json"
 
 obsidian:
-  vault_path: "D:/论文写作/文献/ResearchVault/LiteratureVault"
+  vault_path: "<ObsidianVault>"
   literature_review_inbox: "00_Inbox/LiteratureReview"

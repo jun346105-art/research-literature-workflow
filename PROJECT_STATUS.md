@@ -2,8 +2,8 @@
 
 ## Current Milestone
 
-- Last pushed/tagged release: `v0.1.1-anchored-evidence-pipeline`
-- Current state: local-first evidence-grounded workflow with frozen QA and translation-retrieval contracts, an author-reviewed Evidence Matrix, an author-editable M4 writing draft, and a localhost-only M5 FastAPI/static-UI demo. M5 completed one validated Flash online QA vertical slice while preserving known QA availability limits.
+- Last pushed/tagged release: `v1.0.0-mvp`
+- Current state: `MVP_COMPLETE`. LitFlow is a local-first evidence-grounded bilingual research writing Copilot with frozen retrieval/QA contracts, Evidence Matrix, author-editable writing drafts, a localhost-only FastAPI/UI workbench, and verified Docker packaging.
 - Latest additions after `v0.1.1`: reproducible evaluation, strict QA contracts, entity binding, safe partial answers, and author-reviewed Chinese-to-English retrieval translation.
 
 ## Completed
@@ -26,6 +26,7 @@
 - M3 Evidence Matrix: 16 author-reviewed QA claims across four papers were converted into citation/quote-revalidated EvidenceRecords with claim ledger, paper comparison, and review packet views. Two partial records preserve the TPMN coverage gap; 30 sparse matrix cells are explicitly marked as lacking reviewed evidence.
 - M4 Writing Vertical Slice: six bilingual comparison sentences were generated from reviewed EvidenceRecords, then author-reviewed and corrected in an independent closure artifact. Final sentence-to-record coverage is 100%; the outcome is `pass_with_moderate_human_revision` and `validated_as_author_editable_draft`, not publication-ready prose.
 - M5 Minimal FastAPI + Simple UI MVP: versioned read-only corpus, retrieval, passage, Evidence Matrix, and writing-draft endpoints plus file-backed job status and SSE events are available on localhost. Offline demo mode and an online Q01 Flash UI job are verified, including cached Chinese-to-English retrieval, entity binding, citation membership, strict quote grounding, and citation drawer rendering. Q05 remains a historical safe failure because its ambiguous quote also matched another passage; no validator was relaxed and no retry was attempted.
+- M6 Runtime Container Smoke Closure: verified a non-root, read-only-root-filesystem Docker image with localhost-only default port, read-only demo inputs, persisted job recovery, explicit Online QA fail-closed behavior, and named online job-volume restart persistence. No cloud deployment or image publication was performed.
 
 For detailed acceptance metrics, see:
 
@@ -55,8 +56,6 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 
 ## Known Limitations
 
-- No Web UI yet.
-- No Docker packaging.
 - No OCR for scanned PDFs.
 - No automatic PDF download.
 - No automatic literature review generation.
@@ -77,6 +76,6 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 
 ## Recommended Next Steps
 
-1. M6 may package the verified offline demo and the bounded online QA vertical slice without reopening frozen QA contracts.
-2. Preserve frozen QA and translation contracts; do not reopen Prompt, Schema, Dense, Hybrid, Reranker, or bilingual retrieval tuning.
-3. Keep publication-oriented writing and a complete literature-review workflow out of M6 scope.
+1. MVP technical development is frozen at `v1.0.0-mvp`.
+2. Preserve retrieval, QA, evidence, writing, UI, and Docker contracts unless a separately approved post-MVP milestone is defined.
+3. Keep publication-oriented writing, cloud deployment, and feature expansion out of the MVP release scope.
