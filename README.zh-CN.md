@@ -233,13 +233,14 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - 已完成 Dogfood Run 001：在新论文上验证 anchored preview，并对 1 篇执行人工确认后的 marker 区域写入。
 - 已完成 Evaluation Run 002：具备 guarded execution、frozen-manifest/hash validation、atomic checkpoint/resume、context/call limit 和 reproducible aggregation。
 - v0.3A 方法精读对象抽取目前属于实验性且未验证能力，不作为生产功能宣传。
-- 在 20 条作者审核的 pilot qrels 上，MVP Retriever 已冻结为 `BM25-ZH-raw`、`top_k=10`；固定 Dense Windowing 与 Hybrid 在该受限设置下未超过其 Recall@10。
+- 在同一 20 条作者审核 pilot 上，M2A 已选择双语检索路径：中文 query -> machine translation -> BM25-EN；英文 query -> 原始 query -> BM25-EN。20/20 条机器翻译均通过作者语义审核。
+- BM25-EN-machine-translated 的 Recall@10 从 BM25-ZH-raw 的 `0.6275` 提升到 `0.7157`（`+0.0882`），并恢复 Q10/Q11 的 Top-10 miss。human query_en 继续仅作为 oracle-style 参考，不属于部署路径。
 - QA v1.2 Flash pilot 已完成：所有展示答案均通过 citation ID、严格 quote grounding 和 claim-citation coverage 自动验证。作者审核确认 9/9 展示答案可用（6 条 pass、3 条小修），3/3 no-answer 问题正确拒答。
 - 同一 pilot 也暴露了核心限制：17 条 answerable query 中只有 9 条生成 grounded answer（52.9%）。检索 miss、保守拒答和验证失败会显式保留，不会被转换为无证据答案。
-- QA Contract 在当前阶段冻结。下一里程碑 M2：Minimal Bilingual Evidence Core，目标是提升中文 query 对英文和中英文混合文献的 evidence coverage；FastAPI 服务化尚未达到条件。
+- QA Contract 已冻结，M2A translation retrieval 也已冻结。M2B 仅进行一个中英文混合语料 smoke test；FastAPI 服务化尚未达到条件。
 - 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
-- 在20条作者确认的 pilot qrels 上，固定 Dense Windowing 未超过 BM25-ZH-raw 的 Recall@10；当前 MVP Retriever 保持为 BM25-ZH-raw，等待更大规模评测。
-- 当前测试：206 passed。
+- 固定 Dense Windowing 与 Hybrid 在该受限设置下仍未被选择。当前 translation 路径仍只是 20 条 query 的 pilot 结果，不能宣传为广泛生产保证。
+- 当前测试：212 passed。
 
 ## 当前限制
 

@@ -3,8 +3,8 @@
 ## Current Milestone
 
 - Last pushed/tagged release: `v0.1.1-anchored-evidence-pipeline`
-- Current state: local-first evidence-grounded workflow with a frozen Flash QA pilot; FastAPI service readiness is not reached.
-- Latest additions after `v0.1.1`: reproducible evaluation, BM25 pilot retrieval, strict QA contracts, entity binding, safe partial answers, and bilingual evidence artifacts.
+- Current state: local-first evidence-grounded workflow with frozen QA and M2A translation-retrieval contracts; FastAPI service readiness is not reached.
+- Latest additions after `v0.1.1`: reproducible evaluation, strict QA contracts, entity binding, safe partial answers, and author-reviewed Chinese-to-English retrieval translation.
 
 ## Completed
 
@@ -21,6 +21,7 @@
 - Human-reviewed pilot qrels: a 20-query freeze with `BM25-ZH-raw` and `top_k=10` selected as the bounded MVP retriever. Fixed Dense Windowing and Hybrid did not exceed BM25-ZH-raw on Recall@10.
 - QA v1.2 Final Unified Flash Pilot: 20 one-shot calls, 17 execution-success outcomes, 9 grounded displayed answers, 8 valid abstentions, and 3 visible execution failures. Displayed citation validity, strict quote grounding, and claim-citation coverage were all 100%.
 - Author review of the unified Flash pilot: 9/9 displayed answers were usable after review (6 pass, 3 minor revision); no-answer abstention was 3/3 correct. Answerable-query grounded-answer success was 9/17 (52.9%), so execution availability and answerable coverage remain limited.
+- M2A Translation Retrieval: 20/20 machine translations were author-reviewed as usable. On the same human-reviewed pilot, BM25-EN-machine-translated improved Recall@10 from 0.6275 to 0.7157 (+0.0882) and recovered Q10/Q11 Top-10 misses. Human English queries remain oracle-style reference only.
 
 For detailed acceptance metrics, see:
 
@@ -62,10 +63,11 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - Historical Chinese retrieval artifacts generated from corrupted `query_zh` values are invalid and must not be cited; only a future author-confirmed UTF-8 qrels rerun can replace them.
 - The human-reviewed pilot qrels freeze is limited to 20 queries. The current dense baseline right-truncates most 3500/400 passages at 512 tokens, so it is not a final retriever selection.
 - Minimal fixed windowing (512 tokens, 64 overlap, max parent score) did not exceed BM25-ZH-raw on the human-reviewed pilot's Recall@10. BM25-ZH-raw is the MVP retriever; no further retrieval tuning is planned in this milestone.
+- M2A is a 20-query pilot and has not yet smoke-tested a mixed-language corpus. Translation is retrieval-only and never replaces evidence text or user source queries.
 
 ## Recommended Next Steps
 
-1. M2: build the Minimal Bilingual Evidence Core to improve Chinese-query evidence coverage over English and mixed-language literature.
-2. Preserve the frozen QA contract and use new coverage work to improve retrieval, not to hide abstentions or validation failures.
-3. Enter Evidence Matrix only after the M2 scope is defined and its inputs are frozen.
+1. M2B: run one minimal mixed-language corpus smoke test; regardless of outcome, end bilingual retrieval development.
+2. Preserve frozen QA and translation contracts; do not reopen Prompt, Schema, Dense, Hybrid, or Reranker work.
+3. After M2B, enter Evidence Matrix with frozen retrieval inputs rather than continuing retrieval optimization.
 4. Keep FastAPI/UI work deferred until the evidence and writing chain reaches the MVP definition of done.

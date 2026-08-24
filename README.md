@@ -209,13 +209,14 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Dogfood run validated anchored previews on new papers, with one manual-approved marker-region apply.
 - Evaluation Run 002 completed with guarded execution, frozen-manifest/hash validation, atomic checkpoint/resume, context/call limits, and reproducible aggregation.
 - v0.3A deep-reading object ingestion is experimental and currently unvalidated; it is not presented as a production capability.
-- The 20-query human-reviewed pilot freezes `BM25-ZH-raw` with `top_k=10` as the MVP retriever; fixed Dense Windowing and Hybrid did not exceed its Recall@10 in this bounded setting.
+- M2A selected a bilingual retrieval path on the same 20-query human-reviewed pilot: Chinese query -> machine translation -> BM25-EN; English query -> original query -> BM25-EN. Machine translation was author-reviewed as usable for 20/20 queries.
+- BM25-EN-machine-translated improved Recall@10 from `0.6275` (BM25-ZH-raw) to `0.7157` (`+0.0882`) and recovered Q10/Q11 Top-10 misses. Human English queries remain an oracle-style reference, not a deployment path.
 - QA v1.2 Flash pilot is complete: all displayed answers had validated citation IDs, strict quote grounding, and claim-citation coverage. Author review found 9/9 displayed answers usable (6 pass, 3 minor revision), and 3/3 no-answer queries correctly abstained.
 - The same pilot also exposes the central limitation: only 9/17 answerable queries produced a grounded answer (52.9%). Retrieval misses, conservative abstentions, and validation failures remain visible rather than being converted into unsupported answers.
-- The QA contract is frozen at this point. M2, Minimal Bilingual Evidence Core, targets evidence coverage for Chinese queries over English and mixed-language literature; FastAPI service readiness is not yet reached.
+- The QA contract is frozen. M2A translation retrieval is also frozen; M2B is limited to one mixed-language corpus smoke test. FastAPI service readiness is not yet reached.
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
-- On the 20-query human-reviewed pilot, fixed Dense windowing did not exceed BM25-ZH-raw on Recall@10; BM25-ZH-raw remains the MVP retriever pending broader evaluation.
-- Current test count: 206 passed.
+- Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
+- Current test count: 212 passed.
 
 ## Limitations
 
