@@ -242,7 +242,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - 固定 Dense Windowing 与 Hybrid 在该受限设置下仍未被选择。当前 translation 路径仍只是 20 条 query 的 pilot 结果，不能宣传为广泛生产保证。
 - M5 已提供仅绑定 localhost 的 FastAPI 与原生静态 UI，可浏览冻结语料、查看证据检索、Evidence Matrix 和作者审核的双语写作草稿。Offline demo mode 不会构造 LLM client。
 - 唯一一次 Flash 在线 Q05 canary 在严格 quote grounding 阶段被安全拦截（`evidence_anchor_ambiguous`）；系统未展示未经验证的答案，也未 retry 或修改 Prompt。尚未达到 M6 public-demo packaging 的条件。
-- 当前测试：230 passed。
+- 当前测试：232 passed。
 
 ## 当前限制
 

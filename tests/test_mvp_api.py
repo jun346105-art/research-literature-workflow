@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from litflow.llm.client import LLMCompletion
 from litflow_api.mvp import DemoAssets, MvpService, create_mvp_app
+from litflow.rag.qa import run_qa_v12
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -163,6 +164,52 @@ def test_fake_translation_routes_a_new_chinese_query_without_qrels_in_llm_input(
     job_id = client.post("/api/v1/qa/jobs", json={"query": "请说明 Merge-YOLO", "query_language": "zh"}).json()["job_id"]
     assert client.get(f"/api/v1/jobs/{job_id}/result").json()["execution_status"] == "success"
     assert fake.calls == 2
+
+
+def test_cli_and_api_share_the_v12_validation_result_for_the_same_raw_response(tmp_path):
+    raw = json.dumps({"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "Merge-YOLO", "claim_text_zh": "Merge-YOLO用于包装缺陷检测。", "citations": [{"passage_id": "P1:C1", "evidence_quote": "Merge-YOLO improves packaging defect detection."}]}], "limitations_zh": ""})
+
+    class FakeClient:
+        model = "fake"
+
+        def complete_json_with_usage(self, prompt, *, temperature):
+            return LLMCompletion(content=raw, input_tokens=1, output_tokens=1, total_tokens=2)
+
+    assets = _assets(tmp_path)
+    queries = tmp_path / "queries.json"
+    _write_json(queries, {"queries": [{"query_id": "Q1", "query_zh": "Merge-YOLO", "query_en": "Merge-YOLO", "expected_answerable": True, "relevant_passage_ids": []}]})
+    cli = run_qa_v12(assets.corpus_path, queries, tmp_path / "cli", model="fake", query_id="Q1", entity_metadata_path=assets.entity_metadata_path, client=FakeClient())
+    service = MvpService(assets, online_enabled=True, run_jobs_inline=True, client_factory=FakeClient)
+    api = TestClient(create_mvp_app(service))
+    job_id = api.post("/api/v1/qa/jobs", json={"query": "Merge-YOLO", "query_language": "en"}).json()["job_id"]
+    api_result = api.get(f"/api/v1/jobs/{job_id}/result").json()
+    assert cli["results"][0].execution_status == api_result["execution_status"] == "success"
+    assert cli["results"][0].claims[0]["citations"][0]["anchor_status"] == api_result["claims"][0]["citations"][0]["anchor_status"]
+
+
+def test_duplicate_quote_policy_keeps_safe_metadata_and_rejects_cross_passage_matches(tmp_path):
+    assets = _assets(tmp_path)
+    corpus = json.loads(assets.corpus_path.read_text(encoding="utf-8").splitlines()[0])
+    corpus["text"] = "Merge-YOLO supports details. Shared exact quote. Shared exact quote."
+    second = {**corpus, "passage_id": "P1:C2", "chunk_id": "C2", "page_start": 2, "page_end": 2, "text": "Shared exact quote."}
+    assets.corpus_path.write_text("\n".join(json.dumps(item) for item in (corpus, second)) + "\n", encoding="utf-8")
+    raw = json.dumps({"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "Merge-YOLO", "claim_text_zh": "Merge-YOLO支持细节。", "citations": [{"passage_id": "P1:C1", "evidence_quote": "Shared exact quote."}]}], "limitations_zh": ""})
+
+    class FakeClient:
+        model = "fake"
+
+        def complete_json_with_usage(self, prompt, *, temperature):
+            return LLMCompletion(content=raw)
+
+    service = MvpService(assets, online_enabled=True, run_jobs_inline=True, client_factory=FakeClient)
+    client = TestClient(create_mvp_app(service))
+    job_id = client.post("/api/v1/qa/jobs", json={"query": "Merge-YOLO", "query_language": "en"}).json()["job_id"]
+    result = client.get(f"/api/v1/jobs/{job_id}/result").json()
+    assert result["execution_status"] == "quote_grounding_failed"
+    internal = json.loads((assets.jobs_dir / job_id / "result.json").read_text(encoding="utf-8"))
+    ledger = internal["quote_grounding_ledger"][0]
+    assert ledger["classification"] == "matches_across_passages"
+    assert ledger["ambiguity_preserved"] is False
 
 
 def test_partial_answer_and_safe_abstention_are_exposed_as_distinct_outcomes(tmp_path):
