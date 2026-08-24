@@ -8,19 +8,53 @@
     <link rel="stylesheet" href="/static/style.css">
   </head>
   <body>
-    <header><strong>LitFlow</strong><span>Evidence-Grounded Research Copilot MVP</span><span id="mode"></span></header>
-    <main>
-      <aside><h2>文献库</h2><div id="papers"></div><h2>示例问题</h2><button class="example">Merge-YOLO 的 WT-C3k2 如何处理特征？</button></aside>
-      <section>
-        <h1>证据驱动问答</h1>
-        <p class="notice">回答仅基于当前检索片段；可能返回部分回答或证据不足。</p>
-        <textarea id="query" maxlength="500" placeholder="输入中文或英文研究问题"></textarea>
-        <div class="actions"><button id="retrieve">查看检索证据</button><button id="ask">执行在线问答</button></div>
-        <div id="route"></div><div id="progress"></div><div id="answer"></div><div id="citation-drawer"></div><div id="passages"></div>
-      </section>
-      <aside><h2>只读示例</h2><button id="matrix">Evidence Matrix</button><button id="writing">作者审核写作草稿</button><div id="demo"></div></aside>
-    </main>
-    <footer>作者可编辑草稿，不是自动投稿论文；当前中文原生语料支持仍为 smoke-test 水平。</footer>
+    <header class="appbar">
+      <button id="nav-toggle" class="icon-button" type="button" aria-label="打开导航" aria-expanded="false">Menu</button>
+      <div class="brand"><strong>LitFlow</strong><span>Calm Research Workbench</span></div>
+      <div class="appbar-meta"><span id="mode-badge" class="status status-neutral">加载中 / Loading</span><a href="/docs" target="_blank" rel="noopener">Documentation</a></div>
+    </header>
+
+    <div id="app-shell" class="app-shell">
+      <aside id="primary-nav" class="primary-nav" aria-label="研究工作台导航">
+        <div class="nav-heading"><span class="eyebrow">Workspace</span><h2>Research Workbench</h2></div>
+        <button id="new-query" class="button button-primary" type="button">+ New Research Query</button>
+        <nav class="nav-list" aria-label="工作台视图">
+          <button class="nav-item is-active" data-view="query" type="button">New Research Query</button>
+          <button class="nav-item" data-view="papers" type="button">Corpus / Papers</button>
+          <button class="nav-item" data-view="route" type="button">Language Route</button>
+          <button id="recovered-job-nav" class="nav-item is-hidden" data-view="recovered" type="button">Recovered Job</button>
+          <button class="nav-item" data-view="matrix" type="button">Evidence Matrix</button>
+          <button class="nav-item" data-view="writing" type="button">Bilingual Writing Draft</button>
+        </nav>
+        <div class="nav-footer"><a href="/docs" target="_blank" rel="noopener">Settings / Documentation</a></div>
+      </aside>
+
+      <main id="workspace" class="workspace" tabindex="-1">
+        <section id="query-view" class="view-panel">
+          <div class="view-heading"><div><span class="eyebrow">Evidence-grounded QA</span><h1>Research question workspace</h1></div><span id="recovery-badge" class="status status-recovered is-hidden">Recovered job / 已恢复历史任务</span></div>
+          <section id="original-query" class="query-card" aria-labelledby="original-query-label">
+            <label id="original-query-label" for="query">Original research query / 原始研究问题</label>
+            <textarea id="query" maxlength="500" placeholder="输入中文或英文研究问题"></textarea>
+            <p class="field-help">中文问题按冻结路由检索英文文献；翻译仅用于检索，不作为证据。</p>
+            <div class="actions"><button id="retrieve" class="button button-secondary" type="button">Inspect retrieval</button><button id="ask" class="button button-primary" type="button">Run online QA</button></div>
+          </section>
+
+          <section id="route-panel" class="context-panel is-hidden" aria-label="语言与检索路径"><span class="eyebrow">Language and retrieval route</span><div id="route"></div></section>
+          <section id="progress-panel" class="context-panel is-hidden" aria-label="执行进度"><span class="eyebrow">Execution progress</span><div id="progress" aria-live="polite" aria-atomic="true"></div></section>
+          <section id="result-panel" class="result-panel is-hidden" aria-label="问答结果"><div id="result-status"></div><div id="answer"></div><div id="claims"></div><div id="limitations"></div></section>
+          <section id="passages-panel" class="passages-panel is-hidden" aria-label="检索证据"><div class="section-heading"><div><span class="eyebrow">Top 10</span><h2>Retrieved passages</h2></div><span id="passage-count" class="metadata"></span></div><div id="passages"></div></section>
+        </section>
+        <section id="data-view" class="view-panel is-hidden" aria-live="polite"></section>
+      </main>
+
+      <aside id="evidence-inspector" class="evidence-inspector" aria-label="Evidence Inspector" aria-hidden="false">
+        <div class="inspector-heading"><div><span class="eyebrow">Evidence Inspector</span><h2>Source provenance</h2></div><button id="inspector-close" class="icon-button" type="button" aria-label="关闭证据检查器">Close</button></div>
+        <div id="inspector-empty" class="empty-state"><p>选择 citation 查看论文、页码、quote 与完整 source passage。</p></div>
+        <div id="citation-drawer" class="inspector-content"></div>
+      </aside>
+    </div>
+    <div id="drawer-backdrop" class="drawer-backdrop is-hidden" aria-hidden="true"></div>
+    <footer>Evidence-grounded research copilot MVP. Writing output is author-editable, not publication-ready.</footer>
     <script src="/static/app.js"></script>
   </body>
 </html>

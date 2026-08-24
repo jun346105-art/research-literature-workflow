@@ -242,6 +242,29 @@ def test_static_ui_is_served(tmp_path):
     assert 'id="citation-drawer"' in response.text
 
 
+def test_workbench_shell_exposes_accessible_state_and_inspector_regions(tmp_path):
+    client = _client(tmp_path)
+    markup = client.get("/").text
+    for required in (
+        "Calm Research Workbench",
+        'id="evidence-inspector"',
+        'aria-live="polite"',
+        'id="original-query"',
+        'data-view="matrix"',
+        'data-view="writing"',
+        'id="inspector-close"',
+        'Recovered job / 已恢复历史任务',
+    ):
+        assert required in markup
+    script = (Path(__file__).parents[1] / "src" / "litflow_api" / "static" / "app.js").read_text(encoding="utf-8")
+    assert "EventSource" in script
+    assert "openInspector" in script
+    style = (Path(__file__).parents[1] / "src" / "litflow_api" / "static" / "style.css").read_text(encoding="utf-8")
+    assert "@media (max-width: 1279px)" in style
+    assert "@media (max-width: 767px)" in style
+    assert ".passage-block { max-height: 48vh; overflow: auto; }" in style
+
+
 def test_completed_job_is_reloadable_from_its_file_backed_artifact(tmp_path):
     completed = {"execution_status": "success", "final_answer_status": "insufficient_evidence", "coverage_status": "none", "answer_zh": "证据不足", "claims": [], "limitations_zh": "", "usage": None, "latency_ms": 1, "validation_summary": {}}
     assets = _assets(tmp_path)
