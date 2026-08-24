@@ -167,3 +167,4 @@ def test_static_ui_is_served(tmp_path):
     response = client.get("/")
     assert response.status_code == 200
     assert "LitFlow" in response.text
+    assert 'rel="icon" href="data:,"' in response.text
