@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LitFlow Evidence Copilot</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <header><strong>LitFlow</strong><span>Evidence-Grounded Research Copilot MVP</span><span id="mode"></span></header>
+    <main>
+      <aside><h2>文献库</h2><div id="papers"></div><h2>示例问题</h2><button class="example">Merge-YOLO 的 WT-C3k2 如何处理特征？</button></aside>
+      <section>
+        <h1>证据驱动问答</h1>
+        <p class="notice">回答仅基于当前检索片段；可能返回部分回答或证据不足。</p>
+        <textarea id="query" maxlength="500" placeholder="输入中文或英文研究问题"></textarea>
+        <div class="actions"><button id="retrieve">查看检索证据</button><button id="ask">执行在线问答</button></div>
+        <div id="route"></div><div id="progress"></div><div id="answer"></div><div id="passages"></div>
+      </section>
+      <aside><h2>只读示例</h2><button id="matrix">Evidence Matrix</button><button id="writing">作者审核写作草稿</button><div id="demo"></div></aside>
+    </main>
+    <footer>作者可编辑草稿，不是自动投稿论文；当前中文原生语料支持仍为 smoke-test 水平。</footer>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

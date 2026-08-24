@@ -1,0 +1,13 @@
+:root { font-family: Arial, "Microsoft YaHei", sans-serif; color: #1d2939; background: #f7f9fc; }
+body { margin: 0; }
+header { display: flex; gap: 18px; align-items: baseline; padding: 14px 24px; color: #fff; background: #174ea6; }
+header strong { font-size: 22px; } header #mode { margin-left: auto; font-size: 13px; }
+main { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(360px, 2.5fr) minmax(220px, 1fr); gap: 16px; padding: 16px; }
+section, aside { background: #fff; border: 1px solid #d8dee9; border-radius: 6px; padding: 16px; }
+h1, h2 { margin-top: 0; } h2 { font-size: 16px; }
+textarea { width: 100%; min-height: 90px; box-sizing: border-box; padding: 10px; }
+button { margin: 4px 4px 4px 0; border: 1px solid #174ea6; border-radius: 4px; background: #fff; color: #174ea6; padding: 7px 10px; cursor: pointer; }
+button:hover { background: #e8f0fe; }.actions { margin: 8px 0; }.notice, footer { color: #52606d; font-size: 13px; }
+.card { border-top: 1px solid #d8dee9; margin-top: 12px; padding-top: 10px; }.quote { white-space: pre-wrap; background: #f2f4f7; padding: 8px; font-family: ui-monospace, monospace; font-size: 12px; }
+.error { color: #b42318; }.status { color: #175cd3; } footer { padding: 12px 24px; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }

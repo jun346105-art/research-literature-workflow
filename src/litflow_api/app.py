@@ -4,18 +4,22 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from litflow.llm.client import LLMError
 from litflow.llm.evidence_bank_note import generate_note_from_evidence_bank
 from litflow.llm.evidence_candidates import build_evidence_candidate_bank
 from litflow.obsidian.update_preview import preview_obsidian_update
+from litflow_api.mvp import create_mvp_app
 
 app = FastAPI(
     title="Research Literature Workflow API",
     version="0.1.1",
     description="Minimal API wrapper for safe litflow preview and anchored evidence workflows.",
 )
+app.include_router(create_mvp_app().router)
+app.mount("/static", StaticFiles(directory=Path(__file__).with_name("static")), name="static")
 
 
 class EvidenceCandidateBankRequest(BaseModel):
