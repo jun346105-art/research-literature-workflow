@@ -51,6 +51,22 @@ def validate_writing_output(output: dict[str, Any], task_id: str, records: list[
     return output
 
 
+def validate_author_closure(sentences: list[dict[str, Any]], records: list[dict[str, Any]]) -> None:
+    by_id = {record["evidence_record_id"]: record for record in records}
+    for sentence in sentences:
+        ids = sentence.get("supporting_record_ids", [])
+        if not ids:
+            raise WritingValidationError("author-reviewed sentence has no evidence record")
+        for record_id in ids:
+            if record_id not in by_id:
+                raise WritingValidationError("unknown evidence record")
+            if by_id[record_id]["review_decision"] not in {"pass", "pass_with_minor_revision"}:
+                raise WritingValidationError("failed evidence record")
+        keys = sorted({by_id[record_id]["citation_key"] for record_id in ids})
+        if sorted(sentence.get("citation_keys", [])) != keys:
+            raise WritingValidationError("citation key does not match evidence record")
+
+
 def render_writing(output: dict[str, Any], records: list[dict[str, Any]]) -> dict[str, str]:
     by_id = {record["evidence_record_id"]: record for record in records}
     outline = ["# Method Comparison Outline", ""]

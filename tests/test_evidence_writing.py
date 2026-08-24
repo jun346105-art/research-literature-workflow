@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from litflow.evidence_writing import WritingValidationError, validate_writing_output
+from litflow.evidence_writing import WritingValidationError, validate_author_closure, validate_writing_output
 
 
 def test_writing_validator_rejects_unknown_record_and_single_paper_synthesis():
@@ -23,6 +23,17 @@ def test_writing_validator_accepts_bilingual_bound_sentences_and_partial_limitat
     validated = validate_writing_output(output, "T1", records)
     assert validated["sentences"][0]["sentence_id"] == "S1"
     assert "TPMN" in validated["limitations_zh"]
+
+
+def test_author_closure_rejects_unknown_or_failed_records():
+    records = [_record("ER1", "P1", "cite1"), {**_record("ER2", "P2", "cite2"), "review_decision": "fail"}]
+    sentence = {"sentence_id": "S1", "text_zh": "修订", "text_en": "Revision", "supporting_record_ids": ["MISSING"], "citation_keys": []}
+    with pytest.raises(WritingValidationError, match="unknown evidence record"):
+        validate_author_closure([sentence], records)
+    sentence["supporting_record_ids"] = ["ER2"]
+    sentence["citation_keys"] = ["cite2"]
+    with pytest.raises(WritingValidationError, match="failed evidence record"):
+        validate_author_closure([sentence], records)
 
 
 def _record(record_id, paper_key, citation_key, partial=False):
