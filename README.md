@@ -218,7 +218,7 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
 - M5 now provides a localhost-only FastAPI plus native static UI for frozen corpus browsing, evidence retrieval, Evidence Matrix viewing, and author-reviewed bilingual writing-draft viewing. Offline demo mode never constructs an LLM client.
 - The single Flash online Q05 canary was safely blocked at strict quote grounding (`evidence_anchor_ambiguous`); no unverified answer was displayed and no retry or prompt change was made. M6 public-demo packaging readiness is not reached.
-- Current test count: 229 passed.
+- Current test count: 230 passed.
 
 ## Limitations
 

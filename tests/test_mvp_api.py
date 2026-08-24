@@ -142,6 +142,29 @@ def test_fake_llm_uses_existing_v12_quote_and_entity_validation(tmp_path):
     assert result["usage"]["total_tokens"] == 18
 
 
+def test_fake_translation_routes_a_new_chinese_query_without_qrels_in_llm_input(tmp_path):
+    class FakeClient:
+        model = "fake"
+
+        def __init__(self):
+            self.calls = 0
+
+        def complete_json_with_usage(self, prompt, *, temperature):
+            self.calls += 1
+            assert "relevant_passage_ids" not in prompt
+            assert "gold_evidence_summary" not in prompt
+            if self.calls == 1:
+                query_id = json.loads(prompt.split("INPUT:\n", 1)[1])["query_id"]
+                return LLMCompletion(content=json.dumps({"query_id": query_id, "source_language": "zh", "target_language": "en", "translated_query": "Explain Merge-YOLO", "preserved_entities": ["Merge-YOLO"], "preserved_numbers_and_units": []}), input_tokens=3, output_tokens=2, total_tokens=5)
+            return LLMCompletion(content=json.dumps({"status": "answered", "claims": [{"subject_paper_key": "P1", "subject_entity_name": "Merge-YOLO", "claim_text_zh": "Merge-YOLO用于包装缺陷检测。", "citations": [{"passage_id": "P1:C1", "evidence_quote": "Merge-YOLO improves packaging defect detection."}]}], "limitations_zh": ""}), input_tokens=7, output_tokens=5, total_tokens=12)
+
+    fake = FakeClient()
+    client = TestClient(create_mvp_app(MvpService(_assets(tmp_path), online_enabled=True, run_jobs_inline=True, client_factory=lambda: fake)))
+    job_id = client.post("/api/v1/qa/jobs", json={"query": "请说明 Merge-YOLO", "query_language": "zh"}).json()["job_id"]
+    assert client.get(f"/api/v1/jobs/{job_id}/result").json()["execution_status"] == "success"
+    assert fake.calls == 2
+
+
 def test_partial_answer_and_safe_abstention_are_exposed_as_distinct_outcomes(tmp_path):
     partial = {"execution_status": "success", "final_answer_status": "partial_answer", "coverage_status": "partial", "answer_zh": "部分回答", "claims": [], "limitations_zh": "缺少TPMN", "coverage_ledger": {"uncovered_entities": [{"entity_name": "TPMN"}], "coverage_status": "partial"}, "usage": None, "latency_ms": 1, "validation_summary": {}}
     client = _client(tmp_path, online_enabled=True, qa_executor=lambda *_: partial)
@@ -160,6 +183,7 @@ def test_failed_execution_never_exposes_an_answer(tmp_path):
     assert result["execution_status"] == "quote_grounding_failed"
     assert result["final_answer_status"] is None
     assert "answer_zh" not in result
+    assert "job_failed" in client.get(f"/api/v1/jobs/{job_id}/events").text
 
 
 def test_static_ui_is_served(tmp_path):
