@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -217,6 +218,7 @@ class MvpService:
 
     def job(self, job_id: str) -> dict[str, Any]:
         with self._lock:
+            self._load_persisted_job(job_id)
             if job_id not in self._jobs:
                 raise KeyError(job_id)
             item = self._jobs[job_id]
@@ -224,12 +226,14 @@ class MvpService:
 
     def job_events(self, job_id: str) -> list[dict[str, Any]]:
         with self._lock:
+            self._load_persisted_job(job_id)
             if job_id not in self._jobs:
                 raise KeyError(job_id)
             return list(self._jobs[job_id]["events"])
 
     def job_result(self, job_id: str) -> dict[str, Any]:
         with self._lock:
+            self._load_persisted_job(job_id)
             if job_id not in self._jobs:
                 raise KeyError(job_id)
             result = self._jobs[job_id]["result"]
@@ -382,6 +386,25 @@ class MvpService:
 
     def _event(self, job_id: str, event_type: str, status: str) -> None:
         self._jobs[job_id]["events"].append({"event": event_type, "status": status})
+
+    def _load_persisted_job(self, job_id: str) -> None:
+        if job_id in self._jobs or not re.fullmatch(r"[A-Za-z0-9_-]{16,}", job_id):
+            return
+        directory = self.assets.jobs_dir / job_id
+        job_path = directory / "job.json"
+        if not job_path.is_file():
+            return
+        payload = _load_json(job_path)
+        if payload.get("job_id") != job_id or not isinstance(payload.get("events"), list) or not isinstance(payload.get("request"), dict):
+            return
+        result_path = directory / "result.json"
+        self._jobs[job_id] = {
+            "job_id": job_id,
+            "status": payload.get("status"),
+            "events": payload["events"],
+            "request": payload["request"],
+            "result": _load_json(result_path) if result_path.is_file() else None,
+        }
 
 
 def create_mvp_app(service: MvpService | None = None) -> FastAPI:

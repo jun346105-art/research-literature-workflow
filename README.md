@@ -217,8 +217,9 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
 - Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
 - M5 now provides a localhost-only FastAPI plus native static UI for frozen corpus browsing, evidence retrieval, Evidence Matrix viewing, and author-reviewed bilingual writing-draft viewing. Offline demo mode never constructs an LLM client.
-- The single Flash online Q05 canary was safely blocked at strict quote grounding (`evidence_anchor_ambiguous`); no unverified answer was displayed and no retry or prompt change was made. M6 public-demo packaging readiness is not reached.
-- Current test count: 232 passed.
+- The historical Flash Q05 canary remains a safe rejection: its duplicate quote also occurred in another passage, so it is not eligible for the declared-passage duplicate rule. No validator was relaxed.
+- A separate Flash Q01 FastAPI/UI canary completed through cached Chinese-to-English retrieval, entity binding, citation membership, and strict quote grounding. M5 is `pass_with_known_qa_availability_limits`; M6 packaging readiness is reached, without claiming that every online query will succeed.
+- Current test count: 233 passed.
 
 ## Limitations
 

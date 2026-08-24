@@ -239,3 +239,13 @@ def test_static_ui_is_served(tmp_path):
     assert response.status_code == 200
     assert "LitFlow" in response.text
     assert 'rel="icon" href="data:,"' in response.text
+    assert 'id="citation-drawer"' in response.text
+
+
+def test_completed_job_is_reloadable_from_its_file_backed_artifact(tmp_path):
+    completed = {"execution_status": "success", "final_answer_status": "insufficient_evidence", "coverage_status": "none", "answer_zh": "证据不足", "claims": [], "limitations_zh": "", "usage": None, "latency_ms": 1, "validation_summary": {}}
+    assets = _assets(tmp_path)
+    first = TestClient(create_mvp_app(MvpService(assets, online_enabled=True, run_jobs_inline=True, qa_executor=lambda *_: completed)))
+    job_id = first.post("/api/v1/qa/jobs", json={"query": "unknown", "query_language": "en"}).json()["job_id"]
+    second = TestClient(create_mvp_app(MvpService(assets)))
+    assert second.get(f"/api/v1/jobs/{job_id}/result").json()["final_answer_status"] == "insufficient_evidence"

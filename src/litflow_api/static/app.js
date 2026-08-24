@@ -32,11 +32,20 @@ async function ask() {
       const status = await api(`/api/v1/jobs/${created.job_id}`);
       byId("progress").textContent = `Job ${created.job_id}: ${status.status}`;
       if (status.status === "completed" || status.status === "failed") {
-        clearInterval(interval); const result = await api(`/api/v1/jobs/${created.job_id}/result`);
-        byId("answer").innerHTML = result.answer_zh ? `<div class="card">${escapeHtml(result.answer_zh)}</div>` : `<div class="card error">${escapeHtml(result.user_message)}</div>`;
+        clearInterval(interval); renderResult(await api(`/api/v1/jobs/${created.job_id}/result`));
       }
     }, 500);
   } catch (error) { byId("answer").innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
+}
+
+function renderResult(result) {
+  if (!result.answer_zh) { byId("answer").innerHTML = `<div class="card error">${escapeHtml(result.user_message)}</div>`; return; }
+  const claims = (result.claims || []).map((claim, index) => `<article class="card"><strong>${index + 1}. ${escapeHtml(claim.claim_text_zh)}</strong><div>${claim.citations.map((citation) => `<button class="citation" data-passage="${escapeHtml(citation.passage_id)}" data-quote="${escapeHtml(citation.evidence_quote)}">${escapeHtml(citation.passage_id)} · pp.${citation.page_start}-${citation.page_end}</button>`).join("")}</div></article>`).join("");
+  byId("answer").innerHTML = `<div class="card">${escapeHtml(result.answer_zh)}</div>${claims}`;
+  document.querySelectorAll(".citation").forEach((button) => button.onclick = async () => {
+    const passage = await api(`/api/v1/passages/${encodeURIComponent(button.dataset.passage)}?evidence_quote=${encodeURIComponent(button.dataset.quote)}`);
+    byId("citation-drawer").innerHTML = `<article class="card"><strong>${escapeHtml(passage.title)}</strong><p>${escapeHtml(passage.citation_key)} · pp.${passage.page_start}-${passage.page_end} · ${escapeHtml(passage.anchor_status)}</p><div class="quote">${escapeHtml(passage.evidence_quote)}</div><div class="quote">${escapeHtml(passage.passage_text)}</div></article>`;
+  });
 }
 
 async function loadDemo(kind) {
@@ -51,5 +60,7 @@ async function bootstrap() {
   byId("retrieve").onclick = retrieve; byId("ask").onclick = ask;
   byId("matrix").onclick = () => loadDemo("evidence-matrix"); byId("writing").onclick = () => loadDemo("writing");
   document.querySelector(".example").onclick = (event) => { byId("query").value = event.target.textContent; };
+  const jobId = new URLSearchParams(window.location.search).get("job_id");
+  if (jobId) { const status = await api(`/api/v1/jobs/${jobId}`); byId("progress").textContent = `Job ${jobId}: ${status.status}`; renderResult(await api(`/api/v1/jobs/${jobId}/result`)); }
 }
 bootstrap().catch((error) => { byId("answer").textContent = error.message; });

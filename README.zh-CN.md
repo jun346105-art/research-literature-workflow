@@ -241,8 +241,9 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
 - 固定 Dense Windowing 与 Hybrid 在该受限设置下仍未被选择。当前 translation 路径仍只是 20 条 query 的 pilot 结果，不能宣传为广泛生产保证。
 - M5 已提供仅绑定 localhost 的 FastAPI 与原生静态 UI，可浏览冻结语料、查看证据检索、Evidence Matrix 和作者审核的双语写作草稿。Offline demo mode 不会构造 LLM client。
-- 唯一一次 Flash 在线 Q05 canary 在严格 quote grounding 阶段被安全拦截（`evidence_anchor_ambiguous`）；系统未展示未经验证的答案，也未 retry 或修改 Prompt。尚未达到 M6 public-demo packaging 的条件。
-- 当前测试：232 passed。
+- 历史 Flash Q05 canary 继续作为安全拒绝保留：其重复 quote 同时出现在另一 passage 中，不满足声明 passage 内重复 quote 的安全规则；未放宽 validator。
+- 独立的 Flash Q01 FastAPI/UI canary 已通过缓存的中译英检索、entity binding、citation membership 与严格 quote grounding。M5 为 `pass_with_known_qa_availability_limits`；已达到 M6 packaging readiness，但不声称所有在线问题都会成功。
+- 当前测试：233 passed。
 
 ## 当前限制
 
