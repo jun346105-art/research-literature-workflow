@@ -99,7 +99,8 @@ def freeze_human_reviewed_qrels(pending_queries_path: Path, source_csv: Path, co
 
 def qrels_evaluation_label(path: Path) -> str:
     metadata = json.loads(path.read_text(encoding="utf-8-sig")).get("metadata", {})
-    return "human_reviewed_pilot_qrels_v1" if metadata.get("benchmark_id") == "human_reviewed_pilot_qrels_v1" else "preliminary_on_AI_drafted_silver_qrels"
+    benchmark_id = metadata.get("benchmark_id")
+    return benchmark_id if isinstance(benchmark_id, str) and re.fullmatch(r"human_reviewed_pilot_qrels_v\d+(?:_\d+)*", benchmark_id) else "preliminary_on_AI_drafted_silver_qrels"
 
 
 def _split(value: str | None) -> list[str]:

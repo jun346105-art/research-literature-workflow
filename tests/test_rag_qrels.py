@@ -74,5 +74,11 @@ def test_human_freeze_writes_pilot_manifest(tmp_path):
     assert qrels_evaluation_label(output) == "human_reviewed_pilot_qrels_v1"
 
 
+def test_human_reviewed_version_suffix_keeps_human_label(tmp_path):
+    path = tmp_path / "reviewed_v1_1.json"
+    write_queries_json(path, {"benchmark_id": "human_reviewed_pilot_qrels_v1_1"}, [_query("Q01", "中文问题")])
+    assert qrels_evaluation_label(path) == "human_reviewed_pilot_qrels_v1_1"
+
+
 def _query(query_id: str, query_zh: str) -> dict:
     return {"query_id": query_id, "query_zh": query_zh, "query_en": "alpha", "query_type": "method", "expected_answerable": True, "relevant_paper_keys": ["P1"], "relevant_passage_ids": ["P1:P1_chunk_0001"], "gold_evidence_summary": "", "review_status": "human_review_pending"}
