@@ -5,7 +5,7 @@ import json
 import pytest
 
 from litflow.llm.client import LLMCompletion
-from litflow.rag.translation import TranslationContractError, TranslationResponse, build_translation_prompt, plan_query_translation, run_query_translation, write_translation_review_packet
+from litflow.rag.translation import TranslationContractError, TranslationResponse, _numbers_and_units, _protected_entities, build_translation_prompt, plan_query_translation, replay_query_translation, run_query_translation, write_translation_review_packet
 
 
 class FakeTranslationClient:
@@ -48,6 +48,31 @@ def test_translation_runner_caches_by_identity_and_round_trips_unicode(tmp_path)
     packet = tmp_path / "packet.md"
     write_translation_review_packet(tmp_path / "run", queries_path, packet)
     assert "TPMN" in packet.read_text(encoding="utf-8")
+
+
+def test_protected_entity_tokenizer_preserves_composite_technical_terms_without_single_letters():
+    values = _protected_entities("混合2D/3D、RGB-D、WT-C3k2、YOLOv8n、mAP@0.5、P2/P3/P5与RANSAC、SSD、TPMN")
+    for expected in ("2D/3D", "RGB-D", "WT-C3k2", "YOLOv8n", "mAP@0.5", "P2/P3/P5", "RANSAC", "SSD", "TPMN"):
+        assert expected in values
+    assert "D" not in values and "P" not in values
+    assert _numbers_and_units("混合2D/3D与P2/P3/P5，mAP@0.5") == ["0.5"]
+
+
+def test_q11_style_translation_replays_without_calling_a_client(tmp_path, monkeypatch):
+    queries_path = _queries_file(tmp_path)
+    payload = json.loads(queries_path.read_text(encoding="utf-8"))
+    payload["queries"][0].update({"query_id": "Q11", "query_zh": "混合2D/3D检测报告了什么单一模具局限？", "query_en": "What single mold limitation does hybrid 2D/3D detection report?"})
+    queries_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    source = tmp_path / "source"
+    raw = {"query_id": "Q11", "source_language": "zh", "target_language": "en", "translated_query": "What single mold limitation does hybrid 2D/3D detection report?", "preserved_entities": [], "preserved_numbers_and_units": []}
+    (source / "queries" / "Q11").mkdir(parents=True)
+    raw_path = source / "queries" / "Q11" / "raw_response_attempt_1.txt"
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    (source / "queries" / "Q11" / "checkpoint_1.json").write_text(json.dumps({"raw_sha256": __import__("hashlib").sha256(raw_path.read_bytes()).hexdigest()}), encoding="utf-8")
+    (source / "run_manifest.json").write_text(json.dumps({"plan": {"model": "fake"}}), encoding="utf-8")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    replay = replay_query_translation(source, queries_path, tmp_path / "replay")
+    assert replay["results"][0]["execution_status"] == "success"
 
 
 def _queries(tmp_path):

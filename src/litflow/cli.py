@@ -31,7 +31,7 @@ from litflow.reading_context import build_reading_contexts
 from litflow.rag.bm25 import BM25Index, build_corpus, evaluate_bm25, load_corpus
 from litflow.rag.dense import MODEL_NAME, MODEL_REVISION, build_dense_cache, evaluate_retriever
 from litflow.rag.qrels import freeze_human_reviewed_qrels, import_ai_assisted_qrels
-from litflow.rag.translation import plan_query_translation, run_query_translation, write_translation_review_packet
+from litflow.rag.translation import plan_query_translation, replay_query_translation, run_query_translation, write_translation_review_packet
 from litflow.rag.windowed import build_windowed_dense_cache, evaluate_windowed
 from litflow.rag.qa import evaluate_qa, evaluate_qa_v12_batch, plan_qa, plan_qa_v11, plan_qa_v11_batch, plan_qa_v12, plan_qa_v12_batch, replay_qa_transport, replay_qa_v11, run_qa, run_qa_v11, run_qa_v11_batch, run_qa_v12, run_qa_v12_batch, write_qa_review_packet, write_qa_v12_review_packets
 from litflow.selection.export import export_zotero_import
@@ -321,6 +321,12 @@ def main(argv: list[str] | None = None) -> int:
     translation_packet.add_argument("--run-dir", required=True, type=Path)
     translation_packet.add_argument("--queries", required=True, type=Path)
     translation_packet.add_argument("--out", required=True, type=Path)
+
+    translation_replay = subparsers.add_parser("replay-query-translation")
+    translation_replay.add_argument("--source-run-dir", required=True, type=Path)
+    translation_replay.add_argument("--queries", required=True, type=Path)
+    translation_replay.add_argument("--out-dir", required=True, type=Path)
+    translation_replay.add_argument("--query-id")
 
     qa_eval = subparsers.add_parser("evaluate-evidence-qa")
     qa_eval.add_argument("--run-dir", required=True, type=Path)
@@ -678,6 +684,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "make-query-translation-review-packet":
             write_translation_review_packet(args.run_dir, args.queries, args.out)
             print(f"Translation review packet: {args.out}")
+            return 0
+
+        if args.command == "replay-query-translation":
+            result = replay_query_translation(args.source_run_dir, args.queries, args.out_dir, query_id=args.query_id)
+            print(json.dumps({"run_dir": str(args.out_dir), "query_count": len(result["results"])}, ensure_ascii=False))
             return 0
 
         if args.command == "evaluate-evidence-qa":
