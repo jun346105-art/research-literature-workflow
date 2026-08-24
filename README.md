@@ -213,10 +213,10 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - BM25-EN-machine-translated improved Recall@10 from `0.6275` (BM25-ZH-raw) to `0.7157` (`+0.0882`) and recovered Q10/Q11 Top-10 misses. Human English queries remain an oracle-style reference, not a deployment path.
 - QA v1.2 Flash pilot is complete: all displayed answers had validated citation IDs, strict quote grounding, and claim-citation coverage. Author review found 9/9 displayed answers usable (6 pass, 3 minor revision), and 3/3 no-answer queries correctly abstained.
 - The same pilot also exposes the central limitation: only 9/17 answerable queries produced a grounded answer (52.9%). Retrieval misses, conservative abstentions, and validation failures remain visible rather than being converted into unsupported answers.
-- The QA contract and M2A translation retrieval are frozen. M2B completed one mixed-language corpus smoke with a real Chinese engineering PDF; Chinese-to-Chinese Q01 did not retrieve a hit, so the result is `pass_with_known_limit` and no further retrieval optimization is planned. The next milestone is M3 Evidence Matrix.
+- QA, M2A translation retrieval, and M2B mixed-language smoke are frozen. M3 produced a review-ready Evidence Matrix from 16 author-reviewed QA claims across four papers; 30 sparse comparison cells remain explicitly marked as lacking reviewed evidence. The next milestone is M4 Writing Vertical Slice.
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
 - Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
-- Current test count: 215 passed.
+- Current test count: 217 passed.
 
 ## Limitations
 
