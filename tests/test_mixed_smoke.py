@@ -25,3 +25,8 @@ def test_language_branch_routing_and_rrf_keep_original_passage_ids():
     merged = rrf_merge([zh, en], rrf_k=60, top_k=10)
     assert [item["passage_id"] for item in merged] == ["EN:1", "ZH:1"]
     assert all(item["passage_id"] in {"ZH:1", "EN:1"} for item in merged)
+
+
+def test_chinese_branch_includes_mixed_source_passages():
+    index = MixedBM25Index([{"passage_id": "MIXED:1", "source_language": "mixed", "text": "中文关键点识别 YOLOv11-Pose"}])
+    assert index.search_branch("关键点识别", "zh")[0]["passage_id"] == "MIXED:1"

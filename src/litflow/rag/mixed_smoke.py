@@ -40,8 +40,8 @@ class MixedBM25Index:
         self.b = b
 
     def search_branch(self, query_text: str, source_language: str, *, top_k: int = 10) -> list[dict[str, Any]]:
-        branch = [passage for passage in self.passages if passage["source_language"] == source_language]
-        tokens = [mixed_tokenize(passage["text"], source_language) for passage in branch]
+        branch = [passage for passage in self.passages if passage["source_language"] == source_language or passage["source_language"] == "mixed"]
+        tokens = [mixed_tokenize(passage["text"], passage["source_language"]) for passage in branch]
         query_tokens = mixed_tokenize(query_text, source_language)
         if not branch or not query_tokens:
             return []
