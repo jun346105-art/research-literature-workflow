@@ -216,8 +216,9 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - QA, M2A translation retrieval, and M2B mixed-language smoke are frozen. M3 produced a review-ready Evidence Matrix from 16 author-reviewed QA claims across four papers; 30 sparse comparison cells remain explicitly marked as lacking reviewed evidence. M4 produced an author-reviewed, evidence-grounded bilingual writing draft with complete sentence-to-record coverage after moderate revisions. It is an author-editable draft, not a publication-ready manuscript.
 - Historical Chinese-query retrieval artifacts are invalid where `query_zh` was corrupted before evaluation; they are retained only for audit and are not benchmark results.
 - Fixed Dense windowing and Hybrid remain rejected in this bounded setting. The selected translation path is still a 20-query pilot result, not a broad production guarantee.
-- M4 reached readiness for MVP service integration; M5 FastAPI plus a simple UI has not started.
-- Current test count: 220 passed.
+- M5 now provides a localhost-only FastAPI plus native static UI for frozen corpus browsing, evidence retrieval, Evidence Matrix viewing, and author-reviewed bilingual writing-draft viewing. Offline demo mode never constructs an LLM client.
+- The single Flash online Q05 canary was safely blocked at strict quote grounding (`evidence_anchor_ambiguous`); no unverified answer was displayed and no retry or prompt change was made. M6 public-demo packaging readiness is not reached.
+- Current test count: 229 passed.
 
 ## Limitations
 

@@ -1,4 +1,4 @@
-# Minimal FastAPI Wrapper
+# Minimal FastAPI Wrapper and Local MVP
 
 `litflow_api` exposes a small HTTP wrapper around the existing CLI-safe workflow.
 
@@ -10,6 +10,8 @@ It is intentionally minimal:
 - no Obsidian apply endpoint.
 
 The goal is to show how the local pipeline can be served through backend APIs while preserving the existing safety boundaries.
+
+The M5 browser MVP is localhost-only. It exposes frozen corpus and review artifacts in offline demo mode, which never constructs an LLM client. Online QA requires an explicit service-mode opt-in and a separately authorized call.
 
 ## Run
 
@@ -23,6 +25,19 @@ Open:
 ```text
 http://127.0.0.1:8000/docs
 ```
+
+The browser MVP is available at `http://127.0.0.1:8000/`. For an online QA run, set `LITFLOW_ONLINE_QA=1` in the launching process. The service accepts only the frozen `deepseek-v4-flash` deployment model and does not expose credentials, prompts, qrels, or local absolute paths.
+
+## M5 endpoints
+
+- `GET /api/v1/health`: version, demo mode, and frozen corpus identity.
+- `GET /api/v1/papers`: public demo-corpus metadata only.
+- `POST /api/v1/retrieve`: language routing and frozen BM25 Top-10. It never returns qrels or gold evidence.
+- `POST /api/v1/qa/jobs`, `GET /api/v1/jobs/{job_id}`, `GET /api/v1/jobs/{job_id}/events`, and `GET /api/v1/jobs/{job_id}/result`: file-backed, single-execution QA job status and SSE progress.
+- `GET /api/v1/passages/{passage_id}`: page-provenanced passage text and optional quote-anchor verification.
+- `GET /api/v1/evidence-matrix/demo` and `GET /api/v1/writing/demo`: frozen, read-only review artifacts. The writing endpoint always reports `author_reviewed=true` and `publication_ready=false`.
+
+Only answers that pass canonical schema, entity binding, Top-10 citation membership, and strict quote grounding are displayed. Provider, parse, schema, citation, or quote failures return a safe execution failure rather than an unsupported answer.
 
 ## Endpoints
 

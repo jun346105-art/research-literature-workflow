@@ -240,8 +240,9 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - QA、M2A translation retrieval 与 M2B mixed-language smoke 已冻结。M3 已将 4 篇论文中的 16 条作者审核 QA Claim 转换为 review-ready Evidence Matrix；30 个稀疏对比字段明确标为尚无已审核证据。M4 在中等人工修订后生成了作者审核的中英文 evidence-grounded 写作草稿，句子到 EvidenceRecord 的覆盖完整。该草稿可供作者编辑，不等同于可直接发表的稿件。
 - 历史中文 query 在评测前发生乱码的检索结果已失效，仅保留审计用途，不得作为 Benchmark 结果引用。
 - 固定 Dense Windowing 与 Hybrid 在该受限设置下仍未被选择。当前 translation 路径仍只是 20 条 query 的 pilot 结果，不能宣传为广泛生产保证。
-- M4 已达到 MVP 服务集成的就绪条件；M5 FastAPI 与简单 UI 尚未开始。
-- 当前测试：220 passed。
+- M5 已提供仅绑定 localhost 的 FastAPI 与原生静态 UI，可浏览冻结语料、查看证据检索、Evidence Matrix 和作者审核的双语写作草稿。Offline demo mode 不会构造 LLM client。
+- 唯一一次 Flash 在线 Q05 canary 在严格 quote grounding 阶段被安全拦截（`evidence_anchor_ambiguous`）；系统未展示未经验证的答案，也未 retry 或修改 Prompt。尚未达到 M6 public-demo packaging 的条件。
+- 当前测试：229 passed。
 
 ## 当前限制
 

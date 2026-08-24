@@ -3,7 +3,7 @@
 ## Current Milestone
 
 - Last pushed/tagged release: `v0.1.1-anchored-evidence-pipeline`
-- Current state: local-first evidence-grounded workflow with frozen QA and translation-retrieval contracts, an author-reviewed Evidence Matrix, and an author-editable M4 writing draft; MVP service integration readiness is reached, but no service work has started.
+- Current state: local-first evidence-grounded workflow with frozen QA and translation-retrieval contracts, an author-reviewed Evidence Matrix, an author-editable M4 writing draft, and a localhost-only M5 FastAPI/static-UI demo. Online QA remains safety-limited after its one allowed Flash canary was blocked by strict quote grounding.
 - Latest additions after `v0.1.1`: reproducible evaluation, strict QA contracts, entity binding, safe partial answers, and author-reviewed Chinese-to-English retrieval translation.
 
 ## Completed
@@ -25,6 +25,7 @@
 - M2B Mixed-Language Corpus Smoke: one real Chinese engineering PDF added six page-provenanced mixed-language passages to an isolated 191-passage smoke corpus. All six routes completed, but the Chinese-to-Chinese query did not retrieve the expected paper; status is `pass_with_known_limit` and bilingual retrieval development is closed.
 - M3 Evidence Matrix: 16 author-reviewed QA claims across four papers were converted into citation/quote-revalidated EvidenceRecords with claim ledger, paper comparison, and review packet views. Two partial records preserve the TPMN coverage gap; 30 sparse matrix cells are explicitly marked as lacking reviewed evidence.
 - M4 Writing Vertical Slice: six bilingual comparison sentences were generated from reviewed EvidenceRecords, then author-reviewed and corrected in an independent closure artifact. Final sentence-to-record coverage is 100%; the outcome is `pass_with_moderate_human_revision` and `validated_as_author_editable_draft`, not publication-ready prose.
+- M5 Minimal FastAPI + Simple UI MVP: versioned read-only corpus, retrieval, passage, Evidence Matrix, and writing-draft endpoints plus file-backed job status and SSE events are available on localhost. Offline demo mode is verified. The one permitted Flash Q05 canary persisted raw response, usage, manifest, and checkpoint, then safely failed with `evidence_anchor_ambiguous`; no unverified answer was displayed and no retry was attempted.
 
 For detailed acceptance metrics, see:
 
@@ -39,6 +40,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - backend-style file pipeline orchestration;
 - CLI workflow boundaries;
 - minimal FastAPI wrapper and Swagger UI demo;
+- localhost-only static browser MVP with evidence and writing artifact views;
 - data model validation with Pydantic;
 - OpenAI-compatible JSON-mode LLM calls;
 - retry/error artifact handling;
@@ -64,6 +66,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - No production job queue or database-backed task state.
 - No validated deep-reading object ingestion or methods-preview workflow yet.
 - The M4 writing output is an author-editable draft, not a publication-ready manuscript or a complete literature review.
+- M5 online QA is not yet validated for public-demo packaging: its single Flash canary was blocked by strict quote grounding. This is a safe failure, not an evidence-supported answer or a successful abstention.
 - The human-reviewed qrels freeze is a 20-query pilot, not a large benchmark. Its metrics must not be presented as broad production guarantees.
 - Historical Chinese retrieval artifacts generated from corrupted `query_zh` values are invalid and must not be cited; only a future author-confirmed UTF-8 qrels rerun can replace them.
 - The human-reviewed pilot qrels freeze is limited to 20 queries. The current dense baseline right-truncates most 3500/400 passages at 512 tokens, so it is not a final retriever selection.
@@ -74,6 +77,6 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 
 ## Recommended Next Steps
 
-1. M5: start FastAPI plus a simple UI only after confirming the M4 closure and preserving its author-reviewed artifacts.
+1. Do not enter M6 public-demo packaging until a separately authorized, validated online QA canary succeeds without reopening frozen QA contracts.
 2. Preserve frozen QA and translation contracts; do not reopen Prompt, Schema, Dense, Hybrid, Reranker, or bilingual retrieval tuning.
-3. Keep publication-oriented writing and a complete literature-review workflow out of M5 scope.
+3. Keep publication-oriented writing and a complete literature-review workflow out of M5 and any eventual M6 scope.
