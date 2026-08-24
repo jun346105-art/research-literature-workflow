@@ -22,6 +22,7 @@
 - QA v1.2 Final Unified Flash Pilot: 20 one-shot calls, 17 execution-success outcomes, 9 grounded displayed answers, 8 valid abstentions, and 3 visible execution failures. Displayed citation validity, strict quote grounding, and claim-citation coverage were all 100%.
 - Author review of the unified Flash pilot: 9/9 displayed answers were usable after review (6 pass, 3 minor revision); no-answer abstention was 3/3 correct. Answerable-query grounded-answer success was 9/17 (52.9%), so execution availability and answerable coverage remain limited.
 - M2A Translation Retrieval: 20/20 machine translations were author-reviewed as usable. On the same human-reviewed pilot, BM25-EN-machine-translated improved Recall@10 from 0.6275 to 0.7157 (+0.0882) and recovered Q10/Q11 Top-10 misses. Human English queries remain oracle-style reference only.
+- M2B Mixed-Language Corpus Smoke: one real Chinese engineering PDF added six page-provenanced mixed-language passages to an isolated 191-passage smoke corpus. All six routes completed, but the Chinese-to-Chinese query did not retrieve the expected paper; status is `pass_with_known_limit` and bilingual retrieval development is closed.
 
 For detailed acceptance metrics, see:
 
@@ -64,10 +65,10 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - The human-reviewed pilot qrels freeze is limited to 20 queries. The current dense baseline right-truncates most 3500/400 passages at 512 tokens, so it is not a final retriever selection.
 - Minimal fixed windowing (512 tokens, 64 overlap, max parent score) did not exceed BM25-ZH-raw on the human-reviewed pilot's Recall@10. BM25-ZH-raw is the MVP retriever; no further retrieval tuning is planned in this milestone.
 - M2A is a 20-query pilot and has not yet smoke-tested a mixed-language corpus. Translation is retrieval-only and never replaces evidence text or user source queries.
+- M2B uses one Chinese source that is retrieval-smoke eligible but remains `needs_manual_check` for LLM use because Chinese section headings are unknown to the existing section detector. The smoke does not establish broad mixed-language retrieval quality.
 
 ## Recommended Next Steps
 
-1. M2B: run one minimal mixed-language corpus smoke test; regardless of outcome, end bilingual retrieval development.
-2. Preserve frozen QA and translation contracts; do not reopen Prompt, Schema, Dense, Hybrid, or Reranker work.
-3. After M2B, enter Evidence Matrix with frozen retrieval inputs rather than continuing retrieval optimization.
-4. Keep FastAPI/UI work deferred until the evidence and writing chain reaches the MVP definition of done.
+1. M3: define and implement Evidence Matrix using frozen QA and retrieval artifacts.
+2. Preserve frozen QA and translation contracts; do not reopen Prompt, Schema, Dense, Hybrid, Reranker, or bilingual retrieval tuning.
+3. Keep FastAPI/UI work deferred until the evidence and writing chain reaches the MVP definition of done.
