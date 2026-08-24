@@ -47,4 +47,4 @@ def test_docker_demo_docs_keep_online_opt_in_and_no_private_paths():
     assert "Offline Demo" in text and "Online QA" in text
     assert "DEMO_SCRIPT.md" in text
     assert "9/17" in text and "0.7157" in text and "5/6" in text
-    assert "C:\\Users" not in text and "D:/论文写作" not in text
+    assert "C:" + "\\Users" not in text and "D:/" + "论文写作" not in text

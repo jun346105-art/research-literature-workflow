@@ -209,9 +209,9 @@ def test_read_collection_falls_back_to_item_collections_when_collection_endpoint
 
 def test_zotero_client_normalizes_windows_file_url(monkeypatch):
     client = ZoteroReadClient()
-    monkeypatch.setattr(client, "_get_text", lambda path: "file:///C:/Users/Example/Zotero/storage/A/paper.pdf")
+    monkeypatch.setattr(client, "_get_text", lambda path: "file:///C:/FixtureRoot/attachment.pdf")
 
-    assert client.get_attachment_file_path("A1") == "C:\\Users\\Example\\Zotero\\storage\\A\\paper.pdf"
+    assert client.get_attachment_file_path("A1") == "C:\\FixtureRoot\\attachment.pdf"
 
 
 def test_write_citekey_diagnostics_creates_json(tmp_path):
