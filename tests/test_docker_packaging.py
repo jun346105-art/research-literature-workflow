@@ -11,6 +11,7 @@ def test_dockerfile_is_pinned_nonroot_and_does_not_copy_private_artifacts():
     assert "FROM python:3.13.1-slim-bookworm" in text
     assert "USER litflow" in text
     assert "HEALTHCHECK" in text
+    assert "PYTHONPATH=/app/src" in text
     assert "COPY src ./src" in text
     assert "COPY outputs" not in text
     assert "COPY .git" not in text
@@ -22,7 +23,8 @@ def test_compose_defaults_to_loopback_offline_and_has_explicit_online_profile():
     assert "LITFLOW_ONLINE_QA: \"0\"" in text
     assert "litflow-online:" in text
     assert "profiles: [\"online\"]" in text
-    assert "LLM_API_KEY: ${LLM_API_KEY:?" in text
+    assert "LLM_API_KEY: ${LLM_API_KEY:-}" in text
+    assert "Online QA requires LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL." in text
     assert "litflow_jobs:" in text
     assert "litflow-online-init:" in text
     assert "condition: service_completed_successfully" in text

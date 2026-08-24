@@ -29,9 +29,9 @@ services:
       - "127.0.0.1:${LITFLOW_PORT:-8015}:8000"
     environment:
       LITFLOW_ONLINE_QA: "1"
-      LLM_BASE_URL: ${LLM_BASE_URL:?LLM_BASE_URL is required for online QA}
-      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required for online QA}
-      LLM_MODEL: ${LLM_MODEL:?LLM_MODEL is required for online QA}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
     depends_on:
       litflow-online-init:
         condition: service_completed_successfully
@@ -47,13 +47,18 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "test -n \"$$LLM_BASE_URL\" && test -n \"$$LLM_API_KEY\" && test -n \"$$LLM_MODEL\" || { echo 'Online QA requires LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.' >&2; exit 64; }; exec uvicorn litflow_api.app:app --host 0.0.0.0 --port 8000"
+    command: []
 
   litflow-online-init:
     profiles: ["online"]
     image: litflow-mvp:local
     user: "0:0"
-    entrypoint: ["/bin/sh", "-c"]
-    command: "chown -R 10001:10001 /jobs"
+    entrypoint: ["/bin/sh", "-c", "chown -R 10001:10001 /jobs"]
+    command: []
     volumes:
       - type: volume
         source: litflow_jobs

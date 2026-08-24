@@ -46,7 +46,7 @@ $env:LLM_MODEL = "deepseek-v4-flash"
 docker compose --profile online up --build litflow-online
 ```
 
-Missing online variables fail closed during compose interpolation or before an online job runs. Do not save keys in compose files, images, screenshots, logs, or the repository.
+The default Offline Demo does not interpolate or read online variables. The Online QA container checks all three variables before serving and exits with code `64` when one is missing. Do not save keys in compose files, images, screenshots, logs, or the repository.
 
 ## Operations
 
