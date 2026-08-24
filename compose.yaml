@@ -1,0 +1,63 @@
+services:
+  litflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: litflow-mvp:local
+    ports:
+      - "127.0.0.1:${LITFLOW_PORT:-8015}:8000"
+    environment:
+      LITFLOW_ONLINE_QA: "0"
+    volumes:
+      - type: bind
+        source: ${LITFLOW_DEMO_INPUT_DIR:-./outputs}
+        target: /app/outputs
+        read_only: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  litflow-online:
+    profiles: ["online"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: litflow-mvp:local
+    ports:
+      - "127.0.0.1:${LITFLOW_PORT:-8015}:8000"
+    environment:
+      LITFLOW_ONLINE_QA: "1"
+      LLM_BASE_URL: ${LLM_BASE_URL:?LLM_BASE_URL is required for online QA}
+      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required for online QA}
+      LLM_MODEL: ${LLM_MODEL:?LLM_MODEL is required for online QA}
+    depends_on:
+      litflow-online-init:
+        condition: service_completed_successfully
+    volumes:
+      - type: bind
+        source: ${LITFLOW_DEMO_INPUT_DIR:-./outputs}
+        target: /app/outputs
+        read_only: true
+      - type: volume
+        source: litflow_jobs
+        target: /app/outputs/m5_fastapi_v1/jobs
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  litflow-online-init:
+    profiles: ["online"]
+    image: litflow-mvp:local
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: "chown -R 10001:10001 /jobs"
+    volumes:
+      - type: volume
+        source: litflow_jobs
+        target: /jobs
+
+volumes:
+  litflow_jobs:

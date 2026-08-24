@@ -176,6 +176,7 @@ python -m litflow.cli apply-obsidian-update `
 - [Concepts](docs/CONCEPTS.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
 - [Minimal FastAPI wrapper](docs/API.md)
+- [Docker offline/online demo](docs/DOCKER_DEMO.md)
 - [API demo with sample data](docs/API_DEMO.md)
 - [Evaluation and acceptance metrics](docs/EVALUATION.md)
 - [Evaluation Run 002 development pilot](docs/EVALUATION_RUN_002.md)
@@ -201,6 +202,17 @@ OBSIDIAN_VAULT_PATH=
 PAPER_SEARCH_PRO_RESULT_DIR=
 ```
 
+## Docker Quick Start
+
+The default Docker command runs a localhost-only Offline Demo. It mounts existing local demo artifacts read-only and does not need or read an API key.
+
+```powershell
+$env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
+docker compose up --build
+```
+
+For the explicit Online QA profile, see [Docker Demo](docs/DOCKER_DEMO.md). Online calls may incur provider charges.
+
 ## Current Status
 
 - `v0.1-small-batch-e2e`: completed and tagged.
@@ -219,7 +231,14 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - M5 now provides a localhost-only FastAPI plus native static UI for frozen corpus browsing, evidence retrieval, Evidence Matrix viewing, and author-reviewed bilingual writing-draft viewing. Offline demo mode never constructs an LLM client.
 - The historical Flash Q05 canary remains a safe rejection: its duplicate quote also occurred in another passage, so it is not eligible for the declared-passage duplicate rule. No validator was relaxed.
 - A separate Flash Q01 FastAPI/UI canary completed through cached Chinese-to-English retrieval, entity binding, citation membership, and strict quote grounding. M5 is `pass_with_known_qa_availability_limits`; M6 packaging readiness is reached, without claiming that every online query will succeed.
-- Current test count: 233 passed.
+- Current test count: 238 passed.
+- Docker packaging defaults to Offline Demo, binds the host port to `127.0.0.1`, uses a non-root container user, and requires explicit environment variables for Online QA.
+
+## Pilot Boundaries
+
+- LitFlow is an engineering-research writing Copilot MVP, not an automatic whole-paper generator.
+- Displayed QA answers use strict evidence anchoring. On the current pilot, 9/17 answerable queries produced grounded answers and all 9 displayed answers were author-reviewed as usable.
+- Chinese-to-English machine-translation BM25 reached Recall@10 `0.7157`; the mixed-language smoke reached expected-paper Hit@10 `5/6`. These are small human-reviewed pilot results, not broad benchmark claims.
 
 ## Limitations
 

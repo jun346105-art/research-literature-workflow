@@ -1,0 +1,17 @@
+.git/
+.github/
+.env
+.env.*
+.local/
+outputs/
+tests/
+docs/
+design/
+examples/
+pytest_tmp*/
+__pycache__/
+*.py[cod]
+*.pdf
+*.sqlite
+*.log
+*.tmp

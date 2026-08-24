@@ -200,6 +200,7 @@ python -m litflow.cli apply-obsidian-update `
 - [核心概念](docs/CONCEPTS.zh-CN.md)
 - [常见问题排查](docs/TROUBLESHOOTING.md)
 - [最小 FastAPI wrapper](docs/API.md)
+- [Docker 离线/在线演示](docs/DOCKER_DEMO.md)
 - [API sample 调用示例](docs/API_DEMO.md)
 - [评估与验收指标](docs/EVALUATION.zh-CN.md)
 - [Evaluation Run 002 development pilot](docs/EVALUATION_RUN_002.zh-CN.md)
@@ -225,6 +226,17 @@ OBSIDIAN_VAULT_PATH=
 PAPER_SEARCH_PRO_RESULT_DIR=
 ```
 
+## Docker 快速启动
+
+默认 Docker 命令启动仅绑定 localhost 的 Offline Demo。它以只读方式挂载现有本地演示 artifacts，不需要也不会读取 API key。
+
+```powershell
+$env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
+docker compose up --build
+```
+
+显式 Online QA profile 请见 [Docker 演示说明](docs/DOCKER_DEMO.md)。在线调用可能产生 provider 费用。
+
 ## 当前状态
 
 - `v0.1-small-batch-e2e`：已完成并打 tag。
@@ -243,7 +255,14 @@ PAPER_SEARCH_PRO_RESULT_DIR=
 - M5 已提供仅绑定 localhost 的 FastAPI 与原生静态 UI，可浏览冻结语料、查看证据检索、Evidence Matrix 和作者审核的双语写作草稿。Offline demo mode 不会构造 LLM client。
 - 历史 Flash Q05 canary 继续作为安全拒绝保留：其重复 quote 同时出现在另一 passage 中，不满足声明 passage 内重复 quote 的安全规则；未放宽 validator。
 - 独立的 Flash Q01 FastAPI/UI canary 已通过缓存的中译英检索、entity binding、citation membership 与严格 quote grounding。M5 为 `pass_with_known_qa_availability_limits`；已达到 M6 packaging readiness，但不声称所有在线问题都会成功。
-- 当前测试：233 passed。
+- 当前测试：238 passed。
+- Docker packaging 默认 Offline Demo，主机端口仅绑定 `127.0.0.1`，容器使用非 root 用户；Online QA 必须显式提供运行时环境变量。
+
+## Pilot 边界
+
+- LitFlow 是工科研究写作 Copilot MVP，不是自动整篇论文生成器。
+- 展示 QA 答案使用严格 evidence anchoring。当前 pilot 中 17 条 answerable query 有 9 条生成 grounded answer，展示的 9 条答案均通过作者语义审核。
+- 中译英 machine-translation BM25 的 Recall@10 为 `0.7157`；mixed-language smoke 的 expected-paper Hit@10 为 `5/6`。它们均为小规模 human-reviewed pilot 结果，不是广泛 benchmark 结论。
 
 ## 当前限制
 
