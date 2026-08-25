@@ -104,6 +104,7 @@ def run_agent_pilot(
         client = client or OpenAICompatibleClient.from_env(thinking_mode="disabled")
         if getattr(client, "model", None) != "deepseek-v4-flash":
             raise AgentPilotError("resolved_model must be deepseek-v4-flash")
+    out_dir.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix="m8-agent-", dir=out_dir.parent))
     results: list[dict[str, Any]] = []
     try:

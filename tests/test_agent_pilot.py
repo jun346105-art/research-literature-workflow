@@ -120,7 +120,7 @@ def test_ag12_is_deterministically_rejected_without_constructing_provider_work(t
     matrix.write_text('', encoding="utf-8")
     monkeypatch.setenv("LLM_MODEL", "deepseek-v4-flash")
 
-    result = run_agent_pilot(config_path, corpus, entities, matrix, tmp_path / "out", task_ids=["AG12"], approve_writing=False, client=object())
+    result = run_agent_pilot(config_path, corpus, entities, matrix, tmp_path / "nested" / "out", task_ids=["AG12"], approve_writing=False, client=object())
 
     assert result["results"][0]["score_label"] == "policy_rejection_success"
     assert result["usage"]["external_llm_calls"] == 0
