@@ -11,6 +11,7 @@ from typing import Any
 
 from litflow.agent.tools import TOOL_SCHEMAS
 from litflow.agent.durable_events import DurableEventLog, PLANNER_SYSTEM_PROMPT, render_planner_request
+from litflow.agent.progress import ProgressController
 from litflow.llm.client import LLMToolCompletion
 from litflow.rag.bm25 import BM25Index, load_corpus
 from litflow.rag.qa import _load_entity_metadata, _parse_v12, _prompt_v12, _verify_v12
@@ -50,6 +51,8 @@ class NativeToolPlanner:
     events: list[dict[str, Any]] = field(default_factory=list)
     pending_calls: list[dict[str, Any]] = field(default_factory=list)
     event_log: DurableEventLog | None = None
+    progress_controller: ProgressController | None = None
+    requested_entities: list[str] = field(default_factory=list)
 
     def decide(self, state: dict[str, Any]) -> dict[str, Any]:
         if self.pending_calls:
@@ -95,7 +98,12 @@ class NativeToolPlanner:
 
     def _request(self, state: dict[str, Any]) -> dict[str, Any]:
         if self.event_log:
-            return render_planner_request(self.event_log.load_verified_events(), self.event_log.projection(), agent_tool_definitions(), task=self.task)
+            projection = self.event_log.projection()
+            definitions = agent_tool_definitions()
+            if self.progress_controller:
+                allowed = set(self.progress_controller.next_actions(projection, category=self.task["category"], requested_entities=self.requested_entities))
+                definitions = [item for item in definitions if item["function"]["name"] in allowed]
+            return render_planner_request(self.event_log.load_verified_events(), projection, definitions, task=self.task)
         messages = self._messages(state)
         return {"messages": messages, "tools": agent_tool_definitions()}
 

@@ -30,10 +30,10 @@ class DurableEventLog:
     task_id: str
 
     @classmethod
-    def create(cls, root: Path, *, turn_id: str, task_id: str, run_identity: dict[str, Any]) -> DurableEventLog:
+    def create(cls, root: Path, *, turn_id: str, task_id: str, run_identity: dict[str, Any], initial_projection: dict[str, Any] | None = None) -> DurableEventLog:
         root.mkdir(parents=True, exist_ok=False)
         log = cls(root / "events.jsonl", turn_id, task_id)
-        log._append("turn_started", {"turn_id": turn_id, "task_id": task_id, "trace_schema_version": TRACE_SCHEMA_VERSION, "run_identity": run_identity})
+        log._append("turn_started", {"turn_id": turn_id, "task_id": task_id, "trace_schema_version": TRACE_SCHEMA_VERSION, "run_identity": run_identity, "initial_projection": initial_projection or {}})
         return log
 
     def record_provider_step(self, *, step_id: str, model: str, model_call_ordinal: int, request_payload: dict[str, Any], tool_calls: list[dict[str, Any]], provider_request_id: str | None = None, usage: dict[str, int | None] | None = None, latency_ms: float | None = None, finish_reason: str | None = None, request_event_seq: int | None = None) -> None:
@@ -81,7 +81,44 @@ class DurableEventLog:
     def calls_for_step(self, step_id: str) -> list[dict[str, Any]]:
         return [event for event in self.load_verified_events() if event["event_type"] == "tool_call" and self._step_for_batch(event["tool_batch_id"]) == step_id]
 
-    def record_tool_result(self, tool_call_id: str, *, result_status: str, internal_result: dict[str, Any], model_visible_content: str, verification_status: str = "not_applicable", policy_status: str = "allowed", error_code: str | None = None) -> None:
+    def record_steering(self, content: str, *, template_sha256: str) -> None:
+        if any(event["event_type"] == "steering" for event in self.load_verified_events()):
+            raise DurableEventError("steering already recorded")
+        self._append("steering", {"model_visible_content": content, "model_visible_content_sha256": _sha(content), "steering_template_sha256": template_sha256})
+
+    def request_approval(self, *, action_type: str, args: dict[str, Any], checkpoint_id: str) -> str:
+        approval_id = "approval_" + _sha(_canonical({"turn_id": self.turn_id, "action_type": action_type, "args": args, "checkpoint_id": checkpoint_id}))[:24]
+        existing = [event for event in self.load_verified_events() if event["event_type"] == "approval_requested" and event["approval_id"] == approval_id]
+        if not existing:
+            self._append("approval_requested", {"event_id": approval_id, "causation_id": checkpoint_id, "approval_id": approval_id, "action_origin": "internal_control_plane", "action_type": action_type, "canonical_args_json": _canonical(args), "args_sha256": _sha(_canonical(args)), "checkpoint_id": checkpoint_id})
+        return approval_id
+
+    def decide_approval(self, approval_id: str, *, approved: bool, actor: str = "author") -> None:
+        events = self.load_verified_events()
+        if not any(event["event_type"] == "approval_requested" and event["approval_id"] == approval_id for event in events):
+            raise DurableEventError("invalid_approval_id")
+        if any(event["event_type"] == "approval_decision" and event["approval_id"] == approval_id for event in events):
+            raise DurableEventError("approval_already_resolved")
+        self._append("approval_decision", {"event_id": "approval_decision_" + _sha(approval_id)[:24], "causation_id": approval_id, "approval_id": approval_id, "action_origin": "internal_control_plane", "decision": "approved" if approved else "rejected", "actor": actor})
+
+    def schedule_internal_action(self, approval_id: str, *, action_type: str, args: dict[str, Any], transition_ordinal: int = 1) -> str:
+        events = self.load_verified_events()
+        if not any(event["event_type"] == "approval_decision" and event["approval_id"] == approval_id and event["decision"] == "approved" for event in events):
+            raise DurableEventError("approval_not_approved")
+        internal_id = "internal_" + _sha(_canonical({"turn_id": self.turn_id, "approval_id": approval_id, "action_type": action_type, "args": args, "transition_ordinal": transition_ordinal}))[:24]
+        if not any(event["event_type"] == "internal_action_scheduled" and event["internal_action_id"] == internal_id for event in events):
+            self._append("internal_action_scheduled", {"event_id": internal_id, "causation_id": approval_id, "approval_id": approval_id, "internal_action_id": internal_id, "action_origin": "internal_control_plane", "action_type": action_type, "canonical_args_json": _canonical(args), "args_sha256": _sha(_canonical(args)), "transition_ordinal": transition_ordinal})
+        return internal_id
+
+    def record_internal_action_result(self, internal_action_id: str, *, result_status: str, result: dict[str, Any]) -> None:
+        events = self.load_verified_events()
+        if not any(event["event_type"] == "internal_action_scheduled" and event["internal_action_id"] == internal_action_id for event in events):
+            raise DurableEventError("unknown_internal_action_id")
+        if any(event["event_type"] == "internal_action_result" and event["internal_action_id"] == internal_action_id for event in events):
+            raise DurableEventError("internal_action_already_completed")
+        self._append("internal_action_result", {"event_id": "internal_result_" + _sha(internal_action_id)[:24], "causation_id": internal_action_id, "internal_action_id": internal_action_id, "action_origin": "internal_control_plane", "result_status": result_status, "result_sha256": _sha(_canonical(result))})
+
+    def record_tool_result(self, tool_call_id: str, *, result_status: str, internal_result: dict[str, Any], model_visible_content: str, verification_status: str = "not_applicable", policy_status: str = "allowed", error_code: str | None = None, progress_data: dict[str, Any] | None = None) -> None:
         if result_status not in {"success", "denied", "invalid_arguments", "execution_error", "skipped_due_to_budget", "skipped_due_to_prior_failure", "cancelled"}:
             raise DurableEventError("invalid terminal tool result status")
         if not model_visible_content:
@@ -92,7 +129,7 @@ class DurableEventLog:
         results = {event["tool_call_id"] for event in self.load_verified_events() if event["event_type"] == "tool_result"}
         if tool_call_id in results:
             raise DurableEventError("tool call already has terminal result")
-        self._append("tool_result", {"tool_call_id": tool_call_id, "tool_batch_id": self._batch_for_call(tool_call_id), "result_status": result_status, "internal_result_ref": None, "internal_result_sha256": _sha(_canonical(internal_result)), "model_visible_content": model_visible_content, "model_visible_content_sha256": _sha(model_visible_content), "verification_status": verification_status, "policy_status": policy_status, "error_code": error_code, "created_at": _timestamp()})
+        self._append("tool_result", {"tool_call_id": tool_call_id, "tool_batch_id": self._batch_for_call(tool_call_id), "result_status": result_status, "internal_result_ref": None, "internal_result_sha256": _sha(_canonical(internal_result)), "model_visible_content": model_visible_content, "model_visible_content_sha256": _sha(model_visible_content), "verification_status": verification_status, "policy_status": policy_status, "error_code": error_code, "progress_data": progress_data or {}, "created_at": _timestamp()})
 
     def load_verified_events(self) -> list[dict[str, Any]]:
         if not self.path.is_file():
@@ -159,9 +196,12 @@ def project_events(events: list[dict[str, Any]]) -> dict[str, Any]:
     calls = [event for event in events if event["event_type"] == "tool_call"]
     results = [event for event in events if event["event_type"] == "tool_result"]
     successful = [item for item in results if item["result_status"] == "success"]
+    initial = next((event.get("initial_projection", {}) for event in events if event["event_type"] == "turn_started"), {})
     signatures = []
     retrieved_ids = []
-    matrix_loaded = False
+    matrix_loaded = bool(initial.get("evidence_matrix_loaded", False))
+    covered = list(initial.get("covered_entities", []))
+    missing = list(initial.get("missing_entities", []))
     call_by_id = {event["tool_call_id"]: event for event in calls}
     for result in successful:
         call = call_by_id[result["tool_call_id"]]
@@ -171,11 +211,13 @@ def project_events(events: list[dict[str, Any]]) -> dict[str, Any]:
             retrieved_ids.extend(payload.get("evidence_refs", []))
         if call["tool_name"] == "query_evidence_matrix":
             matrix_loaded = True
-    return {"last_event_seq": events[-1]["event_seq"] if events else 0, "last_event_sha256": events[-1]["event_sha256"] if events else None, "successful_tool_signatures": signatures, "completed_tool_call_ids": [item["tool_call_id"] for item in results], "retrieved_evidence_ids": list(dict.fromkeys(retrieved_ids)), "retrieved_evidence_count": len(set(retrieved_ids)), "covered_entities": [], "missing_entities": [], "retrieval_calls_used": sum(call["tool_name"] == "retrieve_evidence" and call["tool_call_id"] in {item["tool_call_id"] for item in successful} for call in calls), "retrieval_calls_remaining": None, "tool_calls_used": len(successful), "tool_calls_remaining": None, "evidence_matrix_loaded": matrix_loaded, "approval_status": "not_requested", "allowed_next_actions": [], "no_progress_steps": 0, "steering_used": False}
+        data = result.get("progress_data", {})
+        covered.extend(data.get("covered_entities", [])); missing = data.get("missing_entities", missing)
+    return {"last_event_seq": events[-1]["event_seq"] if events else 0, "last_event_sha256": events[-1]["event_sha256"] if events else None, "successful_tool_signatures": signatures, "completed_tool_call_ids": [item["tool_call_id"] for item in results], "retrieved_evidence_ids": list(dict.fromkeys(retrieved_ids)), "retrieved_evidence_count": len(set(retrieved_ids)), "covered_entities": list(dict.fromkeys(covered)), "missing_entities": list(dict.fromkeys(missing)), "retrieval_calls_used": sum(call["tool_name"] == "retrieve_evidence" and call["tool_call_id"] in {item["tool_call_id"] for item in successful} for call in calls), "retrieval_calls_remaining": None, "tool_calls_used": len(successful), "tool_calls_remaining": None, "evidence_matrix_loaded": matrix_loaded, "approval_status": "not_requested", "allowed_next_actions": [], "no_progress_steps": 0, "steering_used": any(event["event_type"] == "steering" for event in events)}
 
 
 def render_planner_request(durable_events: list[dict[str, Any]], projected_state: dict[str, Any], allowed_tools: list[dict[str, Any]], *, task: dict[str, Any]) -> dict[str, Any]:
-    results = [event["model_visible_content"] for event in durable_events if event["event_type"] == "tool_result"]
+    results = [event["model_visible_content"] for event in durable_events if event["event_type"] in {"tool_result", "steering"}]
     user_payload = {"task_id": task["task_id"], "research_goal_zh": task["task_zh"], "progress_context": {"tool_results": results, "projection": projected_state}}
     messages = [{"role": "system", "content": PLANNER_SYSTEM_PROMPT}, {"role": "user", "content": _canonical(user_payload)}]
     payload = {"messages": messages, "tools": allowed_tools}

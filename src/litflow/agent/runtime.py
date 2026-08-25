@@ -10,6 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command, interrupt
 
 from litflow.agent.tools import AgentToolError, FakeAgentTools, TOOL_PERMISSIONS, canonical_tool_signature, validate_tool_args
+from litflow.agent.progress import ProgressController, STEERING_TEMPLATE_VERSION
 
 
 class ResearchAgentState(TypedDict, total=False):
@@ -74,12 +75,15 @@ class FakePlanner:
 
 
 class ResearchAgent:
-    def __init__(self, tools: FakeAgentTools, planner: Planner, *, checkpoint_dir: Path, config: AgentRunConfig | None = None, event_log: Any | None = None) -> None:
+    def __init__(self, tools: FakeAgentTools, planner: Planner, *, checkpoint_dir: Path, config: AgentRunConfig | None = None, event_log: Any | None = None, progress_controller: ProgressController | None = None, task_category: str = "unknown", requested_entities: list[str] | None = None) -> None:
         self.tools = tools
         self.planner = planner
         self.checkpoint_dir = checkpoint_dir
         self.config = config or AgentRunConfig()
         self.event_log = event_log
+        self.progress_controller = progress_controller
+        self.task_category = task_category
+        self.requested_entities = requested_entities or []
         self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
@@ -99,7 +103,7 @@ class ResearchAgent:
         graph.add_conditional_edges("policy_gate", self._after_policy, {"execute": "tool_executor", "approve": "human_approval", "finish": "finalizer", "failed": "finalizer"})
         graph.add_edge("tool_executor", "evidence_verifier")
         graph.add_edge("evidence_verifier", "coverage_router")
-        graph.add_conditional_edges("coverage_router", self._after_coverage, {"replan": "planner", "finish": "finalizer", "failed": "finalizer"})
+        graph.add_conditional_edges("coverage_router", self._after_coverage, {"replan": "planner", "finish": "finalizer", "failed": "finalizer", "approve": "human_approval"})
         graph.add_conditional_edges("human_approval", self._after_approval, {"execute": "tool_executor", "finish": "finalizer"})
         graph.add_edge("finalizer", END)
         return graph.compile(checkpointer=self.checkpointer)
@@ -200,9 +204,18 @@ class ResearchAgent:
         return {**self._trace(state, "tool_executor", tool_name=action["tool_name"], result_ref_count=len(record["result_refs"])), "tool_calls": [*state["tool_calls"], record], "tool_call_count": state["tool_call_count"] + 1, "last_tool_name": action["tool_name"], "last_tool_result": result, "pending_approval": None, **self._projection_update()}
 
     def _durable_success(self, action: dict[str, Any], result: dict[str, Any]) -> None:
-        if self.event_log is None or not action.get("tool_call_id"):
+        if self.event_log is None:
             return
-        self.event_log.record_tool_result(action["tool_call_id"], result_status="success", internal_result=result, model_visible_content=json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")), verification_status="observed", policy_status="allowed")
+        if action.get("action_origin") == "internal_control_plane":
+            self.event_log.record_internal_action_result(action["internal_action_id"], result_status="success", result=result)
+            return
+        if not action.get("tool_call_id"):
+            return
+        qa = result.get("qa_result") if isinstance(result.get("qa_result"), dict) else {}
+        ledger = qa.get("coverage_ledger") if isinstance(qa.get("coverage_ledger"), dict) else {}
+        covered = [item.get("entity_name") for item in ledger.get("covered_entities", []) if isinstance(item, dict) and item.get("entity_name")]
+        missing = [item.get("entity_name") for item in ledger.get("uncovered_entities", []) if isinstance(item, dict) and item.get("entity_name")]
+        self.event_log.record_tool_result(action["tool_call_id"], result_status="success", internal_result=result, model_visible_content=json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")), verification_status="observed", policy_status="allowed", progress_data={"covered_entities": covered, "missing_entities": missing})
 
     def _durable_terminal(self, action: dict[str, Any], status: str, error_code: str) -> None:
         if self.event_log is None or not action.get("tool_call_id"):
@@ -228,6 +241,23 @@ class ResearchAgent:
     def _coverage_router(self, state: ResearchAgentState) -> dict[str, Any]:
         if state.get("coverage_status") == "execution_failed":
             return {**self._trace(state, "coverage_router", route="failed"), "final_status": "execution_failed"}
+        if self.progress_controller and self.event_log is not None:
+            projection = self.event_log.projection()
+            if state.get("last_tool_name") == "query_evidence_matrix" and self.task_category == "writing_approval":
+                args = {"record_ids": state.get("last_tool_result", {}).get("record_ids", [])}
+                approval_id = self.event_log.request_approval(action_type="stage_writing_draft", args=args, checkpoint_id=state["thread_id"])
+                pending = {"tool_name": "stage_writing_draft", "args": args, "approval_id": approval_id}
+                return {**self._trace(state, "coverage_router", route="approval", approval_id=approval_id), "planned_action": None, "pending_approval": pending, **self._projection_update()}
+            if state.get("last_tool_name") == "retrieve_evidence" and self.progress_controller.soft_budget_reached(projection, self.requested_entities):
+                route = self.progress_controller.coverage_route(projection)
+                if route == "none":
+                    return {**self._trace(state, "coverage_router", route="insufficient_evidence"), "coverage_status": "none", "final_status": "insufficient_evidence", **self._projection_update()}
+                if not projection.get("steering_used"):
+                    message = self.progress_controller.steering_message({**projection, "retrieval_calls_remaining": 0, "tool_calls_remaining": self.config.max_tool_calls - state["tool_call_count"], "allowed_next_actions": ["answer_grounded"]})
+                    if message:
+                        import hashlib
+                        self.event_log.record_steering(message, template_sha256=hashlib.sha256(STEERING_TEMPLATE_VERSION.encode("utf-8")).hexdigest())
+                return {**self._trace(state, "coverage_router", route=route), "coverage_status": route, **self._projection_update()}
         if state.get("last_tool_name") in {"answer_grounded", "stage_writing_draft"}:
             return self._trace(state, "coverage_router", route="finish", coverage=state.get("coverage_status"))
         return self._trace(state, "coverage_router", route="replan", coverage=state.get("coverage_status"))
@@ -235,11 +265,23 @@ class ResearchAgent:
     def _after_coverage(self, state: ResearchAgentState) -> str:
         if state.get("final_status") == "execution_failed":
             return "failed"
+        if state.get("pending_approval"):
+            return "approve"
+        if state.get("final_status") == "insufficient_evidence":
+            return "finish"
         return "finish" if state.get("last_tool_name") in {"answer_grounded", "stage_writing_draft"} else "replan"
 
     def _human_approval(self, state: ResearchAgentState) -> dict[str, Any]:
-        approved = interrupt({"tool_name": state["pending_approval"]["tool_name"], "args": state["pending_approval"]["args"], "reason": "stage_writing_draft requires human approval"})
-        return {**self._trace(state, "human_approval", approved=bool(approved)), "approval_decision": bool(approved)}
+        pending = state["pending_approval"]
+        approval_id = pending.get("approval_id", f"legacy_{state['thread_id']}_{pending['tool_name']}")
+        approved = interrupt({"approval_id": approval_id, "tool_name": pending["tool_name"], "args": pending["args"], "reason": "stage_writing_draft requires human approval"})
+        if self.event_log is not None:
+            self.event_log.decide_approval(approval_id, approved=bool(approved))
+        if not approved:
+            return {**self._trace(state, "human_approval", approved=False), "approval_decision": False, "final_status": "author_rejected"}
+        internal_id = self.event_log.schedule_internal_action(approval_id, action_type=pending["tool_name"], args=pending["args"]) if self.event_log is not None else None
+        action = {"tool_name": pending["tool_name"], "args": pending["args"], "action_origin": "internal_control_plane", "internal_action_id": internal_id}
+        return {**self._trace(state, "human_approval", approved=True), "approval_decision": True, "planned_action": action}
 
     def _after_approval(self, state: ResearchAgentState) -> str:
         return "execute" if state.get("approval_decision") else "finish"
@@ -247,7 +289,12 @@ class ResearchAgent:
     def _finalizer(self, state: ResearchAgentState) -> dict[str, Any]:
         status = state.get("final_status")
         if status is None:
-            status = "complete" if state.get("last_tool_name") == "stage_writing_draft" or state.get("coverage_status") in {"complete", "partial"} else "insufficient_evidence"
+            if state.get("last_tool_name") == "stage_writing_draft" or state.get("coverage_status") == "complete":
+                status = "complete"
+            elif state.get("coverage_status") == "partial":
+                status = "partial"
+            else:
+                status = "insufficient_evidence"
         return {**self._trace(state, "finalizer", final_status=status), "final_status": status, "final_artifact": f"{state['thread_id']}/trace.json"}
 
     def _persist(self, state: dict[str, Any]) -> None:

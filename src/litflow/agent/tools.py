@@ -89,7 +89,7 @@ class FakeAgentTools:
         if name == "list_papers":
             return {"papers": [{"paper_key": "P1", "title": "Fixture Paper", "citation_key": "fixture2026", "language": "en", "year": 2026}]}
         if name == "retrieve_evidence":
-            return {"passages": [{"passage_id": "P1:C1", "paper_key": "P1", "title": "Fixture Paper", "page_start": 1, "page_end": 1, "score": 1.0, "snippet": "Fixture evidence snippet."}]}
+            return {"passages": [{"passage_id": "P1:C1", "paper_key": "P1", "title": "Fixture Paper", "page_start": 1, "page_end": 1, "score": 1.0, "snippet": "Fixture evidence snippet."}], "evidence_refs": ["P1:C1"]}
         if name == "inspect_passages":
             return {"passages": [{"passage_id": item, "paper_key": "P1", "page_start": 1, "page_end": 1, "text": "Fixture complete passage.", "text_sha256": "fixture-sha"} for item in args["passage_ids"]]}
         if name == "answer_grounded":

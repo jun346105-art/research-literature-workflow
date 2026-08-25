@@ -12,6 +12,7 @@ from typing import Any
 
 from litflow.agent.live import AGENT_PLANNER_PROMPT_VERSION, PLANNER_SYSTEM_PROMPT, LiveAgentTools, NativeToolPlanner, agent_tool_definitions
 from litflow.agent.durable_events import DurableEventLog
+from litflow.agent.progress import ProgressController, extract_requested_entities
 from litflow.agent.runtime import AgentRunConfig, ResearchAgent
 from litflow.llm.client import OpenAICompatibleClient
 
@@ -128,15 +129,18 @@ def run_agent_pilot(
 
 def _run_task(task: dict[str, Any], corpus_path: Path, entity_metadata_path: Path, matrix_records_path: Path, task_root: Path, client: Any, approve_writing: bool) -> dict[str, Any]:
     task_dir = task_root / task["task_id"]
-    event_log = DurableEventLog.create(task_dir / "durable_events", turn_id=f"{task['task_id']}:turn:1", task_id=task["task_id"], run_identity={"prompt_sha": _sha256_text(PLANNER_SYSTEM_PROMPT), "policy_sha": _sha256_text(POLICY_VERSION), "task_set_sha": "frozen_by_run_manifest", "git_sha": _git_sha()})
+    metadata = _load_json(entity_metadata_path)
+    controller = ProgressController(metadata)
+    requested_entities = extract_requested_entities(task["task_zh"], metadata)
+    event_log = DurableEventLog.create(task_dir / "durable_events", turn_id=f"{task['task_id']}:turn:1", task_id=task["task_id"], run_identity={"prompt_sha": _sha256_text(PLANNER_SYSTEM_PROMPT), "policy_sha": _sha256_text(POLICY_VERSION), "task_set_sha": "frozen_by_run_manifest", "git_sha": _git_sha()}, initial_projection={"missing_entities": requested_entities})
     if _forbidden_goal(task["task_zh"]):
         state = {"thread_id": task["task_id"], "final_status": "policy_rejected", "failure_reason": "intake_policy_rejected", "tool_call_count": 0, "model_call_count": 0, "trace": [{"node": "intake_guardrail", "outcome": "policy_rejected"}]}
         task_dir.mkdir(parents=True, exist_ok=True)
         _write_json(task_dir / "trace.json", state)
         return {"task_id": task["task_id"], "category": task["category"], "final_status": "policy_rejected", "score_label": "policy_rejection_success", "tool_names": [], "usage": {"external_llm_calls": 0, "input_tokens": 0, "output_tokens": 0, "total_tokens": 0}}
     tools = LiveAgentTools(corpus_path, entity_metadata_path, matrix_records_path, task_root, client, "deepseek-v4-flash", task)
-    planner = NativeToolPlanner(client, task, event_log=event_log)
-    agent = ResearchAgent(tools, planner, checkpoint_dir=task_root, config=AgentRunConfig(), event_log=event_log)
+    planner = NativeToolPlanner(client, task, event_log=event_log, progress_controller=controller, requested_entities=requested_entities)
+    agent = ResearchAgent(tools, planner, checkpoint_dir=task_root, config=AgentRunConfig(max_retrieval_calls=3), event_log=event_log, progress_controller=controller, task_category=task["category"], requested_entities=requested_entities)
     state = agent.run(task["task_zh"], thread_id=task["task_id"])
     if state.get("final_status") == "pending_approval" and approve_writing and task.get("approval_required"):
         state = agent.resume(task["task_id"], approved=True)
