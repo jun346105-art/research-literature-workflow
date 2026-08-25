@@ -40,6 +40,12 @@ class ResearchAgentState(TypedDict, total=False):
     approval_decision: bool | None
     tool_signatures: list[str]
     trace: list[dict[str, Any]]
+    last_event_seq: int
+    last_event_sha256: str | None
+    completed_tool_call_ids: list[str]
+    retrieved_evidence_ids: list[str]
+    retrieved_evidence_count: int
+    evidence_matrix_loaded: bool
 
 
 @dataclass(frozen=True)
@@ -68,11 +74,12 @@ class FakePlanner:
 
 
 class ResearchAgent:
-    def __init__(self, tools: FakeAgentTools, planner: Planner, *, checkpoint_dir: Path, config: AgentRunConfig | None = None) -> None:
+    def __init__(self, tools: FakeAgentTools, planner: Planner, *, checkpoint_dir: Path, config: AgentRunConfig | None = None, event_log: Any | None = None) -> None:
         self.tools = tools
         self.planner = planner
         self.checkpoint_dir = checkpoint_dir
         self.config = config or AgentRunConfig()
+        self.event_log = event_log
         self.checkpointer = InMemorySaver()
         self.graph = self._build_graph()
 
@@ -98,13 +105,16 @@ class ResearchAgent:
         return graph.compile(checkpointer=self.checkpointer)
 
     def run(self, user_goal: str, *, thread_id: str) -> dict[str, Any]:
-        state: ResearchAgentState = {"run_id": thread_id, "thread_id": thread_id, "user_goal": user_goal, "task_type": "unknown", "plan": [], "current_step": 0, "tool_calls": [], "evidence_refs": [], "inspected_passage_ids": [], "verified_claim_ids": [], "coverage_status": "none", "missing_entities": [], "model_call_count": 0, "tool_call_count": 0, "repeated_call_count": 0, "input_tokens": 0, "output_tokens": 0, "pending_approval": None, "final_status": None, "final_artifact": None, "failure_reason": None, "planned_action": None, "last_tool_name": None, "last_tool_result": None, "approval_decision": None, "tool_signatures": [], "trace": []}
+        state: ResearchAgentState = {"run_id": thread_id, "thread_id": thread_id, "user_goal": user_goal, "task_type": "unknown", "plan": [], "current_step": 0, "tool_calls": [], "evidence_refs": [], "inspected_passage_ids": [], "verified_claim_ids": [], "coverage_status": "none", "missing_entities": [], "model_call_count": 0, "tool_call_count": 0, "repeated_call_count": 0, "input_tokens": 0, "output_tokens": 0, "pending_approval": None, "final_status": None, "final_artifact": None, "failure_reason": None, "planned_action": None, "last_tool_name": None, "last_tool_result": None, "approval_decision": None, "tool_signatures": [], "trace": [], "last_event_seq": 0, "last_event_sha256": None, "completed_tool_call_ids": [], "retrieved_evidence_ids": [], "retrieved_evidence_count": 0, "evidence_matrix_loaded": False}
         result = self.graph.invoke(state, self._config(thread_id))
         values = self._state_values(thread_id, result)
         self._persist(values)
         return values
 
     def resume(self, thread_id: str, *, approved: bool) -> dict[str, Any]:
+        if self.event_log is not None:
+            state = dict(self.graph.get_state(self._config(thread_id)).values)
+            self.event_log.verify_projection(state)
         result = self.graph.invoke(Command(resume=approved), self._config(thread_id))
         values = self._state_values(thread_id, result)
         self._persist(values)
@@ -145,20 +155,25 @@ class ResearchAgent:
         if name == "finish":
             return {**self._trace(state, "policy_gate", tool_name="finish", allowed=True), "planned_action": {"tool_name": "finish", "args": {}}}
         if name not in TOOL_PERMISSIONS:
-            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="tool_not_allowed"), "final_status": "execution_failed", "failure_reason": "tool_not_allowed"}
+            self._durable_terminal(action, "denied", "tool_not_allowed")
+            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="tool_not_allowed"), "final_status": "execution_failed", "failure_reason": "tool_not_allowed", **self._projection_update()}
         try:
             args = validate_tool_args(name, action.get("args") or {})
         except AgentToolError as exc:
-            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason=str(exc)), "final_status": "execution_failed", "failure_reason": str(exc)}
+            self._durable_terminal(action, "invalid_arguments", str(exc))
+            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason=str(exc)), "final_status": "execution_failed", "failure_reason": str(exc), **self._projection_update()}
         if state["tool_call_count"] >= self.config.max_tool_calls:
-            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="tool_call_budget_exceeded"), "final_status": "execution_failed", "failure_reason": "tool_call_budget_exceeded"}
+            self._durable_terminal(action, "skipped_due_to_budget", "tool_call_budget_exceeded")
+            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="tool_call_budget_exceeded"), "final_status": "execution_failed", "failure_reason": "tool_call_budget_exceeded", **self._projection_update()}
         if name == "retrieve_evidence" and sum(item["tool_name"] == name for item in state["tool_calls"]) >= self.config.max_retrieval_calls:
-            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="retrieval_budget_exceeded"), "final_status": "execution_failed", "failure_reason": "retrieval_budget_exceeded"}
+            self._durable_terminal(action, "skipped_due_to_budget", "retrieval_budget_exceeded")
+            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="retrieval_budget_exceeded"), "final_status": "execution_failed", "failure_reason": "retrieval_budget_exceeded", **self._projection_update()}
         signature = canonical_tool_signature(name, args)
         if signature in state["tool_signatures"]:
-            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="repeated_tool_call"), "final_status": "execution_failed", "failure_reason": "repeated_tool_call", "repeated_call_count": state["repeated_call_count"] + 1}
+            self._durable_terminal(action, "denied", "repeated_tool_call")
+            return {**self._trace(state, "policy_gate", tool_name=name, allowed=False, reason="repeated_tool_call"), "final_status": "execution_failed", "failure_reason": "repeated_tool_call", "repeated_call_count": state["repeated_call_count"] + 1, **self._projection_update()}
         pending = {"tool_name": name, "args": args} if TOOL_PERMISSIONS[name] == "approval_required" else None
-        return {**self._trace(state, "policy_gate", tool_name=name, args=args, allowed=True, permission=TOOL_PERMISSIONS[name]), "planned_action": {"tool_name": name, "args": args}, "tool_signatures": [*state["tool_signatures"], signature], "pending_approval": pending}
+        return {**self._trace(state, "policy_gate", tool_name=name, args=args, allowed=True, permission=TOOL_PERMISSIONS[name]), "planned_action": {**action, "tool_name": name, "args": args}, "tool_signatures": [*state["tool_signatures"], signature], "pending_approval": pending}
 
     def _after_policy(self, state: ResearchAgentState) -> str:
         if state.get("final_status") == "execution_failed": return "failed"
@@ -171,15 +186,34 @@ class ResearchAgent:
         try:
             result = self.tools.execute(action["tool_name"], action["args"])
         except Exception as exc:
+            self._durable_terminal(action, "execution_error", type(exc).__name__)
             return {
                 **self._trace(state, "tool_executor", tool_name=action["tool_name"], outcome="failed", error_type=type(exc).__name__),
                 "final_status": "execution_failed",
                 "failure_reason": "tool_execution_failed",
                 "last_tool_name": action["tool_name"],
                 "last_tool_result": {"execution_status": "tool_execution_failed"},
+                **self._projection_update(),
             }
+        self._durable_success(action, result)
         record = {"tool_name": action["tool_name"], "args": action["args"], "permission": TOOL_PERMISSIONS[action["tool_name"]], "guardrail": {"allowed": True}, "result_refs": result.get("evidence_refs", result.get("passages", result.get("record_ids", [])))}
-        return {**self._trace(state, "tool_executor", tool_name=action["tool_name"], result_ref_count=len(record["result_refs"])), "tool_calls": [*state["tool_calls"], record], "tool_call_count": state["tool_call_count"] + 1, "last_tool_name": action["tool_name"], "last_tool_result": result, "pending_approval": None}
+        return {**self._trace(state, "tool_executor", tool_name=action["tool_name"], result_ref_count=len(record["result_refs"])), "tool_calls": [*state["tool_calls"], record], "tool_call_count": state["tool_call_count"] + 1, "last_tool_name": action["tool_name"], "last_tool_result": result, "pending_approval": None, **self._projection_update()}
+
+    def _durable_success(self, action: dict[str, Any], result: dict[str, Any]) -> None:
+        if self.event_log is None or not action.get("tool_call_id"):
+            return
+        self.event_log.record_tool_result(action["tool_call_id"], result_status="success", internal_result=result, model_visible_content=json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")), verification_status="observed", policy_status="allowed")
+
+    def _durable_terminal(self, action: dict[str, Any], status: str, error_code: str) -> None:
+        if self.event_log is None or not action.get("tool_call_id"):
+            return
+        self.event_log.record_tool_result(action["tool_call_id"], result_status=status, internal_result={}, model_visible_content=json.dumps({"tool_name": action.get("tool_name"), "status": status, "error_code": error_code}, ensure_ascii=False, sort_keys=True, separators=(",", ":")), verification_status="not_applicable", policy_status="denied" if status in {"denied", "invalid_arguments"} else "allowed", error_code=error_code)
+
+    def _projection_update(self) -> dict[str, Any]:
+        if self.event_log is None:
+            return {}
+        projection = self.event_log.projection()
+        return {key: projection[key] for key in ("last_event_seq", "last_event_sha256", "completed_tool_call_ids", "retrieved_evidence_ids", "retrieved_evidence_count", "evidence_matrix_loaded")}
 
     def _evidence_verifier(self, state: ResearchAgentState) -> dict[str, Any]:
         result = state.get("last_tool_result") or {}
@@ -224,4 +258,4 @@ class ResearchAgent:
 
 def replay_agent_trace(path: Path) -> dict[str, Any]:
     state = json.loads(path.read_text(encoding="utf-8"))
-    return {"external_llm_called": False, "thread_id": state["thread_id"], "final_status": state.get("final_status"), "tool_call_count": state.get("tool_call_count"), "trace": state.get("trace", [])}
+    return {"external_llm_called": False, "trace_schema_version": 1, "replay_capability": "legacy_nonreplayable", "thread_id": state["thread_id"], "final_status": state.get("final_status"), "tool_call_count": state.get("tool_call_count"), "trace": state.get("trace", [])}

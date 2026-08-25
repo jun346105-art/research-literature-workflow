@@ -16,6 +16,7 @@ from litflow.evaluation_aggregate import aggregate_evaluation_pilot
 from litflow.anchoring_audit import audit_anchoring_failures
 from litflow.anchoring_replay import replay_anchoring_recovery
 from litflow.agent.pilot import build_pilot_preflight, run_agent_pilot
+from litflow.agent.durable_events import run_fake_durable_validation
 from litflow.evaluation_runner import ContextWindowConfig, EvaluationRunner, PricingConfig
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
@@ -430,6 +431,9 @@ def main(argv: list[str] | None = None) -> int:
     agent_pilot_run.add_argument("--approve-writing", action="store_true")
     agent_pilot_run.add_argument("--execute", action="store_true")
 
+    durable_validation = subparsers.add_parser("validate-agent-durable-events")
+    durable_validation.add_argument("--out-dir", required=True, type=Path)
+
     args = parser.parse_args(argv)
     try:
         if args.command == "plan-agent-pilot":
@@ -441,6 +445,10 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("run-agent-pilot requires explicit --execute")
             result = run_agent_pilot(args.config, args.corpus, args.entity_metadata, args.matrix_records, args.out_dir, task_ids=args.task_id, approve_writing=args.approve_writing)
             print(json.dumps({"run_dir": str(args.out_dir), "task_count": len(result["results"]), "usage": result["usage"]}, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "validate-agent-durable-events":
+            print(json.dumps(run_fake_durable_validation(args.out_dir), ensure_ascii=False, indent=2))
             return 0
 
         if args.command == "build-candidate-pool":

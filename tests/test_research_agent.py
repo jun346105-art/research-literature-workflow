@@ -88,6 +88,7 @@ def test_replay_uses_trace_without_planner_or_tools(tmp_path):
     result = agent.run("finish", thread_id="t7")
     replay = replay_agent_trace(tmp_path / "t7" / "trace.json")
     assert replay["external_llm_called"] is False
+    assert replay["replay_capability"] == "legacy_nonreplayable"
     assert replay["final_status"] == result["final_status"]
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from litflow.agent.tools import TOOL_SCHEMAS
+from litflow.agent.durable_events import DurableEventLog, PLANNER_SYSTEM_PROMPT, render_planner_request
 from litflow.llm.client import LLMToolCompletion
 from litflow.rag.bm25 import BM25Index, load_corpus
 from litflow.rag.qa import _load_entity_metadata, _parse_v12, _prompt_v12, _verify_v12
@@ -17,15 +18,6 @@ from litflow.rag.translation import TranslationResponse, build_translation_promp
 
 
 AGENT_PLANNER_PROMPT_VERSION = "evidence-bounded-agent-planner-v1"
-PLANNER_SYSTEM_PROMPT = (
-    "You are a bounded research workflow planner. Use only the provided native tools. "
-    "Never request qrels, gold answers, files, shell, network, credentials, or side effects outside tools. "
-    "Select exactly one tool when useful; otherwise return no tool call. "
-    "Do not answer the user yourself. Use answer_grounded only after retrieve_evidence. "
-    "Use stage_writing_draft only after query_evidence_matrix and only when the runtime grants approval."
-)
-
-
 def agent_tool_definitions() -> list[dict[str, Any]]:
     descriptions = {
         "list_papers": "List frozen corpus paper metadata only. Never request paths or files.",
@@ -57,6 +49,7 @@ class NativeToolPlanner:
     usage: dict[str, int] = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "provider_reported_calls": 0})
     events: list[dict[str, Any]] = field(default_factory=list)
     pending_calls: list[dict[str, Any]] = field(default_factory=list)
+    event_log: DurableEventLog | None = None
 
     def decide(self, state: dict[str, Any]) -> dict[str, Any]:
         if self.pending_calls:
@@ -64,17 +57,27 @@ class NativeToolPlanner:
             action["model_call_increment"] = 0
             self.events.append({"event": "planner_queued_tool_call", "tool_name": action["tool_name"], "arguments": action["args"]})
             return action
-        completion = self.client.complete_tools_with_usage(self._messages(state), agent_tool_definitions(), temperature=0)
+        request = self._request(state)
+        request_event_seq = None
+        if self.event_log:
+            request_event_seq = self.event_log.record_planner_request({"messages": request["messages"], "tools": request["tools"]})
+        started = time.perf_counter()
+        completion = self.client.complete_tools_with_usage(request["messages"], request["tools"], temperature=0)
         if not isinstance(completion, LLMToolCompletion):
             return self._failure("planner_completion_invalid")
         self._record_usage(completion)
         calls = completion.tool_calls or []
+        if self.event_log:
+            step_id = f"{self.task['task_id']}:step:{self.usage['provider_reported_calls']}"
+            parsed_calls = [_tool_call_payload(call) for call in calls]
+            self.event_log.record_provider_step(step_id=step_id, model=self.client.model, model_call_ordinal=self.usage["provider_reported_calls"], request_payload={"messages": request["messages"], "tools": request["tools"]}, tool_calls=parsed_calls, usage={"input_tokens": completion.input_tokens, "output_tokens": completion.output_tokens, "total_tokens": completion.total_tokens}, latency_ms=round((time.perf_counter() - started) * 1000, 6), request_event_seq=request_event_seq)
+            calls = self.event_log.calls_for_step(step_id)
         if not calls:
             self.events.append({"event": "planner_finish", "reason": "no_tool_call"})
             return {"tool_name": "finish", "args": {}, "decision_summary": "Planner returned no tool call."}
         actions = []
         for call in calls:
-            function = call.get("function") if isinstance(call, dict) else None
+            function = call.get("function") if isinstance(call, dict) and "function" in call else {"name": call.get("tool_name"), "arguments": call.get("canonical_args_json")}
             if not isinstance(function, dict) or function.get("name") not in TOOL_SCHEMAS:
                 return self._failure("planner_unknown_tool")
             try:
@@ -83,12 +86,18 @@ class NativeToolPlanner:
                 return self._failure("planner_tool_arguments_not_json")
             if not isinstance(args, dict):
                 return self._failure("planner_tool_arguments_not_object")
-            actions.append({"tool_name": function["name"], "args": args, "decision_summary": "Native tool selection recorded without hidden reasoning.", "model_call_increment": 0})
+            actions.append({"tool_name": function["name"], "args": args, "tool_call_id": call.get("tool_call_id"), "tool_batch_id": call.get("tool_batch_id"), "decision_summary": "Native tool selection recorded without hidden reasoning.", "model_call_increment": 0})
         self.pending_calls.extend(actions[1:])
         first = actions[0]
         first["model_call_increment"] = 1
         self.events.append({"event": "planner_tool_call", "tool_name": first["tool_name"], "arguments": first["args"], "parallel_call_count": len(actions)})
         return first
+
+    def _request(self, state: dict[str, Any]) -> dict[str, Any]:
+        if self.event_log:
+            return render_planner_request(self.event_log.load_verified_events(), self.event_log.projection(), agent_tool_definitions(), task=self.task)
+        messages = self._messages(state)
+        return {"messages": messages, "tools": agent_tool_definitions()}
 
     def _messages(self, state: dict[str, Any]) -> list[dict[str, str]]:
         observations = _safe_observations(state)
@@ -121,6 +130,17 @@ def _safe_observations(state: dict[str, Any]) -> list[dict[str, Any]]:
         refs = call.get("result_refs", [])
         rows.append({"tool_name": call.get("tool_name"), "result_refs": refs[:10] if isinstance(refs, list) else []})
     return rows
+
+
+def _tool_call_payload(call: Any) -> dict[str, Any]:
+    function = call.get("function") if isinstance(call, dict) else None
+    if not isinstance(function, dict):
+        return {"tool_name": "", "args": {}}
+    try:
+        args = json.loads(function.get("arguments") or "{}")
+    except json.JSONDecodeError:
+        args = {}
+    return {"tool_call_id": call.get("id") if isinstance(call, dict) else None, "tool_name": function.get("name"), "args": args if isinstance(args, dict) else {}}
 
 
 @dataclass
