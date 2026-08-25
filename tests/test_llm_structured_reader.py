@@ -319,3 +319,35 @@ def test_openai_compatible_client_sends_explicit_deepseek_non_thinking_json_payl
     assert captured["payload"]["temperature"] == 0
     assert captured["payload"]["response_format"] == {"type": "json_object"}
     assert captured["payload"]["thinking"] == {"type": "disabled"}
+
+
+def test_openai_compatible_client_sends_native_tool_payload_and_preserves_usage(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return b'{"choices":[{"message":{"content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"retrieve_evidence","arguments":"{\\"query\\":\\"WT-C3k2\\"}"}}]}}],"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15}}'
+
+    def fake_urlopen(request, timeout):
+        captured["payload"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setattr("litflow.llm.client.urlopen", fake_urlopen)
+    client = OpenAICompatibleClient("https://api.deepseek.com", "not-a-real-key", "deepseek-v4-flash", "disabled")
+    completion = client.complete_tools_with_usage(
+        [{"role": "user", "content": "Choose a tool."}],
+        [{"type": "function", "function": {"name": "retrieve_evidence", "description": "retrieve", "parameters": {"type": "object"}}}],
+        temperature=0,
+    )
+
+    assert captured["payload"]["tools"][0]["function"]["name"] == "retrieve_evidence"
+    assert captured["payload"]["tool_choice"] == "auto"
+    assert captured["payload"]["thinking"] == {"type": "disabled"}
+    assert completion.tool_calls[0]["function"]["name"] == "retrieve_evidence"
+    assert completion.input_tokens == 12

@@ -15,6 +15,7 @@ from litflow.evaluation import compare_evidence_notes, write_eval_run_manifest
 from litflow.evaluation_aggregate import aggregate_evaluation_pilot
 from litflow.anchoring_audit import audit_anchoring_failures
 from litflow.anchoring_replay import replay_anchoring_recovery
+from litflow.agent.pilot import build_pilot_preflight
 from litflow.evaluation_runner import ContextWindowConfig, EvaluationRunner, PricingConfig
 from litflow.obsidian.writer import write_obsidian_notes
 from litflow.obsidian.checker import check_obsidian_notes
@@ -414,8 +415,17 @@ def main(argv: list[str] | None = None) -> int:
     anchoring_replay.add_argument("--run-dir", required=True, type=Path, action="append")
     anchoring_replay.add_argument("--out-dir", required=True, type=Path)
 
+    agent_pilot_plan = subparsers.add_parser("plan-agent-pilot")
+    agent_pilot_plan.add_argument("--config", required=True, type=Path)
+    agent_pilot_plan.add_argument("--corpus", required=True, type=Path)
+    agent_pilot_plan.add_argument("--entity-metadata", required=True, type=Path)
+
     args = parser.parse_args(argv)
     try:
+        if args.command == "plan-agent-pilot":
+            print(json.dumps(build_pilot_preflight(args.config, args.corpus, args.entity_metadata), ensure_ascii=False, indent=2))
+            return 0
+
         if args.command == "build-candidate-pool":
             pool = build_candidate_pool(args.input)
             write_candidate_pool(pool, args.output)
