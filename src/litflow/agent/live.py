@@ -56,8 +56,14 @@ class NativeToolPlanner:
     task: dict[str, Any]
     usage: dict[str, int] = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "provider_reported_calls": 0})
     events: list[dict[str, Any]] = field(default_factory=list)
+    pending_calls: list[dict[str, Any]] = field(default_factory=list)
 
     def decide(self, state: dict[str, Any]) -> dict[str, Any]:
+        if self.pending_calls:
+            action = self.pending_calls.pop(0)
+            action["model_call_increment"] = 0
+            self.events.append({"event": "planner_queued_tool_call", "tool_name": action["tool_name"], "arguments": action["args"]})
+            return action
         completion = self.client.complete_tools_with_usage(self._messages(state), agent_tool_definitions(), temperature=0)
         if not isinstance(completion, LLMToolCompletion):
             return self._failure("planner_completion_invalid")
@@ -66,20 +72,23 @@ class NativeToolPlanner:
         if not calls:
             self.events.append({"event": "planner_finish", "reason": "no_tool_call"})
             return {"tool_name": "finish", "args": {}, "decision_summary": "Planner returned no tool call."}
-        if len(calls) != 1:
-            return self._failure("planner_multiple_tool_calls")
-        function = calls[0].get("function") if isinstance(calls[0], dict) else None
-        if not isinstance(function, dict) or function.get("name") not in TOOL_SCHEMAS:
-            return self._failure("planner_unknown_tool")
-        try:
-            args = json.loads(function.get("arguments") or "{}")
-        except json.JSONDecodeError:
-            return self._failure("planner_tool_arguments_not_json")
-        if not isinstance(args, dict):
-            return self._failure("planner_tool_arguments_not_object")
-        name = function["name"]
-        self.events.append({"event": "planner_tool_call", "tool_name": name, "arguments": args})
-        return {"tool_name": name, "args": args, "decision_summary": "Native tool selection recorded without hidden reasoning."}
+        actions = []
+        for call in calls:
+            function = call.get("function") if isinstance(call, dict) else None
+            if not isinstance(function, dict) or function.get("name") not in TOOL_SCHEMAS:
+                return self._failure("planner_unknown_tool")
+            try:
+                args = json.loads(function.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                return self._failure("planner_tool_arguments_not_json")
+            if not isinstance(args, dict):
+                return self._failure("planner_tool_arguments_not_object")
+            actions.append({"tool_name": function["name"], "args": args, "decision_summary": "Native tool selection recorded without hidden reasoning.", "model_call_increment": 0})
+        self.pending_calls.extend(actions[1:])
+        first = actions[0]
+        first["model_call_increment"] = 1
+        self.events.append({"event": "planner_tool_call", "tool_name": first["tool_name"], "arguments": first["args"], "parallel_call_count": len(actions)})
+        return first
 
     def _messages(self, state: dict[str, Any]) -> list[dict[str, str]]:
         observations = _safe_observations(state)

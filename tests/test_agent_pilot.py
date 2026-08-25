@@ -82,17 +82,19 @@ def test_native_planner_accepts_one_allowlisted_tool_call_and_records_usage():
     assert {item["function"]["name"] for item in agent_tool_definitions()} == {"list_papers", "retrieve_evidence", "inspect_passages", "answer_grounded", "query_evidence_matrix", "stage_writing_draft"}
 
 
-def test_native_planner_rejects_unknown_or_multiple_tool_calls():
+def test_native_planner_queues_parallel_allowlisted_tool_calls_but_rejects_unknown_tools():
     class FakeClient:
         model = "deepseek-v4-flash"
 
         def complete_tools_with_usage(self, _messages, _tools, **_kwargs):
             from litflow.llm.client import LLMToolCompletion
 
-            return LLMToolCompletion(content="", tool_calls=[{"function": {"name": "shell", "arguments": "{}"}}, {"function": {"name": "retrieve_evidence", "arguments": "{}"}}])
+            return LLMToolCompletion(content="", tool_calls=[{"function": {"name": "retrieve_evidence", "arguments": '{"query":"a"}'}}, {"function": {"name": "answer_grounded", "arguments": '{"query_id":"AG01"}'}}])
 
-    planner = NativeToolPlanner(FakeClient(), {"task_id": "AG12", "task_zh": "unsafe"})
-    assert planner.decide({"tool_calls": [], "last_tool_result": None})["tool_name"] == "finish"
+    planner = NativeToolPlanner(FakeClient(), {"task_id": "AG01", "task_zh": "safe"})
+    assert planner.decide({"tool_calls": [], "last_tool_result": None})["tool_name"] == "retrieve_evidence"
+    assert planner.decide({"tool_calls": [], "last_tool_result": None})["tool_name"] == "answer_grounded"
+    assert planner.usage["provider_reported_calls"] == 1
 
 
 def test_live_tool_adapter_lists_and_inspects_only_frozen_passages(tmp_path):

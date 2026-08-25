@@ -132,7 +132,10 @@ class ResearchAgent:
         if state["model_call_count"] >= self.config.max_model_turns:
             return {**self._trace(state, "planner", outcome="failed", reason="model_turn_budget_exceeded"), "final_status": "execution_failed", "failure_reason": "model_turn_budget_exceeded"}
         action = self.planner.decide(state)
-        return {**self._trace(state, "planner", action=action.get("tool_name"), decision_summary=action.get("decision_summary", "")), "planned_action": action, "model_call_count": state["model_call_count"] + 1, "current_step": state["current_step"] + 1}
+        increment = action.get("model_call_increment", 1)
+        if increment not in (0, 1):
+            increment = 1
+        return {**self._trace(state, "planner", action=action.get("tool_name"), decision_summary=action.get("decision_summary", "")), "planned_action": action, "model_call_count": state["model_call_count"] + increment, "current_step": state["current_step"] + 1}
 
     def _policy_gate(self, state: ResearchAgentState) -> dict[str, Any]:
         if state.get("final_status") == "execution_failed":
