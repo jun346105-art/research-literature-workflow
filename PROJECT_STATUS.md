@@ -27,6 +27,7 @@
 - M4 Writing Vertical Slice: six bilingual comparison sentences were generated from reviewed EvidenceRecords, then author-reviewed and corrected in an independent closure artifact. Final sentence-to-record coverage is 100%; the outcome is `pass_with_moderate_human_revision` and `validated_as_author_editable_draft`, not publication-ready prose.
 - M5 Minimal FastAPI + Simple UI MVP: versioned read-only corpus, retrieval, passage, Evidence Matrix, and writing-draft endpoints plus file-backed job status and SSE events are available on localhost. Offline demo mode and an online Q01 Flash UI job are verified, including cached Chinese-to-English retrieval, entity binding, citation membership, strict quote grounding, and citation drawer rendering. Q05 remains a historical safe failure because its ambiguous quote also matched another passage; no validator was relaxed and no retry was attempted.
 - M6 Runtime Container Smoke Closure: verified a non-root, read-only-root-filesystem Docker image with localhost-only default port, read-only demo inputs, persisted job recovery, explicit Online QA fail-closed behavior, and named online job-volume restart persistence. No cloud deployment or image publication was performed.
+- M8 Experimental Agent Extension Closure: M8A controlled single-agent scaffold, M8B.1A durable event/replay kernel, and M8B.1B progress-aware control-plane Fake E2E passed. The real AG01 Flash planning/tool chain completed, but the final grounded answer failed strict quote grounding (`evidence_anchor_not_found`); AG07/AG11 real canaries and the 12-task pilot were not run due to the frozen gate. Overall status: `experimental_partial_pass`, not a validated end-to-end grounded Agent product.
 
 For detailed acceptance metrics, see:
 
@@ -73,6 +74,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - M2A translation is retrieval-only and never replaces evidence text or user source queries.
 - M2B uses one Chinese source that is retrieval-smoke eligible but remains `needs_manual_check` for LLM use because Chinese section headings are unknown to the existing section detector. The smoke does not establish broad mixed-language retrieval quality.
 - Evidence Matrix is a vertical slice from the current reviewed QA pilot, not a complete literature review. Sparse cells must not be filled with model knowledge.
+- M8 Agent is an experimental extension. Its planning/tool-control chain and durable replay kernel are verified, but end-to-end grounded Agent completion is not validated because AG01 stopped at strict quote grounding. Do not present an Agent completion rate, production Agent availability, a passed 12-task benchmark, MCP completion, or multi-Agent capability.
 
 ## Recommended Next Steps
 

@@ -56,6 +56,12 @@ LitFlow 是面向工科文献的本地优先、证据驱动、双语研究写作
 
 先保持现有评估与安全边界，再在新样本上验证 evidence coverage。可能方向包括更受控的中文原生语料扩展和受审阅的检索评估；不应直接重新开启 Prompt 调优、Agent 或无验证的自动综述。
 
+## M8 Agent 实验边界
+
+可以诚实说明：我实现了 LangGraph 受控单 Agent、Tool Schema、Policy Gate、动态工具路由、预算/熔断、append-only hash-chained durable events、checkpoint/resume、offline replay、partial coverage 与 human approval interrupt。Fake E2E 和单条 Flash planning/tool chain 验证了控制面。
+
+不能说明：12-task Agent benchmark 已通过、Agent task completion rate、Agent 已生产可用、Agent 稳定生成 grounded answer、Multi-Agent、MCP 或自动长期研究已完成。真实 AG01 在最终 quote grounding 处失败，失败答案没有展示；这说明控制面验证不能替代最终 evidence validation。
+
 ## 诚实边界
 
 - `v0.3A=experimental_fail`。
