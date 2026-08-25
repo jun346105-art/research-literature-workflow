@@ -97,3 +97,15 @@ def test_trace_evaluator_reports_frozen_safety_metrics(tmp_path):
     assert metrics["tool_argument_valid_rate"] == 1.0
     assert metrics["unsafe_action_count"] == 0
     assert metrics["loop_termination_rate"] == 1.0
+
+
+def test_tool_execution_error_terminates_as_execution_failure(tmp_path):
+    class FailingTools(FakeAgentTools):
+        def execute(self, _name, _args):
+            raise ValueError("frozen input unavailable")
+
+    agent = ResearchAgent(FailingTools(), FakePlanner([{"tool_name": "retrieve_evidence", "args": {"query": "x"}}]), checkpoint_dir=tmp_path)
+    result = agent.run("retrieve", thread_id="tool-error")
+
+    assert result["final_status"] == "execution_failed"
+    assert result["failure_reason"] == "tool_execution_failed"

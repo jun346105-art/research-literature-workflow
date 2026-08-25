@@ -165,7 +165,16 @@ class ResearchAgent:
 
     def _tool_executor(self, state: ResearchAgentState) -> dict[str, Any]:
         action = state["planned_action"]
-        result = self.tools.execute(action["tool_name"], action["args"])
+        try:
+            result = self.tools.execute(action["tool_name"], action["args"])
+        except Exception as exc:
+            return {
+                **self._trace(state, "tool_executor", tool_name=action["tool_name"], outcome="failed", error_type=type(exc).__name__),
+                "final_status": "execution_failed",
+                "failure_reason": "tool_execution_failed",
+                "last_tool_name": action["tool_name"],
+                "last_tool_result": {"execution_status": "tool_execution_failed"},
+            }
         record = {"tool_name": action["tool_name"], "args": action["args"], "permission": TOOL_PERMISSIONS[action["tool_name"]], "guardrail": {"allowed": True}, "result_refs": result.get("evidence_refs", result.get("passages", result.get("record_ids", [])))}
         return {**self._trace(state, "tool_executor", tool_name=action["tool_name"], result_ref_count=len(record["result_refs"])), "tool_calls": [*state["tool_calls"], record], "tool_call_count": state["tool_call_count"] + 1, "last_tool_name": action["tool_name"], "last_tool_result": result, "pending_approval": None}
 
