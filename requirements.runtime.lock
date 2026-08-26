@@ -4,6 +4,8 @@ click==8.2.1
 fastapi==0.141.1
 h11==0.16.0
 idna==3.11
+langgraph==1.2.11
+numpy==2.5.2
 pydantic==2.12.4
 pydantic-core==2.41.5
 pypdf==6.10.2

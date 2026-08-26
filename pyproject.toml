@@ -7,7 +7,10 @@ name = "research-literature-workflow"
 version = "0.1.0"
 description = "Local research literature workflow tools."
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2", "pypdf>=5", "fastapi>=0.115", "uvicorn>=0.30", "langgraph>=1.2,<2"]
+dependencies = ["pydantic>=2", "pypdf>=5", "fastapi>=0.115", "uvicorn>=0.30", "langgraph>=1.2,<2", "numpy>=2.5"]
+
+[project.optional-dependencies]
+test = ["PyMuPDF==1.28.2"]
 
 [project.scripts]
 litflow = "litflow.cli:main"

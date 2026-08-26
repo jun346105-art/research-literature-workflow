@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 
@@ -38,6 +39,17 @@ def test_runtime_lock_and_ignore_rules_are_present():
     ignored = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     for item in (".env", "outputs/", ".git/", "tests/", "*.pdf"):
         assert item in ignored
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    runtime_names = {item.split("=", 1)[0].split("<", 1)[0].split(">", 1)[0].lower() for item in project["dependencies"]}
+    lock_names = {line.split("==", 1)[0].lower() for line in (ROOT / "requirements.runtime.lock").read_text(encoding="utf-8").splitlines() if line}
+
+    assert runtime_names <= lock_names
+    assert "numpy>=2.5" in project["dependencies"]
+    assert "numpy==2.5.2" in (ROOT / "requirements.runtime.lock").read_text(encoding="utf-8")
+    assert project["optional-dependencies"]["test"] == ["PyMuPDF==1.28.2"]
+    assert "pymupdf" not in lock_names
+    assert "torch" not in runtime_names
+    assert "transformers" not in runtime_names
 
 
 def test_docker_demo_docs_keep_online_opt_in_and_no_private_paths():

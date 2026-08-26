@@ -30,3 +30,5 @@ LiteratureVault/
 
 *.log
 *.tmp
+/build/
+*.egg-info/
