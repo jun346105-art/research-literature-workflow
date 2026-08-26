@@ -7,8 +7,8 @@
 | S00 | 创建 DeepResearch 新里程碑并冻结授权边界 | completed |
 | S01 | 建立代码、schema、artifact 和指标资产地图 | completed |
 | S02 | 单独修复 NumPy / PyMuPDF 依赖可复现性 | completed |
-| S03 | 冻结目标架构与关键 ADR | not_started |
-| S04 | 冻结实验与数据治理协议 | not_started |
+| S03 | 冻结目标架构与关键 ADR | completed (combined DR-S03/DR-S04 batch) |
+| S04 | 冻结实验与数据治理协议 | completed (combined DR-S03/DR-S04 batch) |
 | S05 | 定义 ResearchTask / Brief / Subtask schema | not_started |
 | S06 | 定义 Source / EvidenceUnit / Claim / Citation schema | not_started |
 | S07 | 定义 RunState 和显式状态机 | not_started |
