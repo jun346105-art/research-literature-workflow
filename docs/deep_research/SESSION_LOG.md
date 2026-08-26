@@ -5,7 +5,7 @@
 | Session | 单一目标 | 状态 |
 | --- | --- | --- |
 | S00 | 创建 DeepResearch 新里程碑并冻结授权边界 | completed |
-| S01 | 建立代码、schema、artifact 和指标资产地图 | not_started |
+| S01 | 建立代码、schema、artifact 和指标资产地图 | completed |
 | S02 | 单独修复 NumPy / PyMuPDF 依赖可复现性 | not_started |
 | S03 | 冻结目标架构与关键 ADR | not_started |
 | S04 | 冻结实验与数据治理协议 | not_started |

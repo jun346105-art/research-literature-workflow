@@ -19,7 +19,7 @@
 
 ## user-reported-and-reproduced
 
-- DR-S00 在本地以 `./.venv/Scripts/python.exe -m pytest -q ./tests` 复现：`268 passed, 1 warning in 11.90s`。这验证的是当前仓库测试套件，不重跑历史 provider、Web、Zotero、Obsidian、PDF 或 M8 实验。
+- DR-S00 在本地以 `./.venv/Scripts/python.exe -m pytest -q ./tests` 复现：`268 passed, 1 warning`。运行时长随机器与缓存变化，不是冻结性能指标。这验证的是当前仓库测试套件，不重跑历史 provider、Web、Zotero、Obsidian、PDF 或 M8 实验。
 
 ## historical-document-only
 
