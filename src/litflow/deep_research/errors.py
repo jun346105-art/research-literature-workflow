@@ -60,3 +60,16 @@ class ExecutionFailure(ContractModel):
 
     def policy(self) -> ErrorSpec:
         return error_spec(self.code)
+
+
+class ManualInterventionRequired(ContractModel):
+    """Stable, redacted diagnostic for an operation with an unknown outcome."""
+
+    code: ErrorCode = ErrorCode.unknown_outcome
+    run_id: str
+    operation_id: str
+    attempt_id: str
+    last_event_id: str
+    status: str = "outcome_unknown"
+    reservation_present: bool = True
+    snapshot: dict[str, str] = Field(default_factory=dict)

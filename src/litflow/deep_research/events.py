@@ -4,7 +4,7 @@ from datetime import UTC,datetime
 from enum import Enum
 from pydantic import Field,model_validator
 from .contracts import ContractModel
-from .identity import canonical_json,make_stable_id,sha256_hex
+from .identity import canonical_json,canonical_json_bytes,make_stable_id,sha256_hex
 from .state import RUNTIME_VERSION,RunState,RunStatus
 
 GENESIS_HASH="0"*64
@@ -24,7 +24,7 @@ class RunEvent(ContractModel):
         payload=self._payload()
         if self.sequence==1 and self.previous_event_hash!=GENESIS_HASH: raise ValueError("previous_event_hash invalid")
         if self.event_id!=make_stable_id("event",payload): raise ValueError("event_id does not match canonical payload")
-        if self.event_hash!=sha256_hex(canonical_json(payload)): raise ValueError("event_hash does not match canonical payload")
+        if self.event_hash!=sha256_hex(canonical_json_bytes(payload)): raise ValueError("event_hash does not match canonical payload")
         return self
     def _payload(self): return {"runtime_version":self.runtime_version,"run_id":self.run_id,"sequence":self.sequence,"from_status":self.from_status.value,"to_status":self.to_status.value,"terminal_reason":self.terminal_reason,"previous_event_hash":self.previous_event_hash}
 
@@ -32,7 +32,7 @@ def create_event(state:RunState,next_state:RunState,*,occurred_at:datetime|None=
     sequence=state.applied_event_count+1; previous=state.event_head or GENESIS_HASH
     payload={"runtime_version":RUNTIME_VERSION,"run_id":state.run_id,"sequence":sequence,"from_status":state.status.value,"to_status":next_state.status.value,"terminal_reason":next_state.terminal_reason,"previous_event_hash":previous}
     audit=occurred_at.astimezone(UTC) if occurred_at else None
-    return RunEvent(event_id=make_stable_id("event",payload),run_id=state.run_id,sequence=sequence,from_status=state.status,to_status=next_state.status,terminal_reason=next_state.terminal_reason,previous_event_hash=previous,event_hash=sha256_hex(canonical_json(payload)),occurred_at=audit)
+    return RunEvent(event_id=make_stable_id("event",payload),run_id=state.run_id,sequence=sequence,from_status=state.status,to_status=next_state.status,terminal_reason=next_state.terminal_reason,previous_event_hash=previous,event_hash=sha256_hex(canonical_json_bytes(payload)),occurred_at=audit)
 
 
 class PolicyEventType(str, Enum):
@@ -91,7 +91,7 @@ class PolicyEvent(ContractModel):
             raise ValueError("previous_event_hash invalid")
         if self.event_id != make_stable_id("policy", payload):
             raise ValueError("policy event_id mismatch")
-        if self.event_hash != sha256_hex(canonical_json(payload)):
+        if self.event_hash != sha256_hex(canonical_json_bytes(payload)):
             raise ValueError("policy event_hash mismatch")
         return self
 
@@ -105,4 +105,4 @@ def create_policy_event(run_id: str, sequence: int, event_type: PolicyEventType,
     }
     values = {**defaults, **fields}
     payload = {"policy_version": "dr-policies-v1", "run_id": run_id, "sequence": sequence, "event_type": event_type.value, **values, "previous_event_hash": previous_event_hash}
-    return PolicyEvent(event_id=make_stable_id("policy", payload), event_hash=sha256_hex(canonical_json(payload)), previous_event_hash=previous_event_hash, run_id=run_id, sequence=sequence, event_type=event_type, **values)
+    return PolicyEvent(event_id=make_stable_id("policy", payload), event_hash=sha256_hex(canonical_json_bytes(payload)), previous_event_hash=previous_event_hash, run_id=run_id, sequence=sequence, event_type=event_type, **values)

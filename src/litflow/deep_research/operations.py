@@ -81,9 +81,19 @@ class OperationJournal(ContractModel):
         current = self._current(operation_id)
         if current is None or current.attempt_id != attempt_id:
             raise ValueError("unknown operation attempt")
-        if current.status is not OperationStatus.planned:
+        if current.status not in {OperationStatus.planned, OperationStatus.reserved}:
             raise ValueError("operation is not dispatchable")
         return self._update(operation_id, attempt_id, status=OperationStatus.started)
+
+    def reserve(self, operation_id: str, attempt_id: str) -> "OperationJournal":
+        current = self._current(operation_id)
+        if current is None or current.attempt_id != attempt_id:
+            raise ValueError("unknown operation attempt")
+        if current.status is OperationStatus.reserved:
+            return self
+        if current.status is not OperationStatus.planned:
+            raise ValueError("operation is not reservable")
+        return self._update(operation_id, attempt_id, status=OperationStatus.reserved)
 
     def mark_succeeded(self, operation_id: str, attempt_id: str, result_sha256: str | None = None) -> "OperationJournal":
         return self._update(operation_id, attempt_id, status=OperationStatus.succeeded, result_sha256=result_sha256, error_code=None)
@@ -114,7 +124,9 @@ class OperationJournal(ContractModel):
         current = self._current(operation_id)
         if current is None:
             raise ValueError("unknown operation")
-        if current.status is OperationStatus.outcome_unknown and (current.side_effecting or not current.idempotent):
+        if current.status is OperationStatus.outcome_unknown:
+            return "manual_review_required"
+        if current.status is OperationStatus.started:
             return "manual_review_required"
         if current.status in {OperationStatus.succeeded, OperationStatus.cancelled_before_dispatch}:
             return "do_not_execute"

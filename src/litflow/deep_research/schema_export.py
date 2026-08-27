@@ -66,3 +66,19 @@ def write_policy_schemas(output_dir: Path) -> dict[str, Path]:
         target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
         written[name] = target
     return written
+
+
+def write_runtime_v2_schemas(output_dir: Path) -> dict[str, Path]:
+    from .runtime_v2 import CoordinatedCheckpointV2, RuntimeEventEnvelope
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    schemas = {
+        "runtime_event_envelope.schema.json": RuntimeEventEnvelope,
+        "coordinated_checkpoint.schema.json": CoordinatedCheckpointV2,
+    }
+    written: dict[str, Path] = {}
+    for name, model in schemas.items():
+        target = output_dir / name
+        target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        written[name] = target
+    return written

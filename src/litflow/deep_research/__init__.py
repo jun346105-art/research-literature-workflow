@@ -18,9 +18,20 @@ from .contracts import (
 )
 from .state import RunState, RunStatus, TransitionError
 from .budgets import BudgetLedger, BudgetSpec, TokenUsage
-from .errors import ErrorCode, ErrorSpec, ExecutionFailure
+from .errors import ErrorCode, ErrorSpec, ExecutionFailure, ManualInterventionRequired
 from .operations import OperationJournal, OperationKind, OperationRecord, OperationStatus
 from .policies import CancellationToken, ReplanDecision, ReplanPolicy, RetryPolicy
+from .runtime_v2 import (
+    CoordinatedCheckpointV2,
+    CrashPoint,
+    CrashSafeDispatcher,
+    CrashSafeFakeHarness,
+    DispatchInterrupted,
+    RuntimeEventEnvelope,
+    RuntimeEventType,
+    UnifiedEventStore,
+    replay_runtime_events,
+)
 
 __all__ = [
     "BriefApproval",
@@ -46,6 +57,7 @@ __all__ = [
     "ErrorCode",
     "ErrorSpec",
     "ExecutionFailure",
+    "ManualInterventionRequired",
     "OperationJournal",
     "OperationKind",
     "OperationRecord",
@@ -54,4 +66,13 @@ __all__ = [
     "ReplanDecision",
     "ReplanPolicy",
     "RetryPolicy",
+    "CoordinatedCheckpointV2",
+    "CrashPoint",
+    "CrashSafeDispatcher",
+    "CrashSafeFakeHarness",
+    "DispatchInterrupted",
+    "RuntimeEventEnvelope",
+    "RuntimeEventType",
+    "UnifiedEventStore",
+    "replay_runtime_events",
 ]
