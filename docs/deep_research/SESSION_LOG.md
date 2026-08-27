@@ -16,6 +16,7 @@
 | S09 | 建立预算、超时、取消与 retry policy | completed (B03 DR-S09/S10 batch) |
 | S10 | 建立 Fake provider 与 Fake tools E2E harness | completed (B03 DR-S09/S10 batch) |
 | B03R | 修复统一 runtime v2、canonical hash、crash-safe dispatch 与 fail-closed unknown outcome | completed; Gate A pending read-only re-audit; internal_result |
+| B03R2 | 修复 replay boundary、checkpoint trust、retry/replan resume 与受控 runtime entry | completed; Gate A pending second read-only re-audit; internal_result |
 | S11 | 实现 Research Brief 生成与人工确认 | not_started |
 | S12 | 实现结构化 Planner | not_started |
 | S13 | 实现本地论文 Research Executor | not_started |

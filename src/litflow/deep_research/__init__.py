@@ -1,4 +1,4 @@
-"""DeepResearch domain contracts without runtime or provider dependencies."""
+"""DeepResearch domain contracts and the offline v2 runtime boundary."""
 
 from .contracts import (
     BriefApproval,
@@ -24,7 +24,6 @@ from .policies import CancellationToken, ReplanDecision, ReplanPolicy, RetryPoli
 from .runtime_v2 import (
     CoordinatedCheckpointV2,
     CrashPoint,
-    CrashSafeDispatcher,
     CrashSafeFakeHarness,
     DispatchInterrupted,
     RuntimeEventEnvelope,
@@ -68,7 +67,6 @@ __all__ = [
     "RetryPolicy",
     "CoordinatedCheckpointV2",
     "CrashPoint",
-    "CrashSafeDispatcher",
     "CrashSafeFakeHarness",
     "DispatchInterrupted",
     "RuntimeEventEnvelope",

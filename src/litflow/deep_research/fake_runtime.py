@@ -96,7 +96,14 @@ class FakeProvider:
 
     async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None) -> FakeStep:
         operation = next(item for item in self.operations if item.operation_id == operation_id)
-        attempt_number = sum(item[0] == operation_id for item in self.calls) + 1
+        attempt_number = next(
+            (
+                number
+                for number in range(1, len(operation.attempts) + 1)
+                if make_stable_id("attempt", {"operation_id": operation_id, "attempt_number": number}) == attempt_id
+            ),
+            0,
+        )
         if attempt_number > len(operation.attempts):
             raise AssertionError("unexpected fake provider call")
         self.calls.append((operation_id, attempt_id))
@@ -115,7 +122,14 @@ class FakeTool:
 
     async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None) -> FakeStep:
         operation = next(item for item in self.operations if item.operation_id == operation_id)
-        attempt_number = sum(item[0] == operation_id for item in self.calls) + 1
+        attempt_number = next(
+            (
+                number
+                for number in range(1, len(operation.attempts) + 1)
+                if make_stable_id("attempt", {"operation_id": operation_id, "attempt_number": number}) == attempt_id
+            ),
+            0,
+        )
         if attempt_number > len(operation.attempts):
             raise AssertionError("unexpected fake tool call")
         self.calls.append((operation_id, attempt_id))

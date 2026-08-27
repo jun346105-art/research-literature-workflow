@@ -10,7 +10,7 @@ The stream records `operation_reserved` before `operation_dispatched`. A durable
 
 ## Budget and resume rules
 
-Reservations are retained for unknown outcomes. The observed or reserved usage is charged once, keyed by attempt ID, while the reservation remains visible for later authorized reconciliation. Succeeded and known-failed attempts reconcile once; repeated replay or resume cannot create a second charge or a second external call. Retry is finite and allowlisted; every retry uses the same operation ID and a new attempt ID. Non-idempotent side effects never receive blind retry after an unknown outcome.
+The selected unknown policy is **A: retain the reservation and do not create a durable unknown charge**. A response-lost or stream-end unknown therefore remains a conservative reservation-only view; an explicitly authorized future reconciliation may replace that reservation with one terminal charge. Succeeded and known-failed attempts reconcile once; repeated replay or resume cannot create a second charge or a second external call. Retry is finite and allowlisted; every retry uses the same operation ID and a new attempt ID. Non-idempotent side effects never receive blind retry after an unknown outcome.
 
 Effective operation timeout is `min(configured operation timeout, remaining run deadline)`. `FakeClock` records latency and deterministic backoff. Cancellation is idempotent and only prevents later dispatch; it does not claim to cancel a request already dispatched remotely.
 

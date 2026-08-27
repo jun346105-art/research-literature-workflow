@@ -236,27 +236,7 @@ def _reservation(ledger: BudgetLedger, attempt_id: str) -> BudgetReservation:
     raise ValueError("missing durable reservation")
 
 
-def _uncertain_charge(
-    ledger: BudgetLedger,
-    reservation: BudgetReservation,
-    spec: BudgetSpec,
-    usage: TokenUsage | None = None,
-    *,
-    attempt_number: int = 1,
-) -> BudgetLedger:
-    if any(item.attempt_id == reservation.attempt_id for item in ledger.charges):
-        return ledger
-    charged = ledger.reconcile(
-        reservation,
-        usage=usage or reservation.usage,
-        outcome=OperationStatus.outcome_unknown,
-        attempt_number=attempt_number,
-        spec=spec,
-    )
-    return charged.model_copy(update={"reservations": charged.reservations + (reservation,)})
-
-
-def _replay_slice(
+def _reduce_slice(
     initial: RunState,
     events: list[RuntimeEventEnvelope],
     spec: BudgetSpec,
@@ -269,7 +249,6 @@ def _replay_slice(
     state = initial
     current_ledger = ledger or BudgetLedger.empty(spec)
     current_journal = journal or OperationJournal.empty()
-    manual_intervention: ManualInterventionRequired | None = None
     for event in events:
         if event.event_type is RuntimeEventType.run_started:
             continue
@@ -322,29 +301,7 @@ def _replay_slice(
             reservation = _reservation(current_ledger, event.attempt_id)
             usage = TokenUsage.model_validate(payload.get("usage", reservation.usage.model_dump(mode="json")))
             if event.event_type is RuntimeEventType.operation_unknown:
-                current_ledger = _uncertain_charge(
-                    current_ledger,
-                    reservation,
-                    spec,
-                    usage,
-                    attempt_number=int(payload.get("attempt_number", 1)),
-                )
                 current_journal = current_journal.mark_unknown(event.operation_id, event.attempt_id, str(payload.get("error_code", "unknown_outcome")))
-                manual_intervention = ManualInterventionRequired(
-                    run_id=initial.run_id,
-                    operation_id=event.operation_id,
-                    attempt_id=event.attempt_id,
-                    last_event_id=event.event_id,
-                    reservation_present=True,
-                    snapshot={
-                        "operation_id": event.operation_id,
-                        "attempt_id": event.attempt_id,
-                        "last_event_id": event.event_id,
-                        "last_event_type": event.event_type.value,
-                        "causal_parent_id": event.causal_parent_id or "",
-                        "stream_sequence": str(event.stream_sequence),
-                    },
-                )
             else:
                 outcome = OperationStatus.succeeded if event.event_type is RuntimeEventType.operation_succeeded else OperationStatus.failed_known
                 current_ledger = current_ledger.reconcile(reservation, usage=usage, outcome=outcome, attempt_number=int(payload.get("attempt_number", 1)), spec=spec)
@@ -381,36 +338,68 @@ def _replay_slice(
         else:
             raise ValueError(f"unsupported runtime event type: {event.event_type}")
 
-    for record in tuple(current_journal.records):
-        if record.status is OperationStatus.started:
-            reservation = _reservation(current_ledger, record.attempt_id)
-            current_ledger = _uncertain_charge(
-                current_ledger,
-                reservation,
-                spec,
-                attempt_number=record.attempt_number,
-            )
-            current_journal = current_journal.mark_unknown(record.operation_id, record.attempt_id, "unknown_outcome")
-            last_event = next((event for event in reversed(events) if event.operation_id == record.operation_id and event.attempt_id == record.attempt_id), None)
-            if last_event is None:
-                raise ValueError("unknown operation has no causal event")
-            manual_intervention = ManualInterventionRequired(
-                run_id=initial.run_id,
-                operation_id=record.operation_id,
-                attempt_id=record.attempt_id,
-                last_event_id=last_event.event_id,
-                reservation_present=True,
-                snapshot={
-                    "operation_id": record.operation_id,
-                    "attempt_id": record.attempt_id,
-                    "last_event_id": last_event.event_id,
-                    "last_event_type": last_event.event_type.value,
-                    "causal_parent_id": last_event.causal_parent_id or "",
-                    "stream_sequence": str(last_event.stream_sequence),
-                },
-            )
     head = events[-1].event_hash if events else base_head
-    return RuntimeReplayResult(state, current_ledger, current_journal, base_sequence + len(events), head, manual_intervention)
+    return RuntimeReplayResult(state, current_ledger, current_journal, base_sequence + len(events), head)
+
+
+def _validate_runtime_events(initial: RunState, events: list[RuntimeEventEnvelope]) -> None:
+    previous = GENESIS_HASH
+    for sequence, event in enumerate(events, 1):
+        try:
+            RuntimeEventEnvelope.model_validate(event.model_dump(mode="json"))
+        except Exception as exc:
+            raise ValueError("runtime event envelope validation failed") from exc
+        if event.run_id != initial.run_id or event.stream_sequence != sequence or event.previous_event_hash != previous:
+            raise ValueError("runtime stream sequence/hash mismatch")
+        previous = event.event_hash
+
+
+def reduce_runtime_events(
+    initial: RunState,
+    events: tuple[RuntimeEventEnvelope, ...] | list[RuntimeEventEnvelope],
+    spec: BudgetSpec,
+) -> RuntimeReplayResult:
+    """Reduce only durable facts; a prefix never infers a missing outcome."""
+    ordered = list(events)
+    _validate_runtime_events(initial, ordered)
+    return _reduce_slice(initial, ordered, spec)
+
+
+def _manual_intervention(initial: RunState, record: OperationRecord, events: list[RuntimeEventEnvelope]) -> ManualInterventionRequired:
+    last_event = next((event for event in reversed(events) if event.operation_id == record.operation_id and event.attempt_id == record.attempt_id), None)
+    if last_event is None:
+        raise ValueError("unknown operation has no causal event")
+    return ManualInterventionRequired(
+        run_id=initial.run_id,
+        operation_id=record.operation_id,
+        attempt_id=record.attempt_id,
+        last_event_id=last_event.event_id,
+        reservation_present=True,
+        snapshot={
+            "operation_id": record.operation_id,
+            "attempt_id": record.attempt_id,
+            "last_event_id": last_event.event_id,
+            "last_event_type": last_event.event_type.value,
+            "causal_parent_id": last_event.causal_parent_id or "",
+            "stream_sequence": str(last_event.stream_sequence),
+        },
+    )
+
+
+def _finalize_stream_end(initial: RunState, reduced: RuntimeReplayResult, events: list[RuntimeEventEnvelope]) -> RuntimeReplayResult:
+    """Derive the conservative view only after the complete authoritative stream ends."""
+    journal = reduced.journal
+    manual: ManualInterventionRequired | None = None
+    for record in tuple(journal.records):
+        if record.status is OperationStatus.started:
+            _reservation(reduced.ledger, record.attempt_id)
+            journal = journal.mark_unknown(record.operation_id, record.attempt_id, "unknown_outcome")
+            record = journal._current(record.operation_id)
+            assert record is not None
+            manual = _manual_intervention(initial, record, events)
+        elif record.status is OperationStatus.outcome_unknown:
+            manual = _manual_intervention(initial, record, events)
+    return RuntimeReplayResult(reduced.run_state, reduced.ledger, journal, reduced.stream_sequence, reduced.stream_head, manual)
 
 
 def replay_runtime_events(
@@ -421,23 +410,19 @@ def replay_runtime_events(
     checkpoint: CoordinatedCheckpointV2 | None = None,
 ) -> RuntimeReplayResult:
     ordered = list(events)
-    previous = GENESIS_HASH
-    for sequence, event in enumerate(ordered, 1):
-        try:
-            RuntimeEventEnvelope.model_validate(event.model_dump(mode="json"))
-        except Exception as exc:
-            raise ValueError("runtime event envelope validation failed") from exc
-        if event.run_id != initial.run_id or event.stream_sequence != sequence or event.previous_event_hash != previous:
-            raise ValueError("runtime stream sequence/hash mismatch")
-        previous = event.event_hash
+    _validate_runtime_events(initial, ordered)
     if checkpoint is None:
-        return _replay_slice(initial, ordered, spec)
+        return _finalize_stream_end(initial, _reduce_slice(initial, ordered, spec), ordered)
+    try:
+        checkpoint = CoordinatedCheckpointV2.model_validate(checkpoint.model_dump(mode="json"))
+    except Exception as exc:
+        raise ValueError("coordinated checkpoint validation failed") from exc
     if checkpoint.run_id != initial.run_id or checkpoint.stream_sequence > len(ordered):
         raise ValueError("coordinated checkpoint mismatch")
-    prefix = _replay_slice(initial, ordered[: checkpoint.stream_sequence], spec)
+    prefix = _reduce_slice(initial, ordered[: checkpoint.stream_sequence], spec)
     if prefix.stream_head != checkpoint.stream_head or prefix.run_state != checkpoint.run_state or prefix.ledger != checkpoint.ledger or prefix.journal != checkpoint.journal:
         raise ValueError("coordinated checkpoint content mismatch")
-    return _replay_slice(
+    reduced = _reduce_slice(
         prefix.run_state,
         ordered[checkpoint.stream_sequence :],
         spec,
@@ -446,6 +431,7 @@ def replay_runtime_events(
         base_sequence=checkpoint.stream_sequence,
         base_head=checkpoint.stream_head,
     )
+    return _finalize_stream_end(initial, reduced, ordered)
 
 
 class CrashPoint(str, Enum):
@@ -479,8 +465,8 @@ class CrashSafeResult:
         return self.run_state.run_id
 
 
-class CrashSafeDispatcher:
-    """Narrow call boundary used by the formal v2 runtime path."""
+class _OperationInvoker:
+    """Internal call primitive; CrashSafeFakeHarness owns the durable protocol."""
 
     def __init__(self, provider: FakeProvider, tool: FakeTool) -> None:
         self.provider, self.tool = provider, tool
@@ -510,7 +496,7 @@ class CrashSafeFakeHarness:
         self.run_id = self.initial_state.run_id
         self.provider = FakeProvider(self.operations, self.clock)
         self.tool = FakeTool(self.operations, self.clock)
-        self.dispatcher = CrashSafeDispatcher(self.provider, self.tool)
+        self._invoker = _OperationInvoker(self.provider, self.tool)
         self._tempdir = tempfile.TemporaryDirectory() if path is None else None
         self.path = Path(path) if path is not None else Path(self._tempdir.name) / "runtime.jsonl"
 
@@ -561,8 +547,51 @@ class CrashSafeFakeHarness:
         for operation in self.operations:
             current = journal._current(operation.operation_id)
             if current and current.status is OperationStatus.succeeded:
+                succeeded = next(
+                    (
+                        event
+                        for event in reversed(events)
+                        if event.event_type is RuntimeEventType.operation_succeeded
+                        and event.operation_id == operation.operation_id
+                        and event.attempt_id == current.attempt_id
+                    ),
+                    None,
+                )
+                needs_replan = bool(succeeded) and (
+                    succeeded.payload.get("status") == "abstain"
+                    or (self.scenario == "insufficient_evidence" and not succeeded.payload.get("result_sha256"))
+                )
+                decision_exists = any(
+                    event.event_type is RuntimeEventType.replan_decided
+                    and event.causal_parent_id == (succeeded.event_id if succeeded else None)
+                    for event in events
+                )
+                if needs_replan and not decision_exists:
+                    decision = self.replan.admit(
+                        ordinal=ledger.replans,
+                        old_plan_id="dr-plan-old" if ledger.replans == 0 else "dr-plan-new",
+                        proposed_plan_id="dr-plan-new" if ledger.replans == 0 else "dr-plan-final",
+                        reason="grounding_rejected",
+                    )
+                    self._append(
+                        store,
+                        events,
+                        RuntimeEventType.replan_decided,
+                        payload=decision.model_dump(mode="json"),
+                        causal_parent_id=succeeded.event_id,
+                    )
+                    if not decision.admitted:
+                        terminal, error_code = "insufficient_evidence", "budget_exhausted"
+                        break
+                    ledger = ledger.record_replan(self.spec)
+                    if self.scenario == "insufficient_evidence":
+                        terminal, error_code = "insufficient_evidence", "grounding_rejected"
+                        break
                 continue
             if current and current.status is OperationStatus.outcome_unknown:
+                terminal, error_code = "failed", "unknown_outcome"
+                break
+            if current and current.status is OperationStatus.started:
                 terminal, error_code = "failed", "unknown_outcome"
                 break
             if self.token.cancelled:
@@ -576,6 +605,87 @@ class CrashSafeFakeHarness:
             if deadline is not None and self.clock.monotonic() >= deadline:
                 terminal, error_code = "failed", "run_deadline_exceeded"
                 break
+            if current and current.status is OperationStatus.failed_known:
+                remaining = (deadline - self.clock.monotonic()) if deadline is not None else None
+                if not current.error_code or not self.retry.allows(current.error_code, attempt_number=current.attempt_number, remaining_s=remaining, cancelled=self.token.cancelled):
+                    terminal, error_code = "failed", current.error_code or "tool_failure"
+                    break
+                next_attempt_number = current.attempt_number + 1
+                next_attempt = make_stable_id("attempt", {"operation_id": operation.operation_id, "attempt_number": next_attempt_number})
+                schedule = next(
+                    (
+                        event
+                        for event in events
+                        if event.event_type is RuntimeEventType.retry_scheduled
+                        and event.operation_id == operation.operation_id
+                        and event.attempt_id == current.attempt_id
+                        and event.payload.get("next_attempt_id") == next_attempt
+                    ),
+                    None,
+                )
+                if schedule is None:
+                    delay = self.retry.delay_for(current.attempt_number)
+                    self._append(
+                        store,
+                        events,
+                        RuntimeEventType.retry_scheduled,
+                        payload={
+                            "error_code": current.error_code,
+                            "backoff_s": delay,
+                            "next_attempt_id": next_attempt,
+                            "next_attempt_number": next_attempt_number,
+                        },
+                        operation_id=operation.operation_id,
+                        attempt_id=current.attempt_id,
+                    )
+                    self.clock.advance(delay)
+                    self._elapsed(store, events, origin, backoff_s=delay)
+                else:
+                    delay = float(schedule.payload.get("backoff_s", 0.0))
+                    schedule_index = events.index(schedule)
+                    backoff_recorded = any(
+                        event.event_type is RuntimeEventType.elapsed_recorded
+                        and event.stream_sequence > schedule.stream_sequence
+                        and float(event.payload.get("backoff_s", 0.0)) == delay
+                        for event in events[schedule_index + 1 :]
+                    )
+                    if not backoff_recorded and delay:
+                        self.clock.advance(delay)
+                        self._elapsed(store, events, origin, backoff_s=delay)
+                next_usage = operation.attempts[next_attempt_number - 1].usage
+                ledger, _ = ledger.reserve(
+                    self.spec,
+                    operation_id=operation.operation_id,
+                    attempt_id=next_attempt,
+                    kind=operation.kind,
+                    usage=next_usage,
+                )
+                journal = journal._update(
+                    operation.operation_id,
+                    current.attempt_id,
+                    attempt_id=next_attempt,
+                    attempt_number=next_attempt_number,
+                    status=OperationStatus.reserved,
+                    error_code=None,
+                    result_sha256=None,
+                )
+                if not any(event.event_type is RuntimeEventType.operation_reserved and event.attempt_id == next_attempt for event in events):
+                    self._append(
+                        store,
+                        events,
+                        RuntimeEventType.operation_reserved,
+                        payload={
+                            "operation_kind": operation.kind.value,
+                            "operation_name": operation.name,
+                            "attempt_number": next_attempt_number,
+                            "idempotent": operation.idempotent,
+                            "side_effecting": operation.side_effecting,
+                            "usage": next_usage.model_dump(mode="json"),
+                        },
+                        operation_id=operation.operation_id,
+                        attempt_id=next_attempt,
+                    )
+                current = journal._current(operation.operation_id)
             if current is None:
                 record = journal.plan(operation_id=operation.operation_id, kind=operation.kind, name=operation.name, idempotent=operation.idempotent, side_effecting=operation.side_effecting)
                 journal = journal.add(record)
@@ -608,19 +718,12 @@ class CrashSafeFakeHarness:
                 dispatched_event = self._append(store, events, RuntimeEventType.operation_dispatched, payload={"operation_kind": operation.kind.value, "operation_name": operation.name, "attempt_number": attempt_number, "effective_timeout_s": effective_timeout}, operation_id=operation.operation_id, attempt_id=attempt_id, causal_parent_id=parent)
                 if crash_at is CrashPoint.after_dispatched:
                     raise DispatchInterrupted("interrupted after durable dispatch")
-                response = asyncio.run(self.dispatcher.dispatch(operation, attempt_id=attempt_id, timeout_s=effective_timeout))
+                response = asyncio.run(self._invoker.dispatch(operation, attempt_id=attempt_id, timeout_s=effective_timeout))
                 if crash_at is CrashPoint.after_provider_call:
                     raise DispatchInterrupted("interrupted after provider/tool call")
                 usage = response.usage
                 if response.status == "unknown":
                     self._append(store, events, RuntimeEventType.operation_unknown, payload={"error_code": "unknown_outcome", "attempt_number": attempt_number, "usage": usage.model_dump(mode="json")}, operation_id=operation.operation_id, attempt_id=attempt_id, causal_parent_id=dispatched_event.event_id)
-                    ledger = _uncertain_charge(
-                        ledger,
-                        reservation,
-                        self.spec,
-                        usage,
-                        attempt_number=attempt_number,
-                    )
                     journal = journal.mark_unknown(operation.operation_id, attempt_id, "unknown_outcome")
                     terminal, error_code = "failed", "unknown_outcome"
                     self._elapsed(store, events, origin)
@@ -717,7 +820,7 @@ class CrashSafeFakeHarness:
                 state = self._lifecycle(store, events, state, RunStatus.failed, reason=str(error_code))
         final_events = tuple(store.read_all())
         replayed = replay_runtime_events(self.initial_state, final_events, self.spec)
-        checkpoint = CoordinatedCheckpointV2.from_result(replayed)
+        checkpoint = CoordinatedCheckpointV2.from_result(reduce_runtime_events(self.initial_state, final_events, self.spec))
         write_coordinated_checkpoint(self.path.with_suffix(".checkpoint.json"), checkpoint)
         typed_error = ErrorCode(error_code) if error_code is not None else None
         return CrashSafeResult(terminal, typed_error, replayed.run_state, replayed.ledger, replayed.journal, final_events, sum(item.event_type is RuntimeEventType.operation_dispatched for item in final_events), checkpoint, self.initial_state, self.spec, tuple(effective_samples), replayed.manual_intervention)
