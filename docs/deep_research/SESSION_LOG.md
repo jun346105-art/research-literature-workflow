@@ -9,8 +9,8 @@
 | S02 | 单独修复 NumPy / PyMuPDF 依赖可复现性 | completed |
 | S03 | 冻结目标架构与关键 ADR | completed (combined DR-S03/DR-S04 batch) |
 | S04 | 冻结实验与数据治理协议 | completed (combined DR-S03/DR-S04 batch) |
-| S05 | 定义 ResearchTask / Brief / Subtask schema | not_started |
-| S06 | 定义 Source / EvidenceUnit / Claim / Citation schema | not_started |
+| S05 | 定义 ResearchTask / Brief / Subtask schema | completed (B01 DR-S05/S06 batch) |
+| S06 | 定义 Source / EvidenceUnit / Claim / Citation schema | completed (B01 DR-S05/S06 batch) |
 | S07 | 定义 RunState 和显式状态机 | not_started |
 | S08 | 扩展 durable event / checkpoint / replay | not_started |
 | S09 | 建立预算、超时、取消与 retry policy | not_started |

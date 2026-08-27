@@ -1,0 +1,798 @@
+{
+  "$defs": {
+    "BriefApproval": {
+      "additionalProperties": false,
+      "description": "Auditable approval event without a runtime boolean shortcut.",
+      "properties": {
+        "actor": {
+          "description": "Human decision maker identifier.",
+          "minLength": 1,
+          "title": "Actor",
+          "type": "string"
+        },
+        "approval_id": {
+          "description": "Program-generated deterministic approval record ID.",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "brief_id": {
+          "description": "Approved or rejected brief ID.",
+          "title": "Brief Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "decided_at": {
+          "description": "Timezone-aware UTC decision time.",
+          "format": "date-time",
+          "title": "Decided At",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional decision rationale.",
+          "title": "Reason"
+        },
+        "status": {
+          "$ref": "#/$defs/BriefApprovalStatus",
+          "description": "Recorded approval decision."
+        },
+        "task_id": {
+          "description": "Owning task ID.",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "brief_id",
+        "task_id",
+        "status",
+        "actor",
+        "decided_at"
+      ],
+      "title": "BriefApproval",
+      "type": "object"
+    },
+    "BriefApprovalStatus": {
+      "enum": [
+        "draft",
+        "approved",
+        "rejected"
+      ],
+      "title": "BriefApprovalStatus",
+      "type": "string"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "description": "Reference from a claim to existing evidence; semantic validity is later work.",
+      "properties": {
+        "citation_id": {
+          "description": "Program-generated deterministic citation ID.",
+          "title": "Citation Id",
+          "type": "string"
+        },
+        "claim_id": {
+          "description": "Referenced claim ID.",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "evidence_id": {
+          "description": "Referenced evidence ID.",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional verbatim quote from the evidence content.",
+          "title": "Quote"
+        },
+        "quote_span_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional exclusive quote span end.",
+          "title": "Quote Span End"
+        },
+        "quote_span_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional inclusive quote span start.",
+          "title": "Quote Span Start"
+        },
+        "relation": {
+          "$ref": "#/$defs/CitationRelation",
+          "description": "Declared evidence relation."
+        }
+      },
+      "required": [
+        "citation_id",
+        "claim_id",
+        "evidence_id",
+        "relation"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "CitationRelation": {
+      "enum": [
+        "support",
+        "contradict",
+        "context"
+      ],
+      "title": "CitationRelation",
+      "type": "string"
+    },
+    "Claim": {
+      "additionalProperties": false,
+      "description": "Task-local assertion without embedded citation objects or validation status.",
+      "properties": {
+        "claim_id": {
+          "description": "Program-generated deterministic claim ID.",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "claim_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional claim category.",
+          "title": "Claim Type"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "entities": {
+          "default": [],
+          "description": "Optional referenced entity labels.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "language": {
+          "description": "Claim language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "Owning task ID.",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "text": {
+          "description": "Claim text.",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "task_id",
+        "text",
+        "language"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "EvidenceLocator": {
+      "additionalProperties": false,
+      "description": "Locator for current text and future page-region evidence without extraction code.",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional planned region coordinates x0,y0,x1,y1.",
+          "title": "Bbox"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "coordinate_space": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Coordinate-space name required with bbox.",
+          "title": "Coordinate Space"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional one-based source page number.",
+          "title": "Page Number"
+        },
+        "passage_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional stable passage or chunk identity.",
+          "title": "Passage Id"
+        },
+        "span_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional exclusive text span end.",
+          "title": "Span End"
+        },
+        "span_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional inclusive text span start.",
+          "title": "Span Start"
+        }
+      },
+      "title": "EvidenceLocator",
+      "type": "object"
+    },
+    "EvidenceModality": {
+      "enum": [
+        "text",
+        "image_region",
+        "table_region"
+      ],
+      "title": "EvidenceModality",
+      "type": "string"
+    },
+    "EvidenceUnit": {
+      "additionalProperties": false,
+      "description": "Verbatim, groundable evidence; derived interpretation belongs in Claim.",
+      "properties": {
+        "content_sha256": {
+          "description": "SHA-256 of verbatim content.",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "evidence_id": {
+          "description": "Program-generated deterministic evidence ID.",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "language": {
+          "description": "Evidence language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/EvidenceLocator",
+          "description": "Evidence location in the source."
+        },
+        "modality": {
+          "$ref": "#/$defs/EvidenceModality",
+          "description": "Evidence modality; regions are planned contract support."
+        },
+        "provenance_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Controlled provenance metadata without private paths.",
+          "title": "Provenance Metadata",
+          "type": "object"
+        },
+        "source_id": {
+          "description": "Referenced source ID.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "verbatim_content": {
+          "description": "Verbatim groundable evidence content.",
+          "minLength": 1,
+          "title": "Verbatim Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "source_id",
+        "modality",
+        "locator",
+        "verbatim_content",
+        "content_sha256",
+        "language"
+      ],
+      "title": "EvidenceUnit",
+      "type": "object"
+    },
+    "ResearchBrief": {
+      "additionalProperties": false,
+      "description": "Versioned brief whose execution approval is represented separately.",
+      "properties": {
+        "approval_status": {
+          "$ref": "#/$defs/BriefApprovalStatus",
+          "description": "Current auditable approval state."
+        },
+        "brief_id": {
+          "description": "Program-generated deterministic brief ID.",
+          "title": "Brief Id",
+          "type": "string"
+        },
+        "constraints": {
+          "default": [],
+          "description": "Additional execution constraints.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "deliverable": {
+          "description": "Expected brief deliverable.",
+          "minLength": 1,
+          "title": "Deliverable",
+          "type": "string"
+        },
+        "objective": {
+          "description": "Research objective.",
+          "minLength": 1,
+          "title": "Objective",
+          "type": "string"
+        },
+        "scope_exclusions": {
+          "default": [],
+          "description": "Explicit excluded items.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Exclusions",
+          "type": "array"
+        },
+        "scope_inclusions": {
+          "default": [],
+          "description": "Explicit in-scope items.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Inclusions",
+          "type": "array"
+        },
+        "success_criteria": {
+          "default": [],
+          "description": "Observable brief success criteria.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Success Criteria",
+          "type": "array"
+        },
+        "task_id": {
+          "description": "Owning task ID.",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "brief_id",
+        "task_id",
+        "objective",
+        "deliverable",
+        "approval_status"
+      ],
+      "title": "ResearchBrief",
+      "type": "object"
+    },
+    "ResearchSubtask": {
+      "additionalProperties": false,
+      "description": "Task-local research question with declarative DAG dependencies only.",
+      "properties": {
+        "completion_criteria": {
+          "default": [],
+          "description": "Observable subtask completion criteria.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Completion Criteria",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "default": [],
+          "description": "Required predecessor subtask IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "expected_evidence": {
+          "default": [],
+          "description": "Expected evidence categories.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Evidence",
+          "type": "array"
+        },
+        "question": {
+          "description": "Subtask research question.",
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why the subtask is needed.",
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "subtask_id": {
+          "description": "Program-generated deterministic subtask ID.",
+          "title": "Subtask Id",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "Owning task ID.",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subtask_id",
+        "task_id",
+        "question",
+        "rationale"
+      ],
+      "title": "ResearchSubtask",
+      "type": "object"
+    },
+    "ResearchTask": {
+      "additionalProperties": false,
+      "description": "User-scoped research task; execution state is intentionally absent.",
+      "properties": {
+        "constraints": {
+          "default": [],
+          "description": "User-provided research boundaries.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "created_at": {
+          "description": "Timezone-aware UTC task creation time.",
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "deliverable_type": {
+          "description": "Requested deliverable category.",
+          "minLength": 1,
+          "title": "Deliverable Type",
+          "type": "string"
+        },
+        "locale": {
+          "description": "BCP-47-like task locale.",
+          "title": "Locale",
+          "type": "string"
+        },
+        "original_question": {
+          "description": "Original user research question.",
+          "minLength": 1,
+          "title": "Original Question",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "Program-generated deterministic task ID.",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "original_question",
+        "locale",
+        "created_at",
+        "deliverable_type"
+      ],
+      "title": "ResearchTask",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Portable source identity without a private filesystem path.",
+      "properties": {
+        "bibliographic_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Controlled portable bibliographic fields.",
+          "title": "Bibliographic Metadata",
+          "type": "object"
+        },
+        "canonical_reference": {
+          "description": "Portable DOI, URL, paper key or content reference.",
+          "minLength": 1,
+          "title": "Canonical Reference",
+          "type": "string"
+        },
+        "content_sha256": {
+          "description": "SHA-256 identity of source content.",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind",
+          "description": "Source category; Web is contract-only in B01."
+        },
+        "language": {
+          "description": "Source language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional timezone-aware UTC publication time.",
+          "title": "Published At"
+        },
+        "source_id": {
+          "description": "Program-generated deterministic source ID.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Source title.",
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "kind",
+        "canonical_reference",
+        "title",
+        "content_sha256",
+        "language"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceKind": {
+      "enum": [
+        "local_pdf",
+        "passage_corpus",
+        "web"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Cross-object validation boundary for a single task contract graph.",
+  "properties": {
+    "brief": {
+      "$ref": "#/$defs/ResearchBrief",
+      "description": "Task research brief."
+    },
+    "brief_approvals": {
+      "default": [],
+      "description": "Auditable brief decisions.",
+      "items": {
+        "$ref": "#/$defs/BriefApproval"
+      },
+      "title": "Brief Approvals",
+      "type": "array"
+    },
+    "citations": {
+      "default": [],
+      "description": "Claim to evidence references.",
+      "items": {
+        "$ref": "#/$defs/Citation"
+      },
+      "title": "Citations",
+      "type": "array"
+    },
+    "claims": {
+      "default": [],
+      "description": "Task-local claims.",
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "evidence_units": {
+      "default": [],
+      "description": "Groundable evidence units.",
+      "items": {
+        "$ref": "#/$defs/EvidenceUnit"
+      },
+      "title": "Evidence Units",
+      "type": "array"
+    },
+    "sources": {
+      "default": [],
+      "description": "Known portable sources.",
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "subtasks": {
+      "default": [],
+      "description": "Task-local dependency DAG.",
+      "items": {
+        "$ref": "#/$defs/ResearchSubtask"
+      },
+      "title": "Subtasks",
+      "type": "array"
+    },
+    "task": {
+      "$ref": "#/$defs/ResearchTask",
+      "description": "Single owning research task."
+    }
+  },
+  "required": [
+    "task",
+    "brief"
+  ],
+  "title": "ContractBundle",
+  "type": "object"
+}
