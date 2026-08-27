@@ -41,3 +41,28 @@ def write_runtime_schemas(output_dir: Path) -> dict[str, Path]:
             handle.write(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n")
         written[name] = target
     return written
+
+
+def write_policy_schemas(output_dir: Path) -> dict[str, Path]:
+    from .budgets import BudgetLedger, BudgetSpec
+    from .events import PolicyEvent
+    from .operations import OperationJournal, OperationRecord
+    from .policies import ReplanDecision, ReplanPolicy, RetryPolicy
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    schemas = {
+        "budget_spec.schema.json": BudgetSpec,
+        "budget_ledger.schema.json": BudgetLedger,
+        "policy_event.schema.json": PolicyEvent,
+        "operation_record.schema.json": OperationRecord,
+        "operation_journal.schema.json": OperationJournal,
+        "retry_policy.schema.json": RetryPolicy,
+        "replan_policy.schema.json": ReplanPolicy,
+        "replan_decision.schema.json": ReplanDecision,
+    }
+    written: dict[str, Path] = {}
+    for name, model in schemas.items():
+        target = output_dir / name
+        target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        written[name] = target
+    return written

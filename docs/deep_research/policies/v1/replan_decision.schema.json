@@ -1,0 +1,72 @@
+{
+  "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "transient_provider",
+        "rate_limited",
+        "operation_timeout",
+        "run_deadline_exceeded",
+        "budget_exhausted",
+        "cancelled",
+        "contract_invalid",
+        "grounding_rejected",
+        "permanent_provider",
+        "tool_failure",
+        "unknown_outcome",
+        "internal_invariant_violation"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "admitted": {
+      "title": "Admitted",
+      "type": "boolean"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "old_plan_id": {
+      "title": "Old Plan Id",
+      "type": "string"
+    },
+    "ordinal": {
+      "title": "Ordinal",
+      "type": "integer"
+    },
+    "proposed_plan_id": {
+      "title": "Proposed Plan Id",
+      "type": "string"
+    },
+    "reason": {
+      "$ref": "#/$defs/ErrorCode"
+    },
+    "rejected_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rejected Reason"
+    }
+  },
+  "required": [
+    "admitted",
+    "ordinal",
+    "reason",
+    "old_plan_id",
+    "proposed_plan_id"
+  ],
+  "title": "ReplanDecision",
+  "type": "object"
+}

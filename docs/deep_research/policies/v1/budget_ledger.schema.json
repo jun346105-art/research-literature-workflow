@@ -1,0 +1,250 @@
+{
+  "$defs": {
+    "BudgetCharge": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "attempt_number": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Attempt Number",
+          "type": "integer"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "outcome": {
+          "title": "Outcome",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/TokenUsage"
+        }
+      },
+      "required": [
+        "operation_id",
+        "attempt_id",
+        "kind",
+        "outcome",
+        "usage"
+      ],
+      "title": "BudgetCharge",
+      "type": "object"
+    },
+    "BudgetReservation": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation_id": {
+          "title": "Operation Id",
+          "type": "string"
+        },
+        "usage": {
+          "$ref": "#/$defs/TokenUsage"
+        }
+      },
+      "required": [
+        "operation_id",
+        "attempt_id",
+        "kind",
+        "usage"
+      ],
+      "title": "BudgetReservation",
+      "type": "object"
+    },
+    "TokenUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "cost_micros": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Cost Micros"
+        },
+        "input_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        }
+      },
+      "title": "TokenUsage",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "charges": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BudgetCharge"
+      },
+      "title": "Charges",
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "cost_micros": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "default": "0",
+      "title": "Cost Micros"
+    },
+    "elapsed_s": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Elapsed S",
+      "type": "number"
+    },
+    "input_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Input Tokens",
+      "type": "integer"
+    },
+    "output_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Output Tokens",
+      "type": "integer"
+    },
+    "policy_version": {
+      "default": "dr-policies-v1",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "provider_attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Provider Attempts",
+      "type": "integer"
+    },
+    "provider_calls": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Provider Calls",
+      "type": "integer"
+    },
+    "provider_succeeded": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Provider Succeeded",
+      "type": "integer"
+    },
+    "replans": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Replans",
+      "type": "integer"
+    },
+    "reservations": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BudgetReservation"
+      },
+      "title": "Reservations",
+      "type": "array"
+    },
+    "retries": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Retries",
+      "type": "integer"
+    },
+    "tool_attempts": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tool Attempts",
+      "type": "integer"
+    },
+    "tool_calls": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tool Calls",
+      "type": "integer"
+    },
+    "tool_succeeded": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Tool Succeeded",
+      "type": "integer"
+    },
+    "total_tokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Total Tokens",
+      "type": "integer"
+    }
+  },
+  "title": "BudgetLedger",
+  "type": "object"
+}

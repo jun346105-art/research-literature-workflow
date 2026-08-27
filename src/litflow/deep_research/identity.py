@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 
-ID_PREFIXES = frozenset({"task", "brief", "approval", "subtask", "source", "evidence", "claim", "citation", "run", "event"})
+ID_PREFIXES = frozenset({"task", "brief", "approval", "subtask", "source", "evidence", "claim", "citation", "run", "event", "operation", "attempt", "plan", "policy"})
 ID_HEX_LENGTH = 24
 
 

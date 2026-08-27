@@ -1,0 +1,103 @@
+{
+  "$defs": {
+    "OperationKind": {
+      "enum": [
+        "provider",
+        "tool"
+      ],
+      "title": "OperationKind",
+      "type": "string"
+    },
+    "OperationStatus": {
+      "enum": [
+        "planned",
+        "reserved",
+        "started",
+        "succeeded",
+        "failed_known",
+        "outcome_unknown",
+        "cancelled_before_dispatch"
+      ],
+      "title": "OperationStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "attempt_number": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Attempt Number",
+      "type": "integer"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "idempotent": {
+      "title": "Idempotent",
+      "type": "boolean"
+    },
+    "kind": {
+      "$ref": "#/$defs/OperationKind"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "operation_id": {
+      "title": "Operation Id",
+      "type": "string"
+    },
+    "result_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Sha256"
+    },
+    "side_effecting": {
+      "title": "Side Effecting",
+      "type": "boolean"
+    },
+    "status": {
+      "$ref": "#/$defs/OperationStatus",
+      "default": "planned"
+    }
+  },
+  "required": [
+    "operation_id",
+    "attempt_id",
+    "kind",
+    "name",
+    "idempotent",
+    "side_effecting"
+  ],
+  "title": "OperationRecord",
+  "type": "object"
+}

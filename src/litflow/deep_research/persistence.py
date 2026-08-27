@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import Field,model_validator
 from .contracts import ContractModel
 from .identity import canonical_json,sha256_hex
-from .events import RunEvent
+from .events import GENESIS_HASH, PolicyEvent, RunEvent
 from .state import RunState,RUNTIME_VERSION
 
 class EventStore:
@@ -57,3 +57,46 @@ def write_checkpoint(path:Path,checkpoint:Checkpoint)->None:
     except Exception:
         temp.unlink(missing_ok=True); raise
 def read_checkpoint(path:Path)->Checkpoint: return Checkpoint.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+class PolicyEventStore:
+    """Append-only JSONL store for policy facts, separate from B02 lifecycle events."""
+    def __init__(self, path: Path, *, run_id: str) -> None:
+        self.path, self.run_id = path, run_id
+
+    def read_all(self) -> list[PolicyEvent]:
+        if not self.path.exists():
+            return []
+        data = self.path.read_bytes()
+        if data and not data.endswith(b"\n"):
+            raise ValueError("policy event JSONL has an incomplete final line")
+        events: list[PolicyEvent] = []
+        for line in data.decode("utf-8").splitlines():
+            try:
+                events.append(PolicyEvent.model_validate_json(line))
+            except Exception as exc:
+                raise ValueError("policy event JSONL is invalid JSON") from exc
+        self._verify(events)
+        return events
+
+    def append(self, event: PolicyEvent) -> None:
+        events = self.read_all()
+        if event.run_id != self.run_id:
+            raise ValueError("policy event run_id mismatch")
+        if any(item.event_id == event.event_id for item in events):
+            raise ValueError("duplicate policy event")
+        self._verify(events + [event])
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8", newline="\n") as handle:
+            handle.write(canonical_json(event.model_dump(mode="json")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def _verify(self, events: list[PolicyEvent]) -> None:
+        previous = GENESIS_HASH
+        for index, event in enumerate(events, 1):
+            if event.run_id != self.run_id or event.sequence != index:
+                raise ValueError("policy event sequence/run mismatch")
+            if event.previous_event_hash != previous:
+                raise ValueError("policy event hash chain mismatch")
+            previous = event.event_hash
