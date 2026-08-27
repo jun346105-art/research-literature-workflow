@@ -5,7 +5,7 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B01 / DR-S05-S06`（Domain Contracts v1）
+- 当前 Session：`B02 / DR-S07-S08`（Durable Runtime Kernel v1）
 - 当前简历状态：`not_ready`
 
 按以下顺序使用这些文件：
@@ -17,7 +17,8 @@
 5. [DR-S03/S04 执行单](sessions/DR-S03-S04.md)：架构与实验治理冻结规则。
 6. [目标架构](ARCHITECTURE.md)、[参考模式取舍](REFERENCE_PATTERN_DECISIONS.md)、[实验治理](EXPERIMENT_GOVERNANCE.md) 和 [实施节奏](IMPLEMENTATION_CADENCE.md)：S05 前的可实施合同。
 7. [B01 执行单](sessions/B01-DR-S05-S06.md)、[Contracts v1](CONTRACTS_V1.md) 与 [Schema](contracts/v1/README.md)：离线领域合同与稳定导出。
-8. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+8. [B02 执行单](sessions/B02-DR-S07-S08.md)、[Runtime Kernel v1](RUNTIME_KERNEL_V1.md) 与 [runtime schema](runtime/v1/README.md)：离线状态、事件、checkpoint 和 replay 合同。
+9. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
 9. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
 10. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
 11. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。

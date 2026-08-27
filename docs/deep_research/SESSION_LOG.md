@@ -11,8 +11,8 @@
 | S04 | 冻结实验与数据治理协议 | completed (combined DR-S03/DR-S04 batch) |
 | S05 | 定义 ResearchTask / Brief / Subtask schema | completed (B01 DR-S05/S06 batch) |
 | S06 | 定义 Source / EvidenceUnit / Claim / Citation schema | completed (B01 DR-S05/S06 batch) |
-| S07 | 定义 RunState 和显式状态机 | not_started |
-| S08 | 扩展 durable event / checkpoint / replay | not_started |
+| S07 | 定义 RunState 和显式状态机 | completed (B02 DR-S07/S08 batch) |
+| S08 | 扩展 durable event / checkpoint / replay | completed (B02 DR-S07/S08 batch) |
 | S09 | 建立预算、超时、取消与 retry policy | not_started |
 | S10 | 建立 Fake provider 与 Fake tools E2E harness | not_started |
 | S11 | 实现 Research Brief 生成与人工确认 | not_started |

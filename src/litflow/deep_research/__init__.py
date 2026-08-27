@@ -16,6 +16,7 @@ from .contracts import (
     Source,
     SourceKind,
 )
+from .state import RunState, RunStatus, TransitionError
 
 __all__ = [
     "BriefApproval",
@@ -32,4 +33,7 @@ __all__ = [
     "ResearchTask",
     "Source",
     "SourceKind",
+    "RunState",
+    "RunStatus",
+    "TransitionError",
 ]

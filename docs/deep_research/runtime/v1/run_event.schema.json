@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "RunStatus": {
+      "enum": [
+        "brief_pending",
+        "brief_approved",
+        "researching",
+        "validating",
+        "complete",
+        "insufficient_evidence",
+        "failed"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "event_hash": {
+      "description": "SHA-256 of canonical event content excluding event_hash.",
+      "title": "Event Hash",
+      "type": "string"
+    },
+    "event_id": {
+      "description": "Program-generated deterministic event ID.",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "from_status": {
+      "$ref": "#/$defs/RunStatus",
+      "description": "Prior lifecycle state."
+    },
+    "occurred_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional UTC audit metadata excluded from identity.",
+      "title": "Occurred At"
+    },
+    "previous_event_hash": {
+      "description": "Genesis or prior event hash.",
+      "title": "Previous Event Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "description": "Owning run ID.",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime_version": {
+      "default": "dr-runtime-v1",
+      "description": "Runtime event version.",
+      "title": "Runtime Version",
+      "type": "string"
+    },
+    "sequence": {
+      "description": "Continuous one-based event sequence.",
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "terminal_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Terminal reason when applicable.",
+      "title": "Terminal Reason"
+    },
+    "to_status": {
+      "$ref": "#/$defs/RunStatus",
+      "description": "Next lifecycle state."
+    }
+  },
+  "required": [
+    "event_id",
+    "run_id",
+    "sequence",
+    "from_status",
+    "to_status",
+    "previous_event_hash",
+    "event_hash"
+  ],
+  "title": "RunEvent",
+  "type": "object"
+}

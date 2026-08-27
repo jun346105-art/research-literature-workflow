@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "RunState": {
+      "additionalProperties": false,
+      "properties": {
+        "applied_event_count": {
+          "default": 0,
+          "description": "Applied durable event count.",
+          "minimum": 0,
+          "title": "Applied Event Count",
+          "type": "integer"
+        },
+        "brief_approved": {
+          "description": "Verified brief approval reference state.",
+          "title": "Brief Approved",
+          "type": "boolean"
+        },
+        "brief_id": {
+          "description": "Referenced B01 brief ID.",
+          "title": "Brief Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "event_head": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Last durable event hash.",
+          "title": "Event Head"
+        },
+        "run_id": {
+          "description": "Program-generated deterministic run ID.",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "runtime_version": {
+          "default": "dr-runtime-v1",
+          "description": "Runtime kernel version.",
+          "title": "Runtime Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus",
+          "default": "brief_pending",
+          "description": "Explicit lifecycle status."
+        },
+        "task_id": {
+          "description": "Referenced B01 task ID.",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "terminal_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Structured terminal reason label.",
+          "title": "Terminal Reason"
+        }
+      },
+      "required": [
+        "run_id",
+        "task_id",
+        "brief_id",
+        "brief_approved"
+      ],
+      "title": "RunState",
+      "type": "object"
+    },
+    "RunStatus": {
+      "enum": [
+        "brief_pending",
+        "brief_approved",
+        "researching",
+        "validating",
+        "complete",
+        "insufficient_evidence",
+        "failed"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "applied_sequence": {
+      "description": "Last applied event sequence.",
+      "minimum": 0,
+      "title": "Applied Sequence",
+      "type": "integer"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "event_head": {
+      "description": "Hash at applied sequence or genesis.",
+      "title": "Event Head",
+      "type": "string"
+    },
+    "run_id": {
+      "description": "Owning run ID.",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime_version": {
+      "default": "dr-runtime-v1",
+      "description": "Runtime checkpoint version.",
+      "title": "Runtime Version",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/RunState",
+      "description": "Derived state snapshot."
+    },
+    "state_hash": {
+      "description": "Canonical state SHA-256.",
+      "title": "State Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "applied_sequence",
+    "event_head",
+    "state",
+    "state_hash"
+  ],
+  "title": "Checkpoint",
+  "type": "object"
+}
