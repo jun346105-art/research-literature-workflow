@@ -21,6 +21,7 @@
 9. [B03 执行单](sessions/B03-DR-S09-S10.md)、[Execution Policies v1](EXECUTION_POLICIES_V1.md)、[Fake E2E v1](FAKE_E2E_V1.md) 与 [policy schema](policies/v1/README.md)：预算、deadline、取消、retry、replan、journal 和离线确定性测试台。
 10. [B03R Unified Runtime v2](B03R_UNIFIED_RUNTIME_V2.md) 与 [runtime schema v2](runtime/v2/README.md)：单一 ordered event stream、crash-safe dispatch、canonical hash、coordinated checkpoint 和 fail-closed unknown outcome。
 11. [B03R2 Replay Boundaries](B03R2_REPLAY_BOUNDARIES.md)：事实 reducer、流尾 unknown finalization、retry/replan 恢复、checkpoint trust 和受控入口。
+12. [Gate A Canary Design](GATE_A_CANARY_DESIGN_V1.md) 与 [B08/S19 设计记录](sessions/B08-DR-S19-CANARY-DESIGN.md)：普通模型 API 设计冻结，不含 execute 授权。
 12. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
 13. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
 14. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
