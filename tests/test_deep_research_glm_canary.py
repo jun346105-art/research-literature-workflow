@@ -558,3 +558,15 @@ def test_v12_execution_plan_schema_is_byte_stable(tmp_path):
     written = write_glm_canary_schema_v12(tmp_path)
     committed = Path("docs/deep_research/canary/v1.2/canary_execution_plan.schema.json")
     assert written.read_bytes() == committed.read_bytes()
+
+
+def test_committed_v12_plan_has_a_new_deterministic_run_identity_without_a_credential(tmp_path):
+    from litflow.deep_research.canary import GLMCanaryPlanV12, GLMCanaryRunner, parse_glm_canary_plan
+
+    plan_path = Path("docs/deep_research/canary/v1.2/canary_execution_plan.example.json")
+    plan = parse_glm_canary_plan(json.loads(plan_path.read_text(encoding="utf-8")))
+    assert isinstance(plan, GLMCanaryPlanV12)
+    runner = GLMCanaryRunner(plan, tmp_path / "second-canary", transport=lambda **_kwargs: None)
+    assert runner.run_id == "dr-run-e195b665d03ebf536d0bc63d"
+    assert runner.run_id != "dr-run-dc27b7d035bba74e18f4c7f3"
+    assert runner.preflight() == plan
