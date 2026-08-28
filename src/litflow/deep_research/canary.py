@@ -14,7 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from .budgets import BudgetLedger, BudgetSpec, TokenUsage
 from .errors import ErrorCode, ManualInterventionRequired
@@ -37,6 +37,16 @@ from .state import RunState, RunStatus, transition
 GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 GLM_MODEL = "glm-5.3-flash"
 _PROMPT = "Return only JSON with status ok, provider zhipu_bigmodel, and model glm-5.3-flash."
+
+
+class _CanaryAcknowledgement(BaseModel):
+    """Private application contract for the fixed text-only Canary acknowledgement."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True, strict=True)
+
+    status: Literal["ok"]
+    provider: Literal["zhipu_bigmodel"]
+    model: Literal[GLM_MODEL]
 
 
 class CanaryConfigurationError(ValueError):
@@ -166,6 +176,12 @@ class _AdapterDiagnostics:
     usage_inconsistent: bool = False
     cost_verification: str = "unavailable"
     cost_audit_complete: bool = False
+    application_error_type: str | None = None
+    application_error_location: str | None = None
+    application_observed_keys: tuple[str, ...] = ()
+    application_observed_value_types: tuple[str, ...] = ()
+    content_length: int = 0
+    content_sha256: str | None = None
 
     def artifact(self) -> dict[str, object]:
         return {
@@ -184,10 +200,17 @@ class _AdapterDiagnostics:
             "usage_inconsistent": self.usage_inconsistent,
             "cost_verification": self.cost_verification,
             "cost_audit_complete": self.cost_audit_complete,
+            "application_error_type": self.application_error_type,
+            "application_error_location": self.application_error_location,
+            "application_observed_keys": list(self.application_observed_keys),
+            "application_observed_value_types": list(self.application_observed_value_types),
+            "content_length": self.content_length,
+            "content_sha256": self.content_sha256,
         }
 
 
 _SAFE_RESPONSE_KEYS = frozenset({"choices", "error", "id", "model", "request_id", "usage"})
+_APPLICATION_FIELDS = frozenset({"status", "provider", "model"})
 
 
 def _diagnostics_for_payload(*, status: int, payload: object) -> _AdapterDiagnostics:
@@ -198,6 +221,35 @@ def _diagnostics_for_payload(*, status: int, payload: object) -> _AdapterDiagnos
         observed_type="object" if isinstance(payload, dict) else type(payload).__name__,
         observed_keys=tuple(sorted(key for key in payload if isinstance(key, str) and key in _SAFE_RESPONSE_KEYS)) if isinstance(payload, dict) else (),
     )
+
+
+def _application_shape(payload: object) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Expose only allowlisted application shape facts, never values or unknown field names."""
+    if not isinstance(payload, dict):
+        return (), ()
+    keys: set[str] = set()
+    value_types: set[str] = set()
+    for key, value in payload.items():
+        label = key if isinstance(key, str) and key in _APPLICATION_FIELDS else "other"
+        keys.add(label)
+        value_types.add(f"{label}:{type(value).__name__}")
+    return tuple(sorted(keys)), tuple(sorted(value_types))
+
+
+def _application_diagnostics(content: str, payload: object, error: ValidationError | None = None) -> dict[str, object]:
+    keys, value_types = _application_shape(payload)
+    data: dict[str, object] = {
+        "application_observed_keys": keys,
+        "application_observed_value_types": value_types,
+        "content_length": len(content),
+        "content_sha256": sha256_hex(content.encode("utf-8")),
+    }
+    if error is not None:
+        first = error.errors(include_input=False)[0]
+        location = first.get("loc", ())
+        data["application_error_type"] = str(first.get("type"))
+        data["application_error_location"] = ".".join(str(part) for part in location if str(part) in _APPLICATION_FIELDS) or "root"
+    return data
 
 
 @dataclass(frozen=True)
@@ -326,8 +378,16 @@ class _GLMTextOnlyAdapter:
             structured = json.loads(content)
         except json.JSONDecodeError:
             structured = None
-        application_valid = structured == {"status": "ok", "provider": "zhipu_bigmodel", "model": GLM_MODEL}
-        diagnostics = _AdapterDiagnostics(**{**diagnostics.__dict__, "application_json_valid": application_valid})
+        application_data = _application_diagnostics(content, structured)
+        application_error: ValidationError | None = None
+        if structured is not None:
+            try:
+                _CanaryAcknowledgement.model_validate(structured)
+            except ValidationError as error:
+                application_error = error
+                application_data = _application_diagnostics(content, structured, error)
+        application_valid = structured is not None and application_error is None
+        diagnostics = _AdapterDiagnostics(**{**diagnostics.__dict__, "application_json_valid": application_valid, **application_data})
         if not model_verified:
             return _ProviderResult("failed", content=content, error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": "model_identity_unverified", "expected_field": "model"}))
         if structured is None:

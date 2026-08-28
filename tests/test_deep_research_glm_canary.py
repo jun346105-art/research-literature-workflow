@@ -83,23 +83,27 @@ def test_glm_runner_records_only_after_durable_reserve_and_dispatch(tmp_path, mo
     assert result.events[-1].event_type.value == "lifecycle_transition"
     assert json.loads((tmp_path / "canary" / "replay_verification.json").read_text(encoding="utf-8"))["full_replay_matches"] is True
     diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
-    assert diagnostics == {
-        "contract_error_code": None,
-        "application_json_valid": True,
-        "cost_audit_complete": True,
-        "cost_verification": "verified",
-        "expected_field": None,
-        "failure_stage": None,
-        "http_status": 200,
-        "model_identity_verified": True,
-        "observed_keys": ["choices", "id", "model", "usage"],
-        "observed_type": "object",
-        "provider_response_confirmed": True,
-        "provider_response_received": True,
-        "response_json_parsed": True,
-        "usage_inconsistent": False,
-        "usage_reported": True,
-    }
+    assert diagnostics["contract_error_code"] is None
+    assert diagnostics["application_json_valid"] is True
+    assert diagnostics["application_error_type"] is None
+    assert diagnostics["application_error_location"] is None
+    assert diagnostics["application_observed_keys"] == ["model", "provider", "status"]
+    assert diagnostics["application_observed_value_types"] == ["model:str", "provider:str", "status:str"]
+    assert diagnostics["content_length"] > 0
+    assert diagnostics["content_sha256"]
+    assert diagnostics["cost_audit_complete"] is True
+    assert diagnostics["cost_verification"] == "verified"
+    assert diagnostics["expected_field"] is None
+    assert diagnostics["failure_stage"] is None
+    assert diagnostics["http_status"] == 200
+    assert diagnostics["model_identity_verified"] is True
+    assert diagnostics["observed_keys"] == ["choices", "id", "model", "usage"]
+    assert diagnostics["observed_type"] == "object"
+    assert diagnostics["provider_response_confirmed"] is True
+    assert diagnostics["provider_response_received"] is True
+    assert diagnostics["response_json_parsed"] is True
+    assert diagnostics["usage_inconsistent"] is False
+    assert diagnostics["usage_reported"] is True
     assert len(json.loads((tmp_path / "canary" / "immutable_plan.json").read_text(encoding="utf-8"))["adapter_commit_sha"]) == 40
 
 
@@ -560,8 +564,8 @@ def test_v12_execution_plan_schema_is_byte_stable(tmp_path):
     assert written.read_bytes() == committed.read_bytes()
 
 
-def test_committed_v12_plan_has_a_new_deterministic_run_identity_without_a_credential(tmp_path):
-    from litflow.deep_research.canary import GLMCanaryPlanV12, GLMCanaryRunner, parse_glm_canary_plan
+def test_committed_v12_plan_keeps_its_identity_and_rejects_source_drift_without_a_credential(tmp_path):
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlanV12, GLMCanaryRunner, parse_glm_canary_plan
 
     plan_path = Path("docs/deep_research/canary/v1.2/canary_execution_plan.example.json")
     plan = parse_glm_canary_plan(json.loads(plan_path.read_text(encoding="utf-8")))
@@ -569,4 +573,59 @@ def test_committed_v12_plan_has_a_new_deterministic_run_identity_without_a_crede
     runner = GLMCanaryRunner(plan, tmp_path / "second-canary", transport=lambda **_kwargs: None)
     assert runner.run_id == "dr-run-e195b665d03ebf536d0bc63d"
     assert runner.run_id != "dr-run-dc27b7d035bba74e18f4c7f3"
-    assert runner.preflight() == plan
+    with pytest.raises(CanaryConfigurationError, match="fingerprint"):
+        runner.preflight()
+
+
+@pytest.mark.parametrize(
+    "content",
+    (
+        "\n { \"model\": \"glm-5.3-flash\", \"status\": \"ok\", \"provider\": \"zhipu_bigmodel\" } \n",
+        '{"status":"ok","provider":"zhipu_bigmodel","model":"glm-5.3-flash","harmless_metadata":"ignored"}',
+    ),
+)
+def test_application_ack_accepts_whitespace_key_order_and_harmless_extra_fields(tmp_path, monkeypatch, content):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(_response(content=content)).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+
+    assert result.terminal == "complete"
+
+
+@pytest.mark.parametrize(
+    "content, expected_error_type, expected_location",
+    (
+        ('{"provider":"zhipu_bigmodel","model":"glm-5.3-flash"}', "missing", "status"),
+        ('{"status":"ok","model":"glm-5.3-flash"}', "missing", "provider"),
+        ('{"status":"ok","provider":"zhipu_bigmodel"}', "missing", "model"),
+        ('{"status":"bad","provider":"zhipu_bigmodel","model":"glm-5.3-flash"}', "literal_error", "status"),
+        ('{"status":"ok","provider":"other","model":"glm-5.3-flash"}', "literal_error", "provider"),
+        ('{"status":"ok","provider":"zhipu_bigmodel","model":"other"}', "literal_error", "model"),
+        ('{"status":1,"provider":"zhipu_bigmodel","model":"glm-5.3-flash"}', "literal_error", "status"),
+        ('{"status":"ok","provider":1,"model":"glm-5.3-flash"}', "literal_error", "provider"),
+        ('{"status":"ok","provider":"zhipu_bigmodel","model":1}', "literal_error", "model"),
+    ),
+)
+def test_application_ack_failures_are_redacted_and_keep_transport_facts(tmp_path, monkeypatch, content, expected_error_type, expected_location):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(_response(content=content)).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+
+    assert result.terminal == "failed"
+    assert diagnostics["failure_stage"] == "application_contract"
+    assert diagnostics["contract_error_code"] == "application_schema_invalid"
+    assert diagnostics["application_error_type"] == expected_error_type
+    assert diagnostics["application_error_location"] == expected_location
+    assert diagnostics["provider_response_received"] is True
+    assert diagnostics["provider_response_confirmed"] is True
+    assert content not in json.dumps(diagnostics)
+    assert diagnostics["content_sha256"]
