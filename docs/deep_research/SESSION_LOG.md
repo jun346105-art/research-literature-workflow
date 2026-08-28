@@ -16,7 +16,7 @@
 | S09 | 建立预算、超时、取消与 retry policy | completed (B03 DR-S09/S10 batch) |
 | S10 | 建立 Fake provider 与 Fake tools E2E harness | completed (B03 DR-S09/S10 batch) |
 | B03R | 修复统一 runtime v2、canonical hash、crash-safe dispatch 与 fail-closed unknown outcome | completed; Gate A pending read-only re-audit; internal_result |
-| B03R2 | 修复 replay boundary、checkpoint trust、retry/replan resume 与受控 runtime entry | completed; Gate A pending second read-only re-audit; internal_result |
+| B03R2 | 修复 replay boundary、checkpoint trust、retry/replan resume 与受控 runtime entry | completed; independently audited; internal_result |
 | S11 | 实现 Research Brief 生成与人工确认 | not_started |
 | S12 | 实现结构化 Planner | not_started |
 | S13 | 实现本地论文 Research Executor | not_started |
@@ -25,7 +25,7 @@
 | S16 | 实现受控 replan | not_started |
 | S17 | 实现 Single Writer | not_started |
 | S18 | 实现 Report Validator 与 safe output | not_started |
-| S19 | 运行固定真实 canary 并保留全部 artifact | design_pass_execute_blocked_pending_official_pricing_and_user_authorization |
+| S19 | 运行固定真实 canary 并保留全部 artifact | offline_adapter_pass; execute_awaiting_secret_injection_and_separate_single_call |
 | S20 | 对 canary 失败做根因审计与一次硬化 | not_started |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |

@@ -31,6 +31,7 @@ from .runtime_v2 import (
     UnifiedEventStore,
     replay_runtime_events,
 )
+from .canary import GLMCanaryPlan, GLMCanaryRunner
 
 __all__ = [
     "BriefApproval",
@@ -73,4 +74,6 @@ __all__ = [
     "RuntimeEventType",
     "UnifiedEventStore",
     "replay_runtime_events",
+    "GLMCanaryPlan",
+    "GLMCanaryRunner",
 ]

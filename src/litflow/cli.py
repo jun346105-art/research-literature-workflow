@@ -41,11 +41,17 @@ from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
 from litflow.zotero.collection_reader import write_collection_snapshot
 from litflow.zotero.diagnostics import write_citekey_diagnostics
+from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="litflow")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    glm_canary = subparsers.add_parser("run-glm-canary")
+    glm_canary.add_argument("--plan", required=True, type=Path)
+    glm_canary.add_argument("--artifact-dir", required=True, type=Path)
+    glm_canary.add_argument("--execute", action="store_true")
 
     build = subparsers.add_parser("build-candidate-pool")
     build.add_argument("--input", required=True, type=Path)
@@ -436,6 +442,13 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     try:
+        if args.command == "run-glm-canary":
+            if not args.execute:
+                raise ValueError("run-glm-canary requires explicit --execute")
+            plan = GLMCanaryPlan.model_validate_json(args.plan.read_text(encoding="utf-8"))
+            result = GLMCanaryRunner(plan, args.artifact_dir).execute()
+            print(json.dumps({"terminal": result.terminal, "error_code": result.error_code.value if result.error_code else None}, ensure_ascii=False))
+            return 0
         if args.command == "plan-agent-pilot":
             print(json.dumps(build_pilot_preflight(args.config, args.corpus, args.entity_metadata), ensure_ascii=False, indent=2))
             return 0

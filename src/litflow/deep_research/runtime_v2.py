@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import Field, model_validator
 
@@ -465,19 +465,24 @@ class CrashSafeResult:
         return self.run_state.run_id
 
 
+class _InvocationTarget(Protocol):
+    async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None, **kwargs: Any) -> Any: ...
+
+
 class _OperationInvoker:
     """Internal call primitive; CrashSafeFakeHarness owns the durable protocol."""
 
-    def __init__(self, provider: FakeProvider, tool: FakeTool) -> None:
+    def __init__(self, provider: _InvocationTarget, tool: _InvocationTarget) -> None:
         self.provider, self.tool = provider, tool
 
-    async def dispatch(self, operation: Any, *, attempt_id: str, timeout_s: float) -> Any:
+    async def dispatch(self, operation: Any, *, attempt_id: str, timeout_s: float, **kwargs: Any) -> Any:
         caller = self.provider.call if operation.kind is OperationKind.provider else self.tool.call
         return await caller(
             operation_id=operation.operation_id,
             attempt_id=attempt_id,
             request={"operation": operation.name},
             timeout_s=timeout_s,
+            **kwargs,
         )
 
 
