@@ -26,7 +26,7 @@
 | S17 | 实现 Single Writer | not_started |
 | S18 | 实现 Report Validator 与 safe output | not_started |
 | S19 | 运行固定真实 canary 并保留全部 artifact | offline_adapter_pass; execute_awaiting_secret_injection_and_separate_single_call |
-| S20 | 对 canary 失败做根因审计与一次硬化 | not_started |
+| S20 | 对 canary 失败做根因审计与一次硬化 | completed (B08R1; offline hardening; pending read-only re-audit) |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |

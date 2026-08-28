@@ -114,12 +114,66 @@ class _CanaryOperation:
 
 
 @dataclass(frozen=True)
+class _AdapterDiagnostics:
+    """Redacted facts about the transport, adapter and application contracts."""
+
+    failure_stage: str | None = None
+    contract_error_code: str | None = None
+    expected_field: str | None = None
+    observed_type: str | None = None
+    observed_keys: tuple[str, ...] = ()
+    http_status: int | None = None
+    provider_response_received: bool = False
+    response_json_parsed: bool = False
+    provider_response_confirmed: bool = False
+    application_json_valid: bool = False
+    model_identity_verified: bool = False
+    usage_reported: bool = False
+    usage_inconsistent: bool = False
+    cost_verification: str = "unavailable"
+    cost_audit_complete: bool = False
+
+    def artifact(self) -> dict[str, object]:
+        return {
+            "failure_stage": self.failure_stage,
+            "contract_error_code": self.contract_error_code,
+            "expected_field": self.expected_field,
+            "observed_type": self.observed_type,
+            "observed_keys": list(self.observed_keys),
+            "http_status": self.http_status,
+            "provider_response_received": self.provider_response_received,
+            "response_json_parsed": self.response_json_parsed,
+            "provider_response_confirmed": self.provider_response_confirmed,
+            "application_json_valid": self.application_json_valid,
+            "model_identity_verified": self.model_identity_verified,
+            "usage_reported": self.usage_reported,
+            "usage_inconsistent": self.usage_inconsistent,
+            "cost_verification": self.cost_verification,
+            "cost_audit_complete": self.cost_audit_complete,
+        }
+
+
+_SAFE_RESPONSE_KEYS = frozenset({"choices", "error", "id", "model", "request_id", "usage"})
+
+
+def _diagnostics_for_payload(*, status: int, payload: object) -> _AdapterDiagnostics:
+    return _AdapterDiagnostics(
+        http_status=status,
+        provider_response_received=True,
+        response_json_parsed=True,
+        observed_type="object" if isinstance(payload, dict) else type(payload).__name__,
+        observed_keys=tuple(sorted(key for key in payload if isinstance(key, str) and key in _SAFE_RESPONSE_KEYS)) if isinstance(payload, dict) else (),
+    )
+
+
+@dataclass(frozen=True)
 class _ProviderResult:
     status: Literal["success", "failed", "unknown"]
     content: str = ""
     usage: TokenUsage = TokenUsage()
     error_code: ErrorCode | None = None
     provider_request_id: str | None = None
+    diagnostics: _AdapterDiagnostics = _AdapterDiagnostics()
 
 
 class _AsyncTransport(Protocol):
@@ -152,12 +206,15 @@ class _GLMTextOnlyAdapter:
             raise CanaryConfigurationError("credential is missing for the configured provider channel")
         return credential
 
-    async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None, credential: str | None = None) -> _ProviderResult:
-        if credential is None:
-            raise CanaryConfigurationError("credential must be validated before durable dispatch")
-        if timeout_s != self._plan.operation_timeout_seconds or not isinstance(request, dict) or request.get("operation") != "glm_text_only_canary":
-            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid)
-        body = canonical_json_bytes(
+    def validate_pre_dispatch(self) -> None:
+        """Keep all locally knowable plan/request failures before durable dispatch."""
+        if self._plan.endpoint != GLM_ENDPOINT or self._plan.model_id != GLM_MODEL:
+            raise CanaryConfigurationError("Canary endpoint or model does not match the frozen plan")
+        if self._plan.max_provider_calls != 1 or self._plan.max_retries != 0:
+            raise CanaryConfigurationError("Canary call or retry policy does not match the frozen plan")
+
+    def _request_body(self) -> bytes:
+        return canonical_json_bytes(
             {
                 "model": self._plan.model_id,
                 "messages": [{"role": "user", "content": _PROMPT}],
@@ -170,6 +227,13 @@ class _GLMTextOnlyAdapter:
                 "stream": False,
             }
         )
+
+    async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None, credential: str | None = None) -> _ProviderResult:
+        if credential is None:
+            raise CanaryConfigurationError("credential must be validated before durable dispatch")
+        if timeout_s != self._plan.operation_timeout_seconds or not isinstance(request, dict) or request.get("operation") != "glm_text_only_canary":
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics("pre_dispatch_contract", "invocation_contract_invalid", "operation", type(request).__name__))
+        body = self._request_body()
         try:
             status, headers, raw = await self._transport(
                 url=self._plan.endpoint,
@@ -178,42 +242,68 @@ class _GLMTextOnlyAdapter:
                 timeout_s=float(timeout_s),
             )
         except (TimeoutError, socket.timeout, ConnectionResetError, ConnectionError, urllib.error.URLError):
-            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome)
-        if status >= 500:
-            return _ProviderResult("failed", error_code=ErrorCode.transient_provider)
-        if status == 429:
-            return _ProviderResult("failed", error_code=ErrorCode.rate_limited)
-        if status >= 400:
-            return _ProviderResult("failed", error_code=ErrorCode.permanent_provider)
-        if status != 200:
-            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid)
+            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome, diagnostics=_AdapterDiagnostics("transport_invocation", "outcome_unknown"))
+        if not 200 <= status < 300:
+            error = ErrorCode.transient_provider if status >= 500 else ErrorCode.rate_limited if status == 429 else ErrorCode.permanent_provider
+            payload: object
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                payload = None
+            base = _diagnostics_for_payload(status=status, payload=payload) if payload is not None else _AdapterDiagnostics(
+                failure_stage="transport_contract", contract_error_code="http_non_2xx", http_status=status, provider_response_received=True, observed_type="bytes"
+            )
+            return _ProviderResult("failed", error_code=error, diagnostics=_AdapterDiagnostics(**{**base.__dict__, "failure_stage": "transport_contract", "contract_error_code": "http_non_2xx"}))
         try:
             payload = json.loads(raw.decode("utf-8"))
-            if not isinstance(payload, dict) or payload.get("model") != self._plan.model_id:
-                raise ValueError("unexpected model")
-            choices = payload.get("choices")
-            choice = choices[0] if isinstance(choices, list) and choices else None
-            content = choice.get("message", {}).get("content") if isinstance(choice, dict) else None
-            if not isinstance(content, str):
-                raise ValueError("missing content")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(
+                "transport_contract", "response_body_not_json", "JSON object", "bytes", http_status=status, provider_response_received=True
+            ))
+        diagnostics = _diagnostics_for_payload(status=status, payload=payload)
+        if not isinstance(payload, dict):
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": "response_object_required", "expected_field": "response"}))
+        if isinstance(payload.get("error"), dict):
+            return _ProviderResult("failed", error_code=ErrorCode.permanent_provider, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": "provider_error_envelope", "expected_field": "choices"}))
+        choices = payload.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else None
+        content = choice.get("message", {}).get("content") if isinstance(choice, dict) else None
+        if not isinstance(content, str):
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": "content_missing", "expected_field": "choices[0].message.content"}))
+        model_verified = payload.get("model") == self._plan.model_id
+        diagnostics = _AdapterDiagnostics(**{**diagnostics.__dict__, "model_identity_verified": model_verified, "provider_response_confirmed": model_verified})
+        usage = payload.get("usage")
+        usage_reported = isinstance(usage, dict) and all(isinstance(usage.get(field), int) for field in ("prompt_tokens", "completion_tokens", "total_tokens"))
+        usage_inconsistent = False
+        token_usage = TokenUsage()
+        usage_error: str | None = None
+        if not isinstance(usage, dict):
+            usage_error = "usage_missing"
+        elif not usage_reported:
+            usage_error = "usage_invalid"
+        else:
+            token_usage = _usage(usage["prompt_tokens"], usage["completion_tokens"], self._plan)
+            if token_usage.total_tokens != usage["total_tokens"]:
+                usage_inconsistent = True
+                usage_error = "usage_inconsistent"
+        cost_verification = "verified" if usage_reported and not usage_inconsistent else "failed" if usage_inconsistent else "unavailable"
+        diagnostics = _AdapterDiagnostics(**{**diagnostics.__dict__, "usage_reported": usage_reported, "usage_inconsistent": usage_inconsistent, "cost_verification": cost_verification, "cost_audit_complete": usage_reported and not usage_inconsistent})
+        try:
             structured = json.loads(content)
-            if structured != {"status": "ok", "provider": "zhipu_bigmodel", "model": GLM_MODEL}:
-                raise ValueError("unexpected structured output")
-            usage = payload.get("usage")
-            if not isinstance(usage, dict):
-                raise ValueError("missing usage")
-            input_tokens = usage.get("prompt_tokens")
-            output_tokens = usage.get("completion_tokens")
-            total_tokens = usage.get("total_tokens")
-            if not isinstance(input_tokens, int) or not isinstance(output_tokens, int) or not isinstance(total_tokens, int):
-                raise ValueError("invalid usage")
-            token_usage = _usage(input_tokens, output_tokens, self._plan)
-            if token_usage.total_tokens != total_tokens:
-                raise ValueError("usage total mismatch")
-            request_id = payload.get("id") or headers.get("x-request-id")
-            return _ProviderResult("success", content=content, usage=token_usage, provider_request_id=request_id if isinstance(request_id, str) else None)
-        except (UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
-            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid)
+        except json.JSONDecodeError:
+            structured = None
+        application_valid = structured == {"status": "ok", "provider": "zhipu_bigmodel", "model": GLM_MODEL}
+        diagnostics = _AdapterDiagnostics(**{**diagnostics.__dict__, "application_json_valid": application_valid})
+        if not model_verified:
+            return _ProviderResult("failed", content=content, error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": "model_identity_unverified", "expected_field": "model"}))
+        if structured is None:
+            return _ProviderResult("failed", content=content, error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "application_contract", "contract_error_code": "application_json_invalid", "expected_field": "content"}))
+        if not application_valid:
+            return _ProviderResult("failed", content=content, error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "application_contract", "contract_error_code": "application_schema_invalid", "expected_field": "content"}))
+        if usage_error is not None:
+            return _ProviderResult("failed", content=content, error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics(**{**diagnostics.__dict__, "failure_stage": "provider_adapter_contract", "contract_error_code": usage_error, "expected_field": "usage"}))
+        request_id = payload.get("id") or headers.get("x-request-id")
+        return _ProviderResult("success", content=content, usage=token_usage, provider_request_id=request_id if isinstance(request_id, str) else None, diagnostics=diagnostics)
 
 
 def _usage(input_tokens: int, output_tokens: int, plan: GLMCanaryPlan) -> TokenUsage:
@@ -305,6 +395,7 @@ class GLMCanaryRunner:
         return state
 
     def execute(self) -> CrashSafeResult:
+        self._adapter.validate_pre_dispatch()
         credential = self._adapter.require_credential()
         bound_plan = self._bind_execution_plan()
         if self.artifact_dir.exists():
@@ -330,7 +421,7 @@ class GLMCanaryRunner:
         terminal = "complete"
         error: ErrorCode | None = None
         if response.status == "success":
-            self._append(store, events, RuntimeEventType.operation_succeeded, payload={"attempt_number": 1, "status": "success", "usage": response.usage.model_dump(mode="json"), "result_sha256": sha256_hex(response.content), "provider_request_id": response.provider_request_id or ""}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
+            self._append(store, events, RuntimeEventType.operation_succeeded, payload={"attempt_number": 1, "status": "success", "usage": response.usage.model_dump(mode="json"), "result_sha256": sha256_hex(response.content), "provider_request_id": response.provider_request_id or "", "provider_audit": response.diagnostics.artifact()}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
             ledger = ledger.reconcile(reservation, usage=response.usage, outcome=OperationStatus.succeeded, attempt_number=1, spec=self.spec)
             journal = journal.mark_succeeded(record.operation_id, record.attempt_id, sha256_hex(response.content))
             state = self._lifecycle(store, events, state, RunStatus.validating)
@@ -338,13 +429,13 @@ class GLMCanaryRunner:
         elif response.status == "unknown":
             error = ErrorCode.unknown_outcome
             terminal = "failed"
-            self._append(store, events, RuntimeEventType.operation_unknown, payload={"error_code": error.value, "attempt_number": 1, "usage": response.usage.model_dump(mode="json")}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
+            self._append(store, events, RuntimeEventType.operation_unknown, payload={"error_code": error.value, "attempt_number": 1, "usage": response.usage.model_dump(mode="json"), "provider_audit": response.diagnostics.artifact()}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
             journal = journal.mark_unknown(record.operation_id, record.attempt_id, error.value)
             state = self._lifecycle(store, events, state, RunStatus.failed, reason=error.value)
         else:
             error = response.error_code or ErrorCode.contract_invalid
             terminal = "failed"
-            self._append(store, events, RuntimeEventType.operation_failed, payload={"error_code": error.value, "attempt_number": 1, "usage": response.usage.model_dump(mode="json")}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
+            self._append(store, events, RuntimeEventType.operation_failed, payload={"error_code": error.value, "attempt_number": 1, "usage": response.usage.model_dump(mode="json"), "provider_audit": response.diagnostics.artifact()}, operation_id=record.operation_id, attempt_id=record.attempt_id, causal_parent_id=dispatched_event.event_id)
             ledger = ledger.reconcile(reservation, usage=response.usage, outcome=OperationStatus.failed_known, attempt_number=1, spec=self.spec)
             journal = journal.mark_failed(record.operation_id, record.attempt_id, error.value)
             state = self._lifecycle(store, events, state, RunStatus.failed, reason=error.value)
@@ -367,9 +458,17 @@ class GLMCanaryRunner:
                 "body_sha256": sha256_hex(canonical_json_bytes({"prompt": _PROMPT, "model": self.plan.model_id})),
                 "contains_authorization": False,
             },
-            "response_metadata.json": {"provider_request_id": response.provider_request_id or "", "model": self.plan.model_id},
+            "response_metadata.json": {
+                "provider_request_id": response.provider_request_id or "",
+                "model": self.plan.model_id,
+                "provider_dispatch_intents": 1,
+                "provider_response_received": response.diagnostics.provider_response_received,
+                "provider_response_confirmed": response.diagnostics.provider_response_confirmed,
+                "provider_usage_reported": response.diagnostics.usage_reported,
+            },
             "structured_result.json": {"terminal": result.terminal, "error_code": result.error_code.value if result.error_code else None, "content": response.content if response.status == "success" else ""},
             "usage.json": response.usage.model_dump(mode="json"),
+            "adapter_diagnostics.json": response.diagnostics.artifact(),
             "replay_verification.json": {
                 "full_replay_matches": replay_runtime_events(result.initial_state, result.events, result.spec) == replay_runtime_events(result.initial_state, result.events, result.spec, checkpoint=result.checkpoint),
                 "provider_calls_during_replay": 0,

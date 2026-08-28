@@ -82,6 +82,24 @@ def test_glm_runner_records_only_after_durable_reserve_and_dispatch(tmp_path, mo
     assert all(event.event_type.value != "operation_dispatched" for event in result.events[:4])
     assert result.events[-1].event_type.value == "lifecycle_transition"
     assert json.loads((tmp_path / "canary" / "replay_verification.json").read_text(encoding="utf-8"))["full_replay_matches"] is True
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics == {
+        "contract_error_code": None,
+        "application_json_valid": True,
+        "cost_audit_complete": True,
+        "cost_verification": "verified",
+        "expected_field": None,
+        "failure_stage": None,
+        "http_status": 200,
+        "model_identity_verified": True,
+        "observed_keys": ["choices", "id", "model", "usage"],
+        "observed_type": "object",
+        "provider_response_confirmed": True,
+        "provider_response_received": True,
+        "response_json_parsed": True,
+        "usage_inconsistent": False,
+        "usage_reported": True,
+    }
     assert len(json.loads((tmp_path / "canary" / "immutable_plan.json").read_text(encoding="utf-8"))["adapter_commit_sha"]) == 40
 
 
@@ -160,6 +178,142 @@ def test_bad_response_is_known_contract_failure(tmp_path, monkeypatch, payload):
     assert result.ledger.provider_calls == 1
 
 
+def test_application_contract_failure_does_not_claim_transport_or_adapter_failed(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(_response(content="not-json")).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed"
+    assert diagnostics["failure_stage"] == "application_contract"
+    assert diagnostics["contract_error_code"] == "application_json_invalid"
+    assert diagnostics["provider_response_received"] is True
+    assert diagnostics["provider_response_confirmed"] is True
+    assert diagnostics["model_identity_verified"] is True
+    assert diagnostics["application_json_valid"] is False
+    assert diagnostics["usage_reported"] is True
+
+
+def test_missing_usage_keeps_confirmed_text_but_fails_required_cost_audit(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    response = _response()
+    response.pop("usage")
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(response).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed"
+    assert diagnostics["failure_stage"] == "provider_adapter_contract"
+    assert diagnostics["contract_error_code"] == "usage_missing"
+    assert diagnostics["provider_response_confirmed"] is True
+    assert diagnostics["usage_reported"] is False
+    assert diagnostics["cost_verification"] == "unavailable"
+    assert diagnostics["cost_audit_complete"] is False
+    assert diagnostics["application_json_valid"] is True
+
+
+def test_model_identity_unverified_preserves_received_content_but_fails_canary(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps({**_response(), "model": "other-model"}).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed"
+    assert diagnostics["failure_stage"] == "provider_adapter_contract"
+    assert diagnostics["contract_error_code"] == "model_identity_unverified"
+    assert diagnostics["provider_response_received"] is True
+    assert diagnostics["model_identity_verified"] is False
+    assert diagnostics["provider_response_confirmed"] is False
+    assert diagnostics["application_json_valid"] is True
+
+
+def test_http_error_is_a_transport_failure_with_safe_status_only(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 401, {}, b'{"error":{"message":"not persisted"}}'
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.error_code.value == "permanent_provider"
+    assert diagnostics["failure_stage"] == "transport_contract"
+    assert diagnostics["contract_error_code"] == "http_non_2xx"
+    assert diagnostics["http_status"] == 401
+    assert diagnostics["provider_response_received"] is True
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_stage", "expected_code"),
+    (
+        (b"not-json", "transport_contract", "response_body_not_json"),
+        (json.dumps({"model": "glm-5.3-flash", "choices": [], "usage": {}}).encode("utf-8"), "provider_adapter_contract", "content_missing"),
+        (json.dumps({"error": {"code": "safe-code"}}).encode("utf-8"), "provider_adapter_contract", "provider_error_envelope"),
+    ),
+)
+def test_response_failures_are_classified_by_contract_layer(tmp_path, monkeypatch, payload, expected_stage, expected_code):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    async def transport(**_kwargs):
+        return 200, {}, payload
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed"
+    assert diagnostics["failure_stage"] == expected_stage
+    assert diagnostics["contract_error_code"] == expected_code
+    assert diagnostics["provider_response_received"] is True
+
+
+def test_inconsistent_usage_is_not_repaired_and_fails_cost_audit(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    response = _response()
+    response["usage"] = {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 20}
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(response).encode("utf-8")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    result = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed"
+    assert diagnostics["contract_error_code"] == "usage_inconsistent"
+    assert diagnostics["usage_reported"] is True
+    assert diagnostics["usage_inconsistent"] is True
+    assert diagnostics["cost_verification"] == "failed"
+    assert diagnostics["cost_audit_complete"] is False
+
+
+def test_local_plan_validation_fails_before_artifact_dispatch_or_transport(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlan, GLMCanaryRunner
+
+    calls = 0
+
+    async def forbidden_transport(**_kwargs):
+        nonlocal calls
+        calls += 1
+        raise AssertionError("transport must not be invoked")
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "test-token-not-a-secret")
+    invalid_plan = GLMCanaryPlan.model_validate(_plan()).model_copy(update={"max_retries": 1})
+    with pytest.raises(CanaryConfigurationError, match="retry"):
+        GLMCanaryRunner(invalid_plan, tmp_path / "canary", transport=forbidden_transport).execute()
+    assert calls == 0
+    assert not (tmp_path / "canary").exists()
+
+
 def test_fsync_failure_prevents_adapter_invocation(tmp_path, monkeypatch):
     import os
 
@@ -225,6 +379,23 @@ def test_cli_requires_explicit_execute_and_never_accepts_a_key_argument(tmp_path
 
     monkeypatch.setattr(litflow.cli.GLMCanaryRunner, "execute", lambda _self: Result())
     assert main(["run-glm-canary", "--plan", str(plan), "--artifact-dir", str(tmp_path / "artifact"), "--execute"]) == 0
+
+
+@pytest.mark.parametrize(("terminal", "error_code", "expected_exit"), (("failed", "contract_invalid", 2), ("failed", "unknown_outcome", 3)))
+def test_cli_maps_failed_and_unknown_canary_terminals_to_nonzero_exit(tmp_path, monkeypatch, terminal, error_code, expected_exit):
+    from litflow.cli import main
+    import litflow.cli
+
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(_plan()), encoding="utf-8")
+
+    class Result:
+        def __init__(self):
+            self.terminal = terminal
+            self.error_code = type("Error", (), {"value": error_code})()
+
+    monkeypatch.setattr(litflow.cli.GLMCanaryRunner, "execute", lambda _self: Result())
+    assert main(["run-glm-canary", "--plan", str(plan), "--artifact-dir", str(tmp_path / "artifact"), "--execute"]) == expected_exit
 
 
 def test_default_transport_is_network_denied_before_missing_key_dispatch(tmp_path, monkeypatch):

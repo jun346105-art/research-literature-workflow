@@ -448,7 +448,9 @@ def main(argv: list[str] | None = None) -> int:
             plan = GLMCanaryPlan.model_validate_json(args.plan.read_text(encoding="utf-8"))
             result = GLMCanaryRunner(plan, args.artifact_dir).execute()
             print(json.dumps({"terminal": result.terminal, "error_code": result.error_code.value if result.error_code else None}, ensure_ascii=False))
-            return 0
+            if result.terminal == "complete":
+                return 0
+            return 3 if result.error_code and result.error_code.value == "unknown_outcome" else 2
         if args.command == "plan-agent-pilot":
             print(json.dumps(build_pilot_preflight(args.config, args.corpus, args.entity_metadata), ensure_ascii=False, indent=2))
             return 0
