@@ -104,6 +104,40 @@ class GLMCanaryPlan(BaseModel):
         )
 
 
+class GLMCanaryPlanV12(GLMCanaryPlan):
+    """A second immutable Canary plan identity without changing v1.1 semantics."""
+
+    schema_version: Literal["dr-canary-execution-plan-v1.2"]
+    canary_attempt_id: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]*$")
+    task_id: str = Field(pattern=r"^dr-task-[0-9a-f]{24}$")
+    brief_id: str = Field(pattern=r"^dr-brief-[0-9a-f]{24}$")
+    implementation_commit_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    runtime_source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    def run_identity(self) -> dict[str, str]:
+        return {
+            "schema_version": self.schema_version,
+            "provider": self.provider,
+            "model_id": self.model_id,
+            "task_id": self.task_id,
+            "brief_id": self.brief_id,
+            "canary_attempt_id": self.canary_attempt_id,
+        }
+
+
+CanaryPlan = GLMCanaryPlan | GLMCanaryPlanV12
+
+
+def parse_glm_canary_plan(data: dict[str, Any]) -> CanaryPlan:
+    """Parse only the two explicit immutable plan revisions."""
+    version = data.get("schema_version")
+    if version == "dr-canary-execution-plan-v1.1":
+        return GLMCanaryPlan.model_validate(data)
+    if version == "dr-canary-execution-plan-v1.2":
+        return GLMCanaryPlanV12.model_validate(data)
+    raise CanaryConfigurationError("unsupported Canary execution plan schema version")
+
+
 @dataclass(frozen=True)
 class _CanaryOperation:
     operation_id: str
@@ -196,7 +230,7 @@ async def _urllib_transport(*, url: str, headers: dict[str, str], body: bytes, t
 class _GLMTextOnlyAdapter:
     """Internal provider implementation. It has no terminal-state or retry authority."""
 
-    def __init__(self, plan: GLMCanaryPlan, transport: _AsyncTransport = _urllib_transport) -> None:
+    def __init__(self, plan: CanaryPlan, transport: _AsyncTransport = _urllib_transport) -> None:
         self._plan = plan
         self._transport = transport
 
@@ -306,7 +340,7 @@ class _GLMTextOnlyAdapter:
         return _ProviderResult("success", content=content, usage=token_usage, provider_request_id=request_id if isinstance(request_id, str) else None, diagnostics=diagnostics)
 
 
-def _usage(input_tokens: int, output_tokens: int, plan: GLMCanaryPlan) -> TokenUsage:
+def _usage(input_tokens: int, output_tokens: int, plan: CanaryPlan) -> TokenUsage:
     cost_cny = (
         Decimal(input_tokens) * plan.input_price_per_million_tokens
         + Decimal(output_tokens) * plan.output_price_per_million_tokens
@@ -327,19 +361,46 @@ def write_glm_canary_schema(output_dir: Path) -> Path:
     return path
 
 
+def render_glm_canary_schema_v12() -> str:
+    schema = GLMCanaryPlanV12.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    return canonical_json(schema) + "\n"
+
+
+def write_glm_canary_schema_v12(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "canary_execution_plan.schema.json"
+    path.write_text(render_glm_canary_schema_v12(), encoding="utf-8", newline="\n")
+    return path
+
+
+def _runtime_source_sha256() -> str:
+    """Fingerprint exactly the local runner and CLI code used by a v1.2 plan."""
+    paths = {
+        "src/litflow/cli.py": Path(__file__).resolve().parent.parent / "cli.py",
+        "src/litflow/deep_research/canary.py": Path(__file__).resolve(),
+    }
+    return sha256_hex(canonical_json_bytes({name: sha256_hex(path.read_bytes()) for name, path in paths.items()}))
+
+
 class GLMCanaryRunner:
     """Only public live-capable entry: validates, durably dispatches once, then replays."""
 
-    def __init__(self, plan: GLMCanaryPlan, artifact_dir: Path, *, transport: _AsyncTransport = _urllib_transport) -> None:
+    def __init__(self, plan: CanaryPlan, artifact_dir: Path, *, transport: _AsyncTransport = _urllib_transport) -> None:
         self.plan = plan
         self.artifact_dir = Path(artifact_dir)
         self.spec = plan.budget_spec()
-        self.initial_state = RunState.create(task_id="dr-task-" + "c" * 24, brief_id="dr-brief-" + "d" * 24, brief_approved=True)
+        if isinstance(plan, GLMCanaryPlanV12):
+            self.initial_state = RunState.create(task_id=plan.task_id, brief_id=plan.brief_id, brief_approved=True).model_copy(
+                update={"run_id": make_stable_id("run", plan.run_identity())}
+            )
+        else:
+            self.initial_state = RunState.create(task_id="dr-task-" + "c" * 24, brief_id="dr-brief-" + "d" * 24, brief_approved=True)
         self.run_id = self.initial_state.run_id
         self._adapter = _GLMTextOnlyAdapter(plan, transport)
         self._live_transport = transport is _urllib_transport
 
-    def _bind_execution_plan(self) -> GLMCanaryPlan:
+    def _bind_execution_plan(self) -> CanaryPlan:
         """Bind the immutable artifact to the checked-out adapter commit without reading credentials."""
         try:
             completed = subprocess.run(
@@ -367,9 +428,33 @@ class GLMCanaryRunner:
                 raise CanaryConfigurationError("cannot verify the Canary worktree") from exc
             if status.stdout.strip():
                 raise CanaryConfigurationError("Canary worktree must be clean")
+        if isinstance(self.plan, GLMCanaryPlanV12):
+            try:
+                ancestor = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", self.plan.implementation_commit_sha, commit],
+                    cwd=Path.cwd(),
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+            except OSError as exc:
+                raise CanaryConfigurationError("cannot verify the Canary implementation ancestor") from exc
+            if ancestor.returncode != 0:
+                raise CanaryConfigurationError("Canary implementation commit is not an ancestor of HEAD")
+            if self.plan.runtime_source_sha256 != _runtime_source_sha256():
+                raise CanaryConfigurationError("Canary runtime source fingerprint does not match the immutable plan")
+            return self.plan
         if self.plan.adapter_commit_sha is not None and self.plan.adapter_commit_sha != commit:
             raise CanaryConfigurationError("execution plan adapter commit does not match HEAD")
         return self.plan.model_copy(update={"adapter_commit_sha": commit})
+
+    def preflight(self) -> CanaryPlan:
+        """Offline-only validation for the exact immutable plan and artifact target."""
+        self._adapter.validate_pre_dispatch()
+        bound_plan = self._bind_execution_plan()
+        if self.artifact_dir.exists():
+            raise CanaryConfigurationError("Canary artifact directory must not already exist")
+        return bound_plan
 
     def _append(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], event_type: RuntimeEventType, *, payload: dict[str, Any] | None = None, operation_id: str | None = None, attempt_id: str | None = None, causal_parent_id: str | None = None) -> RuntimeEventEnvelope:
         from .events import GENESIS_HASH
@@ -447,7 +532,7 @@ class GLMCanaryRunner:
         self._write_artifacts(result, response, bound_plan)
         return result
 
-    def _write_artifacts(self, result: CrashSafeResult, response: _ProviderResult, bound_plan: GLMCanaryPlan) -> None:
+    def _write_artifacts(self, result: CrashSafeResult, response: _ProviderResult, bound_plan: CanaryPlan) -> None:
         """Persist only redacted transport facts after the durable terminal and replay checks."""
         files = {
             "immutable_plan.json": bound_plan.model_dump(mode="json"),

@@ -450,3 +450,111 @@ def test_live_transport_refuses_a_dirty_worktree_before_dispatch(tmp_path, monke
     runner = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary")
     with pytest.raises(CanaryConfigurationError, match="worktree"):
         runner._bind_execution_plan()
+
+
+def _v12_plan(*, attempt_id: str = "glm-5.3-flash-text-canary-002") -> dict[str, object]:
+    plan = _plan()
+    plan.update(
+        {
+            "schema_version": "dr-canary-execution-plan-v1.2",
+            "canary_attempt_id": attempt_id,
+            "task_id": "dr-task-" + "c" * 24,
+            "brief_id": "dr-brief-" + "d" * 24,
+            "implementation_commit_sha": "a" * 40,
+            "runtime_source_sha256": "b" * 64,
+        }
+    )
+    return plan
+
+
+def test_v11_plan_keeps_the_original_deterministic_run_id(tmp_path):
+    from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+
+    runner = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary")
+    assert runner.run_id == "dr-run-dc27b7d035bba74e18f4c7f3"
+
+
+def test_v12_plan_derives_stable_distinct_run_ids_from_attempt_identity(tmp_path):
+    from litflow.deep_research.canary import GLMCanaryPlanV12, GLMCanaryRunner
+
+    first = GLMCanaryRunner(GLMCanaryPlanV12.model_validate(_v12_plan()), tmp_path / "first")
+    same = GLMCanaryRunner(GLMCanaryPlanV12.model_validate(_v12_plan()), tmp_path / "same")
+    other = GLMCanaryRunner(
+        GLMCanaryPlanV12.model_validate(_v12_plan(attempt_id="glm-5.3-flash-text-canary-003")),
+        tmp_path / "other",
+    )
+
+    assert first.run_id == same.run_id
+    assert first.run_id != other.run_id
+    assert first.run_id.startswith("dr-run-")
+
+
+def test_v12_parser_rejects_missing_attempt_identity_and_accepts_v11():
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlan, GLMCanaryPlanV12, parse_glm_canary_plan
+
+    assert isinstance(parse_glm_canary_plan(_plan()), GLMCanaryPlan)
+    assert isinstance(parse_glm_canary_plan(_v12_plan()), GLMCanaryPlanV12)
+    invalid = _v12_plan()
+    invalid.pop("canary_attempt_id")
+    with pytest.raises((CanaryConfigurationError, ValueError)):
+        parse_glm_canary_plan(invalid)
+
+
+def test_v12_preflight_rejects_non_ancestor_implementation_or_source_fingerprint(tmp_path, monkeypatch):
+    import subprocess
+
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlanV12, GLMCanaryRunner
+
+    plan = GLMCanaryPlanV12.model_validate(_v12_plan())
+
+    def git_result(args, **_kwargs):
+        if args[:3] == ["git", "rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, "c" * 40 + "\n", "")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 1, "", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr("litflow.deep_research.canary.subprocess.run", git_result)
+    runner = GLMCanaryRunner(plan, tmp_path / "canary", transport=lambda **_kwargs: None)
+    with pytest.raises(CanaryConfigurationError, match="ancestor"):
+        runner.preflight()
+
+
+def test_v12_preflight_rejects_runtime_source_fingerprint_drift(tmp_path, monkeypatch):
+    import subprocess
+
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlanV12, GLMCanaryRunner
+
+    plan = GLMCanaryPlanV12.model_validate(_v12_plan())
+
+    def git_result(args, **_kwargs):
+        if args[:3] == ["git", "rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, "c" * 40 + "\n", "")
+        if args[:3] == ["git", "merge-base", "--is-ancestor"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError(args)
+
+    monkeypatch.setattr("litflow.deep_research.canary.subprocess.run", git_result)
+    monkeypatch.setattr("litflow.deep_research.canary._runtime_source_sha256", lambda: "f" * 64)
+    runner = GLMCanaryRunner(plan, tmp_path / "canary", transport=lambda **_kwargs: None)
+    with pytest.raises(CanaryConfigurationError, match="fingerprint"):
+        runner.preflight()
+
+
+def test_preflight_rejects_an_existing_artifact_directory_without_reading_a_credential(tmp_path, monkeypatch):
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlan, GLMCanaryRunner
+
+    artifact_dir = tmp_path / "canary"
+    artifact_dir.mkdir()
+    runner = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), artifact_dir, transport=lambda **_kwargs: None)
+    monkeypatch.setattr(runner, "_bind_execution_plan", lambda: runner.plan)
+    with pytest.raises(CanaryConfigurationError, match="already exist"):
+        runner.preflight()
+
+
+def test_v12_execution_plan_schema_is_byte_stable(tmp_path):
+    from litflow.deep_research.canary import write_glm_canary_schema_v12
+
+    written = write_glm_canary_schema_v12(tmp_path)
+    committed = Path("docs/deep_research/canary/v1.2/canary_execution_plan.schema.json")
+    assert written.read_bytes() == committed.read_bytes()

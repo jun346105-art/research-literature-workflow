@@ -41,7 +41,7 @@ from litflow.selection.selector import write_selection_template
 from litflow.zotero.client import ZoteroReadError
 from litflow.zotero.collection_reader import write_collection_snapshot
 from litflow.zotero.diagnostics import write_citekey_diagnostics
-from litflow.deep_research.canary import GLMCanaryPlan, GLMCanaryRunner
+from litflow.deep_research.canary import GLMCanaryRunner, parse_glm_canary_plan
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -51,7 +51,9 @@ def main(argv: list[str] | None = None) -> int:
     glm_canary = subparsers.add_parser("run-glm-canary")
     glm_canary.add_argument("--plan", required=True, type=Path)
     glm_canary.add_argument("--artifact-dir", required=True, type=Path)
-    glm_canary.add_argument("--execute", action="store_true")
+    glm_canary_mode = glm_canary.add_mutually_exclusive_group()
+    glm_canary_mode.add_argument("--execute", action="store_true")
+    glm_canary_mode.add_argument("--preflight", action="store_true")
 
     build = subparsers.add_parser("build-candidate-pool")
     build.add_argument("--input", required=True, type=Path)
@@ -443,10 +445,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "run-glm-canary":
-            if not args.execute:
-                raise ValueError("run-glm-canary requires explicit --execute")
-            plan = GLMCanaryPlan.model_validate_json(args.plan.read_text(encoding="utf-8"))
-            result = GLMCanaryRunner(plan, args.artifact_dir).execute()
+            if not args.execute and not args.preflight:
+                raise ValueError("run-glm-canary requires explicit --execute or --preflight")
+            plan = parse_glm_canary_plan(json.loads(args.plan.read_text(encoding="utf-8")))
+            runner = GLMCanaryRunner(plan, args.artifact_dir)
+            if args.preflight:
+                runner.preflight()
+                print(json.dumps({"preflight": "passed", "run_id": runner.run_id}, ensure_ascii=False))
+                return 0
+            result = runner.execute()
             print(json.dumps({"terminal": result.terminal, "error_code": result.error_code.value if result.error_code else None}, ensure_ascii=False))
             if result.terminal == "complete":
                 return 0
