@@ -25,7 +25,7 @@
 | S16 | 实现受控 replan | not_started |
 | S17 | 实现 Single Writer | not_started |
 | S18 | 实现 Report Validator 与 safe output | not_started |
-| S19 | 运行固定真实 canary 并保留全部 artifact | offline_adapter_pass; execute_awaiting_secret_injection_and_separate_single_call |
+| S19 | 运行固定真实 canary 并保留全部 artifact | completed (B08; `pass_text_only_single_call`; GLM-5.3-Flash text-only single call with replay and cost audit) |
 | S20 | 对 canary 失败做根因审计与一次硬化 | completed (B08R1; offline hardening; pending read-only re-audit) |
 | B08R2 | 保持 v1.1 并冻结 v1.2 attempt identity、实现祖先与源码指纹绑定 | completed; pending read-only re-audit; no second call |
 | B08R3 | 校准 GLM Canary application acknowledgement contract | completed; attempt 003 design frozen; pending read-only re-audit; no second call |

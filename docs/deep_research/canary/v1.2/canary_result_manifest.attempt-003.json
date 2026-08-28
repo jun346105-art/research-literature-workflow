@@ -1,0 +1,74 @@
+{
+  "manifest_version": "dr-gate-a-canary-result-manifest-v1",
+  "gate_a_status": "pass_text_only_single_call",
+  "identity": {
+    "attempt_id": "glm-5.3-flash-text-canary-003",
+    "run_id": "dr-run-3d18bc0c521412dd4bea920c",
+    "provider": "zhipu-bigmodel",
+    "model_id": "glm-5.3-flash",
+    "implementation_commit_sha": "a932f8c96f25765e2bd8181bc4c69bc13911155e",
+    "plan_commit_sha": "07b9326a80d51d269b4126a8802967bfeb73563d",
+    "runtime_source_sha256": "c69952ee4d77cb7a3d58ee96405e9c4ee9f55ffb3b0fe876df6db4ce16524327"
+  },
+  "terminal": {
+    "status": "complete",
+    "error_code": null,
+    "cli_exit_code": 0
+  },
+  "verification": {
+    "http_status": 200,
+    "transport_success": true,
+    "provider_response_received": true,
+    "provider_response_confirmed": true,
+    "application_json_valid": true,
+    "model_identity_verified": true,
+    "provider_usage_reported": true,
+    "usage_inconsistent": false,
+    "cost_verification": "verified",
+    "cost_audit_complete": true
+  },
+  "usage_and_cost": {
+    "input_tokens": 88,
+    "output_tokens": 185,
+    "total_tokens": 273,
+    "cost_micros": "294.2000000"
+  },
+  "replay": {
+    "full_replay_matches": true,
+    "provider_calls_during_replay": 0
+  },
+  "secret_scan": {
+    "credential_persisted": false,
+    "authorization_persisted": false,
+    "private_absolute_path_persisted": false
+  },
+  "artifact": {
+    "root": "outputs/deep_research/canary/v1.2/dr-run-3d18bc0c521412dd4bea920c",
+    "file_count": 11,
+    "files": [
+      {"path": "adapter_diagnostics.json", "bytes": 745, "sha256": "ef6e1d3ec26a11513d536bc1212d488d55660593a60b6bed20a317a517819e57"},
+      {"path": "immutable_plan.json", "bytes": 1126, "sha256": "6d15bf7e235f6e1d674f5869dbbe17b6c8d1b9134d3a62baa23aa8b95e1cb66c"},
+      {"path": "plan_sha256.json", "bytes": 83, "sha256": "26b09e6b48718ffad9d44f26cc9e961f713f3c881a83335acf2ae28c32844915"},
+      {"path": "redacted_request.json", "bytes": 205, "sha256": "de8c6cffbb84cee488e758938bae4cdcf2fe7b17fa93b7c2c1a36058df28c2ab"},
+      {"path": "replay_verification.json", "bytes": 62, "sha256": "1ae76d738dd099aec9804ca21c88e091c0af361c9b2a2932f462e32f8fed45a2"},
+      {"path": "response_metadata.json", "bytes": 211, "sha256": "285964ff1ab95e6f48e31f1215cfc0671b6d6f1464470b0e0294d687790cc4ec"},
+      {"path": "runtime.checkpoint.json", "bytes": 1984, "sha256": "41289acc461631ef6297d1318a6e48be6e7a4533c2fb6d49987af89f896b58bd"},
+      {"path": "runtime.jsonl", "bytes": 7772, "sha256": "356217976808e8c72928508ce934313f8f81938fd690be23ee62a1c113fb0333"},
+      {"path": "secret_scan.json", "bytes": 103, "sha256": "b2c55092b6d5aab41f64f72739c0a1d9d532f89885a7641b6c96fe90d4ccc97a"},
+      {"path": "structured_result.json", "bytes": 134, "sha256": "f105378a9dd5a7ab9028ec274580dc8ab32ea4abf3a3ae98d56f23a1c39dfa74"},
+      {"path": "usage.json", "bytes": 124, "sha256": "eeda1351c950ceb07e9558512b2bb3e6bc0f2f41867a585661f1aa9b23c66e85"}
+    ]
+  },
+  "scope": {
+    "verified": "GLM-5.3-Flash real text-only single-call controlled dispatch, layered response contracts, model identity, token/cost audit, redacted artifacts, and zero-provider-call replay.",
+    "not_verified": [
+      "DeepResearch Agent end-to-end completion",
+      "tools or Web Research",
+      "multimodal input",
+      "remote exactly-once semantics",
+      "multi-process safety",
+      "provider-generic compatibility",
+      "long-running task reliability"
+    ]
+  }
+}
