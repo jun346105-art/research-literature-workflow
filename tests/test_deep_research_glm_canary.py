@@ -577,6 +577,22 @@ def test_committed_v12_plan_keeps_its_identity_and_rejects_source_drift_without_
         runner.preflight()
 
 
+def test_attempt_003_plan_is_preflightable_without_a_credential_and_has_a_new_artifact_target(tmp_path):
+    from litflow.deep_research.canary import GLMCanaryPlanV12, GLMCanaryRunner, parse_glm_canary_plan
+
+    plan_path = Path("docs/deep_research/canary/v1.2/canary_execution_plan.attempt-003.json")
+    plan = parse_glm_canary_plan(json.loads(plan_path.read_text(encoding="utf-8")))
+    assert isinstance(plan, GLMCanaryPlanV12)
+    assert plan.canary_attempt_id == "glm-5.3-flash-text-canary-003"
+    artifact_dir = tmp_path / "canary" / "dr-run-3d18bc0c521412dd4bea920c"
+    runner = GLMCanaryRunner(plan, artifact_dir, transport=lambda **_kwargs: None)
+
+    assert runner.run_id == "dr-run-3d18bc0c521412dd4bea920c"
+    assert runner.run_id not in {"dr-run-dc27b7d035bba74e18f4c7f3", "dr-run-e195b665d03ebf536d0bc63d"}
+    assert not artifact_dir.exists()
+    assert runner.preflight() == plan
+
+
 @pytest.mark.parametrize(
     "content",
     (

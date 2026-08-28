@@ -5,7 +5,7 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B08R3 / GLM Canary application-contract calibration`（implementation pending separate attempt 003 plan freeze）
+- 当前 Session：`B08R3 / GLM Canary application-contract calibration`（pending read-only re-audit; attempt 003 design frozen）
 - 当前简历状态：`not_ready`
 
 按以下顺序使用这些文件：

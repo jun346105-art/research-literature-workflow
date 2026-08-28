@@ -11,6 +11,6 @@ This offline repair replaces whole-object acknowledgement equality with a privat
 - Diagnostics persist only error type/location, allowlisted shape, content length, and content SHA-256. They never persist acknowledgement values, raw provider bodies, Authorization, or credentials.
 - No credential read, HTTP call, or Canary execution occurs in this repair.
 
-## Follow-up
+## Attempt 003 freeze
 
-Attempt 002 remains immutable and source-fingerprint-bound to its implementation. A separately committed attempt 003 plan must bind the post-B08R3 implementation and use a new deterministic run ID and artifact directory.
+Attempt 002 remains immutable and source-fingerprint-bound to its implementation. Attempt 003 is separately frozen in `../canary/v1.2/canary_execution_plan.attempt-003.json`, with `canary_attempt_id=glm-5.3-flash-text-canary-003`, a new deterministic run ID, a distinct artifact directory, and a binding to the B08R3 implementation commit/source fingerprint. This is design-only: no credential was read and no Canary was executed.
