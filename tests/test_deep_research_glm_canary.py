@@ -263,3 +263,19 @@ def test_committed_execution_example_parses_and_matches_the_frozen_plan():
 
     example = json.loads(Path("docs/deep_research/canary/v1.1/canary_execution_plan.example.json").read_text(encoding="utf-8"))
     assert GLMCanaryPlan.model_validate(example).model_dump(exclude={"adapter_commit_sha"}) == GLMCanaryPlan.model_validate(_plan()).model_dump(exclude={"adapter_commit_sha"})
+
+
+def test_live_transport_refuses_a_dirty_worktree_before_dispatch(tmp_path, monkeypatch):
+    import subprocess
+
+    from litflow.deep_research.canary import CanaryConfigurationError, GLMCanaryPlan, GLMCanaryRunner
+
+    def git_result(args, **_kwargs):
+        if args[-1] == "HEAD":
+            return subprocess.CompletedProcess(args, 0, "a" * 40 + "\n", "")
+        return subprocess.CompletedProcess(args, 0, " M src/litflow/deep_research/canary.py\n", "")
+
+    monkeypatch.setattr("litflow.deep_research.canary.subprocess.run", git_result)
+    runner = GLMCanaryRunner(GLMCanaryPlan.model_validate(_plan()), tmp_path / "canary")
+    with pytest.raises(CanaryConfigurationError, match="worktree"):
+        runner._bind_execution_plan()

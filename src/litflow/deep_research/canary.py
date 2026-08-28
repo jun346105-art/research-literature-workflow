@@ -247,6 +247,7 @@ class GLMCanaryRunner:
         self.initial_state = RunState.create(task_id="dr-task-" + "c" * 24, brief_id="dr-brief-" + "d" * 24, brief_approved=True)
         self.run_id = self.initial_state.run_id
         self._adapter = _GLMTextOnlyAdapter(plan, transport)
+        self._live_transport = transport is _urllib_transport
 
     def _bind_execution_plan(self) -> GLMCanaryPlan:
         """Bind the immutable artifact to the checked-out adapter commit without reading credentials."""
@@ -263,6 +264,19 @@ class GLMCanaryRunner:
         commit = completed.stdout.strip()
         if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
             raise CanaryConfigurationError("Git HEAD is not a full commit SHA")
+        if self._live_transport:
+            try:
+                status = subprocess.run(
+                    ["git", "status", "--porcelain"],
+                    cwd=Path.cwd(),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except (OSError, subprocess.CalledProcessError) as exc:
+                raise CanaryConfigurationError("cannot verify the Canary worktree") from exc
+            if status.stdout.strip():
+                raise CanaryConfigurationError("Canary worktree must be clean")
         if self.plan.adapter_commit_sha is not None and self.plan.adapter_commit_sha != commit:
             raise CanaryConfigurationError("execution plan adapter commit does not match HEAD")
         return self.plan.model_copy(update={"adapter_commit_sha": commit})
