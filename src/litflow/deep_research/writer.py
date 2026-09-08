@@ -349,10 +349,11 @@ def validate_report_draft(
 class SingleWriterRunner:
     """Controlled B07 entry: one fake writer call through the shared durable stream."""
 
-    def __init__(self, writer: Writer, *, budget: BudgetSpec | None = None, token: CancellationToken | None = None) -> None:
+    def __init__(self, writer: Writer, *, budget: BudgetSpec | None = None, token: CancellationToken | None = None, reservation_usage: TokenUsage | None = None) -> None:
         self._writer = writer
         self._budget = budget or BudgetSpec(max_provider_attempts=1, max_provider_calls=1, max_tool_attempts=64, max_tool_calls=64, max_retries=0, max_replans=1, run_timeout_s=45.0, operation_timeout_s=30.0)
         self._token = token or CancellationToken()
+        self._reservation_usage = reservation_usage or TokenUsage()
 
     @staticmethod
     def _append(store: UnifiedEventStore, events: list[RuntimeEventEnvelope], event_type: RuntimeEventType, payload: dict[str, Any], *, operation_id: str | None = None, attempt_id: str | None = None, causal_parent_id: str | None = None) -> RuntimeEventEnvelope:
@@ -413,7 +414,7 @@ class SingleWriterRunner:
             raise WriterError("writer_not_admissible", "writer requires a nonterminal researching runtime state")
         operation_id = make_stable_id("operation", {"run_id": graph.run_id, "plan_id": plan.plan_id, "operation": "single_writer"})
         attempt_id = make_stable_id("attempt", {"operation_id": operation_id, "attempt_number": 1})
-        usage = TokenUsage()
+        usage = self._reservation_usage
         reserved = self._append(store, events, RuntimeEventType.operation_reserved, {"operation_kind": OperationKind.provider.value, "operation_name": "single_writer", "attempt_number": 1, "idempotent": False, "side_effecting": True, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=events[-1].event_id)
         try:
             reduce_runtime_events(initial, events, self._budget)
@@ -424,6 +425,7 @@ class SingleWriterRunner:
             raw = await asyncio.wait_for(self._writer.create_draft(task=task, brief=brief, plan=plan, graph=graph, assessment=assessment), timeout=self._budget.operation_timeout_s)
             draft = ReportDraft.model_validate(raw)
             validation = validate_report_draft(task, brief, approval, plan, graph, assessment, draft)
+            usage = TokenUsage.model_validate(getattr(self._writer, "last_usage", usage).model_dump(mode="json") if isinstance(getattr(self._writer, "last_usage", usage), TokenUsage) else usage.model_dump(mode="json"))
         except TimeoutError as error:
             self._append(store, events, RuntimeEventType.operation_unknown, {"operation_name": "single_writer", "error_code": "unknown_outcome", "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             validation = ReportValidationResult(status=ReportStatus.manual_review_required, issues=(_issue("outcome_unknown", "blocking"),))

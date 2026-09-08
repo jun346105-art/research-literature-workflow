@@ -173,3 +173,11 @@ def write_writer_schemas(output_dir: Path) -> dict[str, Path]:
         target.write_text(content, encoding="utf-8", newline="\n")
         written[name] = target
     return written
+
+
+def write_e2e_pilot_schemas(output_dir: Path) -> dict[str, Path]:
+    """Write the one immutable, offline-preflightable GLM E2E pilot schema."""
+    from .e2e import write_e2e_pilot_schema
+
+    path = write_e2e_pilot_schema(output_dir)
+    return {path.name: path}

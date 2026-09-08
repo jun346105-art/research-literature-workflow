@@ -277,18 +277,22 @@ class LocalResearchExecutor:
         event_path: Path,
         checkpoint_path: Path,
         candidates: dict[str, tuple[EvidenceCandidate, ...]] | None = None,
+        run_id: str | None = None,
     ) -> LocalExecutorResult:
         self._validate_plan(task, brief, approval, plan)
-        run_id = make_stable_id("run", {"runtime": EXECUTOR_VERSION, "plan_id": plan.plan_id})
+        run_id = run_id or make_stable_id("run", {"runtime": EXECUTOR_VERSION, "plan_id": plan.plan_id})
         initial_state = RunState(run_id=run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True)
-        state = initial_state
         store = UnifiedEventStore(event_path, run_id=run_id)
         events = store.read_all()
-        if events:
-            raise ExecutorError("plan_not_executable", "B05 executor requires a fresh caller-controlled event stream")
-        self._append(store, events, RuntimeEventType.run_started, {"executor_version": EXECUTOR_VERSION, "plan_id": plan.plan_id, "spec": self._budget.model_dump(mode="json")})
-        state = self._lifecycle(store, events, state, RunStatus.brief_approved)
-        state = self._lifecycle(store, events, state, RunStatus.researching)
+        if not events:
+            state = initial_state
+            self._append(store, events, RuntimeEventType.run_started, {"executor_version": EXECUTOR_VERSION, "plan_id": plan.plan_id, "spec": self._budget.model_dump(mode="json")})
+            state = self._lifecycle(store, events, state, RunStatus.brief_approved)
+            state = self._lifecycle(store, events, state, RunStatus.researching)
+        else:
+            state = reduce_runtime_events(initial_state, events, self._budget).run_state
+            if state.status is not RunStatus.researching:
+                raise ExecutorError("plan_not_executable", "shared runtime stream must be researching before local tool dispatch")
         sources: dict[str, Source] = {}
         evidence: dict[str, EvidenceUnit] = {}
         edges: set[tuple[str, str, str]] = set()
