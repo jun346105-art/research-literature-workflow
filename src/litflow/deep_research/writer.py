@@ -432,8 +432,21 @@ class SingleWriterRunner:
             state = self._lifecycle(store, events, state, RunStatus.failed, "unknown_outcome")
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             return OfflineWriterResult(run_id=graph.run_id, validation=validation, events=tuple(events), ledger=replay_runtime_events(initial, events, self._budget).ledger)
-        except (ValidationError, WriterError, ValueError) as error:
-            code = error.code if isinstance(error, WriterError) else "writer_draft_invalid"
+        except WriterError as error:
+            if error.code == "outcome_unknown":
+                self._append(store, events, RuntimeEventType.operation_unknown, {"operation_name": "single_writer", "error_code": error.code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+                validation = ReportValidationResult(status=ReportStatus.manual_review_required, issues=(_issue("outcome_unknown", "blocking"),))
+                state = self._lifecycle(store, events, state, RunStatus.failed, "unknown_outcome")
+                replayed = replay_runtime_events(initial, events, self._budget)
+                write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replayed))
+                return OfflineWriterResult(run_id=graph.run_id, validation=validation, events=tuple(events), ledger=replayed.ledger)
+            code = error.code
+            self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            state = self._lifecycle(store, events, state, RunStatus.failed, code)
+            write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
+            raise
+        except (ValidationError, ValueError) as error:
+            code = "writer_draft_invalid"
             self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))

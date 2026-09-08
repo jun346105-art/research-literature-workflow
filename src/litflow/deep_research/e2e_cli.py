@@ -7,7 +7,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from .e2e import DeepResearchRunner, GLME2EPilotPlan, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, preflight_e2e_pilot
+from .e2e import DeepResearchRunner, E2ETerminalError, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, parse_e2e_pilot_plan, preflight_e2e_pilot
 from .executor import LocalResearchExecutor, ReadOnlyToolRegistry
 
 
@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     modes.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
     try:
-        plan = GLME2EPilotPlan.model_validate(json.loads(args.plan.read_text(encoding="utf-8")))
+        plan = parse_e2e_pilot_plan(json.loads(args.plan.read_text(encoding="utf-8")))
         task = next(item for item in preflight_e2e_pilot(plan, repo_root=Path.cwd()) if item.task_key == args.task)
         if args.artifact_dir.as_posix() != task.artifact_dir:
             raise ValueError("artifact-dir must exactly match the frozen task target")
@@ -39,11 +39,14 @@ def main(argv: list[str] | None = None) -> int:
             GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation()),
             budget=plan.budget_spec(),
         )
-        result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json"))
+        result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=getattr(task, "attempt_id", None)))
         print(json.dumps({"terminal": result.terminal, "run_id": result.run_id}, ensure_ascii=False))
         return 0 if result.terminal == "complete" else 3 if result.terminal == "manual_review_required" else 2
+    except E2ETerminalError as error:
+        print(json.dumps({"terminal": "outcome_unknown" if error.outcome_unknown else "failed", "error_code": error.error_code}, ensure_ascii=False))
+        return 3 if error.outcome_unknown else 2
     except (ValueError, OSError) as error:
-        parser.error(str(error))
+        print(json.dumps({"terminal": "failed", "error_code": type(error).__name__}, ensure_ascii=False))
         return 2
 
 

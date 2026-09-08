@@ -14,6 +14,7 @@ from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, 
 from litflow.deep_research.e2e import (
     DeepResearchRunner,
     E2EConfigurationError,
+    E2ETerminalError,
     GLMAdapterError,
     GLME2EPilotPlan,
     GLMInvocationPolicy,
@@ -21,6 +22,7 @@ from litflow.deep_research.e2e import (
     GLMStructuredAdapter,
     GLMStructuredPlanner,
     GLMStructuredReply,
+    parse_e2e_pilot_plan,
     preflight_e2e_pilot,
     prompt_hashes,
     runtime_source_sha256,
@@ -31,6 +33,7 @@ from litflow.deep_research.planner import PlannerDraft, PlannerError, PlannerSub
 from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated_checkpoint, reduce_runtime_events, replay_runtime_events
 from litflow.deep_research.state import RunState
 from litflow.deep_research.writer import ReportStatus
+from litflow.deep_research.writer import WriterError
 
 
 NOW = datetime(2026, 9, 8, tzinfo=UTC)
@@ -63,6 +66,12 @@ def _corpus():
 
 def _planner_response(task, brief):
     return PlannerDraft(task_id=task.task_id, brief_id=brief.brief_id, locale=task.locale, constraints=brief.constraints, scope_inclusions=brief.scope_inclusions, scope_exclusions=brief.scope_exclusions, subtasks=(PlannerSubtaskDraft(local_key="find", question="alpha evidence", rationale="find", expected_evidence=("quote",), completion_criteria=("one",)),)).model_dump(mode="json")
+
+
+def _runner(planner, writer):
+    spec = BudgetSpec(max_provider_calls=2, max_provider_attempts=2, max_tool_calls=8, max_tool_attempts=8, max_retries=0, max_replans=1, run_timeout_s=90, operation_timeout_s=30)
+    registry = ReadOnlyToolRegistry(_corpus())
+    return DeepResearchRunner(planner, LocalResearchExecutor(registry, budget=spec), writer, budget=spec), registry, spec
 
 
 def test_formal_runner_composes_injected_adapters_through_one_stream_and_resume(tmp_path: Path):
@@ -125,6 +134,54 @@ def test_adapter_error_is_classified_and_never_silently_falls_back():
     with pytest.raises(Exception, match="outcome_unknown"):
         asyncio.run(GLMStructuredPlanner(client).create_draft(task=task, brief=brief))
     assert client.calls == 1
+
+
+def test_planner_unknown_is_durable_exit_class_three_and_never_calls_writer_or_retries(tmp_path: Path):
+    task, brief, approval = _inputs()
+    planner_client = FakeStructuredClient([GLMAdapterError("outcome_unknown", outcome_unknown=True)])
+    writer_client = FakeStructuredClient([])
+    runner, registry, spec = _runner(GLMStructuredPlanner(planner_client), GLMSingleWriter(writer_client))
+    with pytest.raises(E2ETerminalError) as error:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
+    assert error.value.error_code == "outcome_unknown" and error.value.outcome_unknown
+    assert planner_client.calls == 1 and writer_client.calls == 0 and registry.calls == []
+    run_id = DeepResearchRunner.run_id(task, brief)
+    events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=run_id).read_all()
+    assert events[-1].event_type.value == "operation_unknown" and (tmp_path / "checkpoint.json").is_file()
+    replayed = replay_runtime_events(RunState(run_id=run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True), events, spec)
+    assert replayed.manual_intervention is not None and planner_client.calls == 1 and writer_client.calls == 0
+
+
+def test_planner_known_failure_is_durable_and_exit_class_two_without_writer(tmp_path: Path):
+    task, brief, approval = _inputs()
+    planner_client = FakeStructuredClient([GLMAdapterError("content_missing")])
+    writer_client = FakeStructuredClient([])
+    runner, registry, _ = _runner(GLMStructuredPlanner(planner_client), GLMSingleWriter(writer_client))
+    with pytest.raises(E2ETerminalError) as error:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
+    assert error.value.error_code == "planner_contract_invalid" and not error.value.outcome_unknown
+    assert planner_client.calls == 1 and writer_client.calls == 0 and registry.calls == []
+
+
+def test_writer_known_and_unknown_are_durable_distinct_terminals_without_retry(tmp_path: Path):
+    task, brief, approval = _inputs()
+    for code, unknown, expected in (("content_missing", False, "operation_failed"), ("outcome_unknown", True, "operation_unknown")):
+        planner_client = FakeStructuredClient([_planner_response(task, brief)])
+        writer_client = FakeStructuredClient([GLMAdapterError(code, outcome_unknown=unknown)])
+        runner, _, spec = _runner(GLMStructuredPlanner(planner_client), GLMSingleWriter(writer_client))
+        event_path = tmp_path / f"{code}.jsonl"
+        checkpoint = tmp_path / f"{code}.checkpoint.json"
+        if unknown:
+            result = asyncio.run(runner.run(task, brief, approval, event_path=event_path, checkpoint_path=checkpoint))
+            assert result.terminal == "manual_review_required" and result.validation is not None
+        else:
+            with pytest.raises(WriterError, match="writer_contract_invalid"):
+                asyncio.run(runner.run(task, brief, approval, event_path=event_path, checkpoint_path=checkpoint))
+        events = UnifiedEventStore(event_path, run_id=DeepResearchRunner.run_id(task, brief)).read_all()
+        assert any(event.event_type.value == expected and event.payload.get("operation_name") == "single_writer" for event in events)
+        assert planner_client.calls == writer_client.calls == 1
+        replay_runtime_events(RunState(run_id=DeepResearchRunner.run_id(task, brief), task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True), events, spec)
+        assert planner_client.calls == writer_client.calls == 1
 
 
 @pytest.mark.parametrize(
@@ -223,7 +280,7 @@ def test_committed_pilot_cli_preflight_is_network_denied(monkeypatch):
     from litflow.deep_research.e2e_cli import main
 
     monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
-    assert main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--dry-run"]) == 0
+    assert main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.attempt-002.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-PLACEHOLDER", "--dry-run"]) == 0
 
 
 @pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))
@@ -250,8 +307,39 @@ def test_execute_cli_maps_only_complete_to_zero_without_real_transport(monkeypat
     assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--execute"]) == expected_exit
 
 
+@pytest.mark.parametrize(("error", "expected_exit"), ((E2ETerminalError("planner_contract_invalid"), 2), (E2ETerminalError("outcome_unknown", outcome_unknown=True), 3)))
+def test_execute_cli_maps_structured_planner_errors_without_text_matching(monkeypatch, error, expected_exit):
+    from litflow.deep_research import e2e_cli
+
+    class OfflineAdapter:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def require_credential_for_execute(self):
+            return "offline-fixture"
+
+    class OfflineRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def run(self, *_args, **_kwargs):
+            raise error
+
+    monkeypatch.setattr(e2e_cli, "GLMStructuredAdapter", OfflineAdapter)
+    monkeypatch.setattr(e2e_cli, "DeepResearchRunner", OfflineRunner)
+    monkeypatch.setattr(e2e_cli, "preflight_e2e_pilot", lambda plan, repo_root: tuple(plan.tasks))
+    assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--execute"]) == expected_exit
+
+
+def test_execute_cli_invalid_configuration_remains_known_failure(monkeypatch):
+    from litflow.deep_research import e2e_cli
+
+    monkeypatch.setattr(e2e_cli, "preflight_e2e_pilot", lambda plan, repo_root: tuple(plan.tasks))
+    assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/not-the-frozen-target", "--dry-run"]) == 2
+
+
 def test_committed_pilot_freezes_three_distinct_tasks_and_schema(tmp_path: Path):
-    plan = GLME2EPilotPlan.model_validate_json(Path("docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json").read_text(encoding="utf-8"))
+    plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1/glm_e2e_pilot_plan.attempt-002.json").read_text(encoding="utf-8")))
     tasks = preflight_e2e_pilot(plan, repo_root=Path.cwd())
     assert {item.task_key for item in tasks} == {"single_paper", "cross_paper_comparison", "insufficient_evidence"}
     assert len({item.run_id for item in tasks}) == len({item.artifact_dir for item in tasks}) == 3

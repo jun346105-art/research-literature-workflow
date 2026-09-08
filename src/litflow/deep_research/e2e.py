@@ -25,7 +25,7 @@ from .operations import OperationKind
 from .planner import Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, ValidatedResearchPlan, plan_approved_brief
 from .runtime_v2 import GENESIS_HASH, CoordinatedCheckpointV2, RuntimeEventEnvelope, RuntimeEventType, UnifiedEventStore, create_runtime_event, reduce_runtime_events, replay_runtime_events, write_coordinated_checkpoint
 from .state import RunState, RunStatus, transition
-from .writer import ReportStatus, ReportValidationResult, SingleWriterRunner, Writer
+from .writer import ReportStatus, ReportValidationResult, SingleWriterRunner, Writer, WriterError
 
 
 E2E_PLAN_VERSION = "dr-glm-e2e-pilot-v1"
@@ -51,6 +51,14 @@ def runtime_source_sha256() -> str:
 
 class E2EConfigurationError(ValueError):
     pass
+
+
+class E2ETerminalError(ValueError):
+    """Structured E2E terminal outcome for the CLI boundary; never match text."""
+
+    def __init__(self, error_code: str, *, outcome_unknown: bool = False):
+        self.error_code, self.outcome_unknown = error_code, outcome_unknown
+        super().__init__(error_code)
 
 
 class GLMAdapterError(ValueError):
@@ -160,9 +168,12 @@ class GLME2EPilotTask(BaseModel):
         approval = BriefApproval.create(brief.brief_id, task.task_id, BriefApprovalStatus.approved, self.approval_actor, decided_at)
         if task.task_id != self.task_id or brief.brief_id != self.brief_id:
             raise E2EConfigurationError("pilot task or brief identity mismatch")
-        if DeepResearchRunner.run_id(task, brief) != self.run_id:
+        if DeepResearchRunner.run_id(task, brief, attempt_id=self._attempt_id()) != self.run_id:
             raise E2EConfigurationError("pilot deterministic run identity mismatch")
         return task, brief, approval
+
+    def _attempt_id(self) -> str | None:
+        return None
 
     @model_validator(mode="after")
     def require_complete_acceptance_set(self) -> "GLME2EPilotTask":
@@ -176,6 +187,15 @@ class GLME2EPilotTask(BaseModel):
         return self
 
 
+class GLME2EPilotAttemptTask(GLME2EPilotTask):
+    """v1.1 immutable attempt identity; v1 task/run identity remains untouched."""
+
+    attempt_id: str = Field(pattern=r"^[a-z0-9][a-z0-9.-]*$")
+
+    def _attempt_id(self) -> str:
+        return self.attempt_id
+
+
 class GLME2EPilotPlan(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -187,6 +207,24 @@ class GLME2EPilotPlan(BaseModel):
 
     def budget_spec(self) -> BudgetSpec:
         return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=1024, max_output_tokens=512, max_total_tokens=1536, max_retries=0, max_replans=1, max_cost_micros=Decimal(self.policy.monetary_budget_limit_micros), run_timeout_s=90, operation_timeout_s=30)
+
+
+class GLME2EPilotAttemptPlan(GLME2EPilotPlan):
+    """v1.1 plan revision that binds a new execution attempt without rewriting v1."""
+
+    schema_version: Literal["dr-glm-e2e-pilot-v1.1"] = "dr-glm-e2e-pilot-v1.1"
+    tasks: list[GLME2EPilotAttemptTask]
+
+
+E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan
+
+
+def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
+    if data.get("schema_version") == E2E_PLAN_VERSION:
+        return GLME2EPilotPlan.model_validate(data)
+    if data.get("schema_version") == "dr-glm-e2e-pilot-v1.1":
+        return GLME2EPilotAttemptPlan.model_validate(data)
+    raise E2EConfigurationError("unsupported GLM E2E pilot schema version")
 
 
 class GLMStructuredReply(BaseModel):
@@ -278,7 +316,7 @@ class GLMSingleWriter:
             self.last_usage = reply.usage
             return json.loads(reply.content)
         except (json.JSONDecodeError, GLMAdapterError) as error:
-            raise ValueError("outcome_unknown" if isinstance(error, GLMAdapterError) and error.outcome_unknown else "writer_contract_invalid") from error
+            raise WriterError("outcome_unknown" if isinstance(error, GLMAdapterError) and error.outcome_unknown else "writer_contract_invalid", "GLM Writer response is not an admissible draft") from error
 
 
 def _parse_planner_object(content: str) -> dict[str, object]:
@@ -321,8 +359,11 @@ class DeepResearchRunner:
         self._planner, self._executor, self._writer, self._budget, self._requirements = planner, executor, writer, budget, requirements
 
     @staticmethod
-    def run_id(task: ResearchTask, brief: ResearchBrief) -> str:
-        return make_stable_id("run", {"runtime": E2E_VERSION, "task_id": task.task_id, "brief_id": brief.brief_id})
+    def run_id(task: ResearchTask, brief: ResearchBrief, *, attempt_id: str | None = None) -> str:
+        identity: dict[str, str] = {"runtime": E2E_VERSION, "task_id": task.task_id, "brief_id": brief.brief_id}
+        if attempt_id is not None:
+            identity["attempt_id"] = attempt_id
+        return make_stable_id("run", identity)
 
     @staticmethod
     def _append(store: UnifiedEventStore, events: list[RuntimeEventEnvelope], event_type: RuntimeEventType, payload: dict[str, Any], *, operation_id: str | None = None, attempt_id: str | None = None, causal_parent_id: str | None = None) -> RuntimeEventEnvelope:
@@ -334,10 +375,10 @@ class DeepResearchRunner:
         self._append(store, events, RuntimeEventType.lifecycle_transition, lifecycle.model_dump(mode="json"), causal_parent_id=events[-1].event_id)
         return state
 
-    async def run(self, task: ResearchTask, brief: ResearchBrief, approval: BriefApproval, *, event_path: Path, checkpoint_path: Path) -> DeepResearchE2EResult:
+    async def run(self, task: ResearchTask, brief: ResearchBrief, approval: BriefApproval, *, event_path: Path, checkpoint_path: Path, attempt_id: str | None = None) -> DeepResearchE2EResult:
         if brief.approval_status is not BriefApprovalStatus.approved:
             raise E2EConfigurationError("approved brief is required")
-        run_id = self.run_id(task, brief)
+        run_id = self.run_id(task, brief, attempt_id=attempt_id)
         initial = RunState(run_id=run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True)
         store = UnifiedEventStore(event_path, run_id=run_id)
         events = store.read_all()
@@ -368,7 +409,8 @@ class DeepResearchRunner:
         except PlannerError as error:
             kind = RuntimeEventType.operation_unknown if error.code == "outcome_unknown" else RuntimeEventType.operation_failed
             self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": error.code, "attempt_number": 1, "usage": TokenUsage().model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
-            raise
+            write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
+            raise E2ETerminalError(error.code, outcome_unknown=error.code == "outcome_unknown") from error
         usage = getattr(self._planner, "last_usage", TokenUsage())
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
@@ -387,6 +429,11 @@ def render_e2e_pilot_schema() -> str:
     return json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
 
 
+def render_e2e_pilot_attempt_schema() -> str:
+    schema = GLME2EPilotAttemptPlan.model_json_schema(); schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    return json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
 def write_e2e_pilot_schema(output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "glm_e2e_pilot.schema.json"
@@ -394,7 +441,14 @@ def write_e2e_pilot_schema(output_dir: Path) -> Path:
     return path
 
 
-def preflight_e2e_pilot(plan: GLME2EPilotPlan, *, repo_root: Path, git_root: Path | None = None) -> tuple[GLME2EPilotTask, ...]:
+def write_e2e_pilot_attempt_schema(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "glm_e2e_pilot.schema.json"
+    path.write_text(render_e2e_pilot_attempt_schema(), encoding="utf-8", newline="\n")
+    return path
+
+
+def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path | None = None) -> tuple[GLME2EPilotTask, ...]:
     """Read-only plan/artifact/corpus verification; it never reads a credential or transports."""
     hashes = prompt_hashes()
     git_root = git_root or Path.cwd()
