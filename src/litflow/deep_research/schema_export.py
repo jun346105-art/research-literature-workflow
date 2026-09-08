@@ -126,3 +126,16 @@ def write_executor_schemas(output_dir: Path) -> dict[str, Path]:
         target.write_text(content, encoding="utf-8", newline="\n")
         written[name] = target
     return written
+
+
+def write_gap_replan_schemas(output_dir: Path) -> dict[str, Path]:
+    from .gap_replan import EvidenceGap, GapConflictAssessment, PotentialConflict, ReplanDecisionRecord, ReplannedResearchPlan
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    schemas = {"evidence_gap.schema.json": EvidenceGap, "potential_conflict.schema.json": PotentialConflict, "gap_conflict_assessment.schema.json": GapConflictAssessment, "replan_decision.schema.json": ReplanDecisionRecord, "replanned_research_plan.schema.json": ReplannedResearchPlan}
+    written = {}
+    for name, model in schemas.items():
+        target = output_dir / name
+        target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
+        written[name] = target
+    return written

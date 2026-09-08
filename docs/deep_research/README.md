@@ -5,7 +5,7 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B05 / S13–S14 Local Research Executor + Evidence Graph`（`internal_result`；仅离线、只读本地检索与验证关系）
+- 当前 Session：`B06 / S15–S16 Evidence Gap / Conflict + Bounded Replan`（`internal_result`；仅离线结构事实与一次重规划）
 - 当前简历状态：`not_ready`
 
 按以下顺序使用这些文件：
@@ -24,6 +24,7 @@
 12. [Gate A Canary Design](GATE_A_CANARY_DESIGN_V1.md)、[Gate A Canary Result](GATE_A_CANARY_RESULT_V1.md)、[GLM Adapter 合同](GLM_PROVIDER_CANARY_ADAPTER_V1.md)、[v1.1 execution-plan](canary/v1.1/README.md)、[v1.2 execution-plan](canary/v1.2/README.md)、[B08/S19 记录](sessions/B08-DR-S19-CANARY-DESIGN.md)、[B08R1 事故硬化](sessions/B08R1-GLM-CANARY-INCIDENT-HARDENING.md)、[B08R2 兼容修复](sessions/B08R2-GLM-CANARY-V12-COMPATIBILITY.md) 与 [B08R3 Application Contract](sessions/B08R3-GLM-CANARY-APPLICATION-CONTRACT.md)：受控单次 Canary 的设计、结果与失败硬化边界；真实结果仅覆盖 GLM-5.3-Flash text-only 单调用，不代表完整 Agent、Web、工具或多模态能力。
 13. [B04 Brief Planner](RESEARCH_BRIEF_PLANNER_V1.md) 与 [执行记录](sessions/B04-DR-S11-S12.md)：离线 approval gate 与结构化 Planner 边界。
 14. [B05 Local Executor and Evidence Graph](LOCAL_RESEARCH_EXECUTOR_V1.md) 与 [执行记录](sessions/B05-DR-S13-S14.md)：离线、只读本地检索、严格 Evidence 构建和最小图边界。
+15. [B06 Gap/Conflict/Replan](EVIDENCE_GAP_CONFLICT_V1.md) 与 [执行记录](sessions/B06-DR-S15-S16.md)：确定性结构缺口、潜在冲突候选与一次有界重规划。
 15. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
 16. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
 17. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。

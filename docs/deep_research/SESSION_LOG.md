@@ -21,8 +21,8 @@
 | S12 | 实现结构化 Planner | completed (B04 S11/S12 batch) |
 | S13 | 实现本地论文 Research Executor | completed (B05 S13/S14 batch; offline/internal_result) |
 | S14 | 实现 Claim–Evidence Graph | completed (B05 S13/S14 batch; deterministic verified relations only) |
-| S15 | 实现 Evidence Gap / Conflict Checker | not_started |
-| S16 | 实现受控 replan | not_started |
+| S15 | 实现 Evidence Gap / Conflict Checker | completed (B06; offline/internal_result) |
+| S16 | 实现受控 replan | completed (B06; max_replans=1, unified event/ledger) |
 | S17 | 实现 Single Writer | not_started |
 | S18 | 实现 Report Validator 与 safe output | not_started |
 | S19 | 运行固定真实 canary 并保留全部 artifact | completed (B08; `pass_text_only_single_call`; GLM-5.3-Flash text-only single call with replay and cost audit) |
