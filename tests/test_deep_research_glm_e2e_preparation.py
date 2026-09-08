@@ -210,7 +210,7 @@ def test_pilot_preflight_is_offline_fails_closed_and_schema_is_stable(tmp_path: 
         task = ResearchTask.create(f"Question for {key}", "en", ("local-only", key), "grounded_report", NOW)
         brief = ResearchBrief.create(task.task_id, f"Objective for {key}", (key,), (), "grounded report", ("exact citation",), task.constraints, BriefApprovalStatus.approved)
         run_id = DeepResearchRunner.run_id(task, brief)
-        rows.append({"task_key": key, "task_id": task.task_id, "brief_id": brief.brief_id, "original_question": task.original_question, "locale": task.locale, "constraints": list(task.constraints), "deliverable_type": task.deliverable_type, "created_at": task.created_at.isoformat(), "brief_objective": brief.objective, "scope_inclusions": list(brief.scope_inclusions), "scope_exclusions": list(brief.scope_exclusions), "brief_deliverable": brief.deliverable, "success_criteria": list(brief.success_criteria), "approval_actor": "human", "approval_decided_at": NOW.isoformat(), "implementation_commit_sha": subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip(), "runtime_source_sha256": runtime_source_sha256(), "expected_terminal": terminal, "corpus_path": "outputs/rag_bm25_v1/passages.jsonl", "corpus_sha256": digest, "planner_prompt_sha256": hashes["planner"], "writer_prompt_sha256": hashes["writer"], "artifact_dir": f"outputs/deep_research/e2e/v1/{run_id}", "run_id": run_id})
+        rows.append({"task_key": key, "task_id": task.task_id, "brief_id": brief.brief_id, "original_question": task.original_question, "locale": task.locale, "constraints": list(task.constraints), "deliverable_type": task.deliverable_type, "created_at": task.created_at.isoformat(), "brief_objective": brief.objective, "scope_inclusions": list(brief.scope_inclusions), "scope_exclusions": list(brief.scope_exclusions), "brief_deliverable": brief.deliverable, "success_criteria": list(brief.success_criteria), "approval_actor": "human", "approval_decided_at": NOW.isoformat(), "implementation_commit_sha": subprocess.run(["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip(), "runtime_source_sha256": runtime_source_sha256(), "expected_terminal": terminal, "acceptance_metrics": ["terminal_status", "evidence_citation_quote_grounding", "unsupported_claim_count", "abstention_correctness", "provider_attempts_responses", "tokens_cost", "latency", "replay_zero_calls", "secret_scan"], "corpus_path": "outputs/rag_bm25_v1/passages.jsonl", "corpus_sha256": digest, "planner_prompt_sha256": hashes["planner"], "writer_prompt_sha256": hashes["writer"], "artifact_dir": f"outputs/deep_research/e2e/v1/{run_id}", "run_id": run_id})
     plan = GLME2EPilotPlan.model_validate({"schema_version": "dr-glm-e2e-pilot-v1", "provider": "zhipu-bigmodel", "channel": "ordinary_model_api", "policy": GLMInvocationPolicy().model_dump(mode="json"), "tasks": rows})
     assert len(preflight_e2e_pilot(plan, repo_root=tmp_path)) == 3
     artifact = tmp_path / rows[0]["artifact_dir"]; artifact.mkdir(parents=True)
@@ -224,6 +224,30 @@ def test_committed_pilot_cli_preflight_is_network_denied(monkeypatch):
 
     monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
     assert main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--dry-run"]) == 0
+
+
+@pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))
+def test_execute_cli_maps_only_complete_to_zero_without_real_transport(monkeypatch, terminal, expected_exit):
+    from litflow.deep_research import e2e_cli
+
+    class OfflineAdapter:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def require_credential_for_execute(self):
+            return "offline-fixture"
+
+    class OfflineRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def run(self, *_args, **_kwargs):
+            return type("Result", (), {"terminal": terminal, "run_id": "dr-run-offline"})()
+
+    monkeypatch.setattr(e2e_cli, "GLMStructuredAdapter", OfflineAdapter)
+    monkeypatch.setattr(e2e_cli, "DeepResearchRunner", OfflineRunner)
+    monkeypatch.setattr(e2e_cli, "preflight_e2e_pilot", lambda plan, repo_root: tuple(plan.tasks))
+    assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--execute"]) == expected_exit
 
 
 def test_committed_pilot_freezes_three_distinct_tasks_and_schema(tmp_path: Path):

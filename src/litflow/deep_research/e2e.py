@@ -117,6 +117,19 @@ class GLME2EPilotTask(BaseModel):
     implementation_commit_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
     runtime_source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     expected_terminal: Literal["complete", "partial", "insufficient_evidence"]
+    acceptance_metrics: list[
+        Literal[
+            "terminal_status",
+            "evidence_citation_quote_grounding",
+            "unsupported_claim_count",
+            "abstention_correctness",
+            "provider_attempts_responses",
+            "tokens_cost",
+            "latency",
+            "replay_zero_calls",
+            "secret_scan",
+        ]
+    ]
     corpus_path: str = Field(pattern=r"^outputs/rag_bm25_v1/[a-z0-9_.-]+$")
     corpus_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     planner_prompt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -149,6 +162,17 @@ class GLME2EPilotTask(BaseModel):
         if DeepResearchRunner.run_id(task, brief) != self.run_id:
             raise E2EConfigurationError("pilot deterministic run identity mismatch")
         return task, brief, approval
+
+    @model_validator(mode="after")
+    def require_complete_acceptance_set(self) -> "GLME2EPilotTask":
+        required = {
+            "terminal_status", "evidence_citation_quote_grounding", "unsupported_claim_count",
+            "abstention_correctness", "provider_attempts_responses", "tokens_cost", "latency",
+            "replay_zero_calls", "secret_scan",
+        }
+        if set(self.acceptance_metrics) != required or len(self.acceptance_metrics) != len(required):
+            raise ValueError("pilot task must freeze every required acceptance metric exactly once")
+        return self
 
 
 class GLME2EPilotPlan(BaseModel):

@@ -3,6 +3,24 @@
     "GLME2EPilotTask": {
       "additionalProperties": false,
       "properties": {
+        "acceptance_metrics": {
+          "items": {
+            "enum": [
+              "terminal_status",
+              "evidence_citation_quote_grounding",
+              "unsupported_claim_count",
+              "abstention_correctness",
+              "provider_attempts_responses",
+              "tokens_cost",
+              "latency",
+              "replay_zero_calls",
+              "secret_scan"
+            ],
+            "type": "string"
+          },
+          "title": "Acceptance Metrics",
+          "type": "array"
+        },
         "approval_actor": {
           "minLength": 1,
           "title": "Approval Actor",
@@ -177,6 +195,7 @@
         "implementation_commit_sha",
         "runtime_source_sha256",
         "expected_terminal",
+        "acceptance_metrics",
         "corpus_path",
         "corpus_sha256",
         "planner_prompt_sha256",
