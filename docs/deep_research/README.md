@@ -22,7 +22,8 @@
 10. [B03R Unified Runtime v2](B03R_UNIFIED_RUNTIME_V2.md) 与 [runtime schema v2](runtime/v2/README.md)：单一 ordered event stream、crash-safe dispatch、canonical hash、coordinated checkpoint 和 fail-closed unknown outcome。
 11. [B03R2 Replay Boundaries](B03R2_REPLAY_BOUNDARIES.md)：事实 reducer、流尾 unknown finalization、retry/replan 恢复、checkpoint trust 和受控入口。
 12. [Gate A Canary Design](GATE_A_CANARY_DESIGN_V1.md)、[Gate A Canary Result](GATE_A_CANARY_RESULT_V1.md)、[GLM Adapter 合同](GLM_PROVIDER_CANARY_ADAPTER_V1.md)、[v1.1 execution-plan](canary/v1.1/README.md)、[v1.2 execution-plan](canary/v1.2/README.md)、[B08/S19 记录](sessions/B08-DR-S19-CANARY-DESIGN.md)、[B08R1 事故硬化](sessions/B08R1-GLM-CANARY-INCIDENT-HARDENING.md)、[B08R2 兼容修复](sessions/B08R2-GLM-CANARY-V12-COMPATIBILITY.md) 与 [B08R3 Application Contract](sessions/B08R3-GLM-CANARY-APPLICATION-CONTRACT.md)：受控单次 Canary 的设计、结果与失败硬化边界；真实结果仅覆盖 GLM-5.3-Flash text-only 单调用，不代表完整 Agent、Web、工具或多模态能力。
-13. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+13. [B04 Brief Planner](RESEARCH_BRIEF_PLANNER_V1.md) 与 [执行记录](sessions/B04-DR-S11-S12.md)：离线 approval gate 与结构化 Planner 边界。
+14. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
 13. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
 14. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
 15. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。

@@ -17,8 +17,8 @@
 | S10 | 建立 Fake provider 与 Fake tools E2E harness | completed (B03 DR-S09/S10 batch) |
 | B03R | 修复统一 runtime v2、canonical hash、crash-safe dispatch 与 fail-closed unknown outcome | completed; Gate A pending read-only re-audit; internal_result |
 | B03R2 | 修复 replay boundary、checkpoint trust、retry/replan resume 与受控 runtime entry | completed; independently audited; internal_result |
-| S11 | 实现 Research Brief 生成与人工确认 | not_started |
-| S12 | 实现结构化 Planner | not_started |
+| S11 | 实现 Research Brief 生成与人工确认 | completed (B04 S11/S12 batch) |
+| S12 | 实现结构化 Planner | completed (B04 S11/S12 batch) |
 | S13 | 实现本地论文 Research Executor | not_started |
 | S14 | 实现 Claim–Evidence Graph | not_started |
 | S15 | 实现 Evidence Gap / Conflict Checker | not_started |
