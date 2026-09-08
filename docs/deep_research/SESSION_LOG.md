@@ -19,8 +19,8 @@
 | B03R2 | 修复 replay boundary、checkpoint trust、retry/replan resume 与受控 runtime entry | completed; independently audited; internal_result |
 | S11 | 实现 Research Brief 生成与人工确认 | completed (B04 S11/S12 batch) |
 | S12 | 实现结构化 Planner | completed (B04 S11/S12 batch) |
-| S13 | 实现本地论文 Research Executor | not_started |
-| S14 | 实现 Claim–Evidence Graph | not_started |
+| S13 | 实现本地论文 Research Executor | completed (B05 S13/S14 batch; offline/internal_result) |
+| S14 | 实现 Claim–Evidence Graph | completed (B05 S13/S14 batch; deterministic verified relations only) |
 | S15 | 实现 Evidence Gap / Conflict Checker | not_started |
 | S16 | 实现受控 replan | not_started |
 | S17 | 实现 Single Writer | not_started |

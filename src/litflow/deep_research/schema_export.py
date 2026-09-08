@@ -102,3 +102,27 @@ def write_runtime_v2_schemas(output_dir: Path) -> dict[str, Path]:
         target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
         written[name] = target
     return written
+
+
+def render_executor_schemas() -> dict[str, str]:
+    """Render B05 offline executor contracts with the shared canonical writer."""
+    from .executor import EvidenceGraph, LocalExecutorResult, LocalPassage, LocalSearchRequest, ReadPassageRequest
+
+    schemas = {
+        "local_search_request.schema.json": LocalSearchRequest,
+        "read_passage_request.schema.json": ReadPassageRequest,
+        "local_passage.schema.json": LocalPassage,
+        "evidence_graph.schema.json": EvidenceGraph,
+        "local_executor_result.schema.json": LocalExecutorResult,
+    }
+    return {name: json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n" for name, model in schemas.items()}
+
+
+def write_executor_schemas(output_dir: Path) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for name, content in render_executor_schemas().items():
+        target = output_dir / name
+        target.write_text(content, encoding="utf-8", newline="\n")
+        written[name] = target
+    return written

@@ -1,0 +1,664 @@
+{
+  "$defs": {
+    "EvidenceGraph": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/EvidenceGraphEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "evidence_units": {
+          "items": {
+            "$ref": "#/$defs/EvidenceUnit"
+          },
+          "title": "Evidence Units",
+          "type": "array"
+        },
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "dr-evidence-graph-v1",
+          "default": "dr-evidence-graph-v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/Source"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "subtasks": {
+          "items": {
+            "$ref": "#/$defs/ResearchSubtask"
+          },
+          "title": "Subtasks",
+          "type": "array"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "task_id",
+        "plan_id",
+        "subtasks",
+        "sources",
+        "evidence_units",
+        "edges"
+      ],
+      "title": "EvidenceGraph",
+      "type": "object"
+    },
+    "EvidenceGraphEdge": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "from_id": {
+          "title": "From Id",
+          "type": "string"
+        },
+        "relation": {
+          "title": "Relation",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "to_id": {
+          "title": "To Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "relation",
+        "from_id",
+        "to_id"
+      ],
+      "title": "EvidenceGraphEdge",
+      "type": "object"
+    },
+    "EvidenceLocator": {
+      "additionalProperties": false,
+      "description": "Locator for current text and future page-region evidence without extraction code.",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional planned region coordinates x0,y0,x1,y1.",
+          "title": "Bbox"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "coordinate_space": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Coordinate-space name required with bbox.",
+          "title": "Coordinate Space"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional one-based source page number.",
+          "title": "Page Number"
+        },
+        "passage_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional stable passage or chunk identity.",
+          "title": "Passage Id"
+        },
+        "span_end": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional exclusive text span end.",
+          "title": "Span End"
+        },
+        "span_start": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional inclusive text span start.",
+          "title": "Span Start"
+        }
+      },
+      "title": "EvidenceLocator",
+      "type": "object"
+    },
+    "EvidenceModality": {
+      "enum": [
+        "text",
+        "image_region",
+        "table_region"
+      ],
+      "title": "EvidenceModality",
+      "type": "string"
+    },
+    "EvidenceUnit": {
+      "additionalProperties": false,
+      "description": "Verbatim, groundable evidence; derived interpretation belongs in Claim.",
+      "properties": {
+        "content_sha256": {
+          "description": "SHA-256 of verbatim content.",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "evidence_id": {
+          "description": "Program-generated deterministic evidence ID.",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "language": {
+          "description": "Evidence language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/EvidenceLocator",
+          "description": "Evidence location in the source."
+        },
+        "modality": {
+          "$ref": "#/$defs/EvidenceModality",
+          "description": "Evidence modality; regions are planned contract support."
+        },
+        "provenance_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Controlled provenance metadata without private paths.",
+          "title": "Provenance Metadata",
+          "type": "object"
+        },
+        "source_id": {
+          "description": "Referenced source ID.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "verbatim_content": {
+          "description": "Verbatim groundable evidence content.",
+          "minLength": 1,
+          "title": "Verbatim Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "source_id",
+        "modality",
+        "locator",
+        "verbatim_content",
+        "content_sha256",
+        "language"
+      ],
+      "title": "EvidenceUnit",
+      "type": "object"
+    },
+    "ResearchSubtask": {
+      "additionalProperties": false,
+      "description": "Task-local research question with declarative DAG dependencies only.",
+      "properties": {
+        "completion_criteria": {
+          "default": [],
+          "description": "Observable subtask completion criteria.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Completion Criteria",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "dependency_ids": {
+          "default": [],
+          "description": "Required predecessor subtask IDs.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependency Ids",
+          "type": "array"
+        },
+        "expected_evidence": {
+          "default": [],
+          "description": "Expected evidence categories.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Evidence",
+          "type": "array"
+        },
+        "question": {
+          "description": "Subtask research question.",
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "Why the subtask is needed.",
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "subtask_id": {
+          "description": "Program-generated deterministic subtask ID.",
+          "title": "Subtask Id",
+          "type": "string"
+        },
+        "task_id": {
+          "description": "Owning task ID.",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subtask_id",
+        "task_id",
+        "question",
+        "rationale"
+      ],
+      "title": "ResearchSubtask",
+      "type": "object"
+    },
+    "RuntimeEventEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Id"
+        },
+        "causal_parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Causal Parent Id"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "event_hash": {
+          "title": "Event Hash",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_type": {
+          "$ref": "#/$defs/RuntimeEventType"
+        },
+        "operation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation Id"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "previous_event_hash": {
+          "title": "Previous Event Hash",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "dr-runtime-v2",
+          "default": "dr-runtime-v2",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stream_sequence": {
+          "minimum": 1,
+          "title": "Stream Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_id",
+        "run_id",
+        "stream_sequence",
+        "event_type",
+        "previous_event_hash",
+        "event_hash"
+      ],
+      "title": "RuntimeEventEnvelope",
+      "type": "object"
+    },
+    "RuntimeEventType": {
+      "enum": [
+        "run_started",
+        "lifecycle_transition",
+        "operation_reserved",
+        "operation_dispatched",
+        "operation_succeeded",
+        "operation_failed",
+        "operation_unknown",
+        "operation_cancelled",
+        "retry_scheduled",
+        "replan_decided",
+        "elapsed_recorded"
+      ],
+      "title": "RuntimeEventType",
+      "type": "string"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Portable source identity without a private filesystem path.",
+      "properties": {
+        "bibliographic_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Controlled portable bibliographic fields.",
+          "title": "Bibliographic Metadata",
+          "type": "object"
+        },
+        "canonical_reference": {
+          "description": "Portable DOI, URL, paper key or content reference.",
+          "minLength": 1,
+          "title": "Canonical Reference",
+          "type": "string"
+        },
+        "content_sha256": {
+          "description": "SHA-256 identity of source content.",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind",
+          "description": "Source category; Web is contract-only in B01."
+        },
+        "language": {
+          "description": "Source language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional timezone-aware UTC publication time.",
+          "title": "Published At"
+        },
+        "source_id": {
+          "description": "Program-generated deterministic source ID.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Source title.",
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "kind",
+        "canonical_reference",
+        "title",
+        "content_sha256",
+        "language"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceKind": {
+      "enum": [
+        "local_pdf",
+        "passage_corpus",
+        "web"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    },
+    "SubtaskExecutionResult": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "evidence_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/$defs/SubtaskExecutionStatus"
+        },
+        "subtask_id": {
+          "title": "Subtask Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subtask_id",
+        "status"
+      ],
+      "title": "SubtaskExecutionResult",
+      "type": "object"
+    },
+    "SubtaskExecutionStatus": {
+      "enum": [
+        "completed",
+        "failed"
+      ],
+      "title": "SubtaskExecutionStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/RuntimeEventEnvelope"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "evidence_graph": {
+      "$ref": "#/$defs/EvidenceGraph"
+    },
+    "plan_id": {
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "dr-local-research-executor-v1",
+      "default": "dr-local-research-executor-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subtask_results": {
+      "items": {
+        "$ref": "#/$defs/SubtaskExecutionResult"
+      },
+      "title": "Subtask Results",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "plan_id",
+    "subtask_results",
+    "evidence_graph",
+    "events"
+  ],
+  "title": "LocalExecutorResult",
+  "type": "object"
+}

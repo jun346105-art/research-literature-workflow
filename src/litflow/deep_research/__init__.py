@@ -33,6 +33,7 @@ from .runtime_v2 import (
 )
 from .canary import GLMCanaryPlan, GLMCanaryRunner
 from .planner import FakePlanner, Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, ValidatedResearchPlan, plan_approved_brief, require_approved_brief
+from .executor import EvidenceCandidate, EvidenceGraph, ExecutorError, LocalExecutorResult, LocalResearchExecutor, ReadOnlyToolRegistry, ToolName
 
 __all__ = [
     "BriefApproval",
@@ -85,4 +86,11 @@ __all__ = [
     "ValidatedResearchPlan",
     "plan_approved_brief",
     "require_approved_brief",
+    "EvidenceCandidate",
+    "EvidenceGraph",
+    "ExecutorError",
+    "LocalExecutorResult",
+    "LocalResearchExecutor",
+    "ReadOnlyToolRegistry",
+    "ToolName",
 ]

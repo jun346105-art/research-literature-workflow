@@ -5,7 +5,7 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B08 / S19 Gate A GLM Canary closure`（`pass_text_only_single_call`；仅真实 text-only 单调用）
+- 当前 Session：`B05 / S13–S14 Local Research Executor + Evidence Graph`（`internal_result`；仅离线、只读本地检索与验证关系）
 - 当前简历状态：`not_ready`
 
 按以下顺序使用这些文件：
@@ -23,12 +23,13 @@
 11. [B03R2 Replay Boundaries](B03R2_REPLAY_BOUNDARIES.md)：事实 reducer、流尾 unknown finalization、retry/replan 恢复、checkpoint trust 和受控入口。
 12. [Gate A Canary Design](GATE_A_CANARY_DESIGN_V1.md)、[Gate A Canary Result](GATE_A_CANARY_RESULT_V1.md)、[GLM Adapter 合同](GLM_PROVIDER_CANARY_ADAPTER_V1.md)、[v1.1 execution-plan](canary/v1.1/README.md)、[v1.2 execution-plan](canary/v1.2/README.md)、[B08/S19 记录](sessions/B08-DR-S19-CANARY-DESIGN.md)、[B08R1 事故硬化](sessions/B08R1-GLM-CANARY-INCIDENT-HARDENING.md)、[B08R2 兼容修复](sessions/B08R2-GLM-CANARY-V12-COMPATIBILITY.md) 与 [B08R3 Application Contract](sessions/B08R3-GLM-CANARY-APPLICATION-CONTRACT.md)：受控单次 Canary 的设计、结果与失败硬化边界；真实结果仅覆盖 GLM-5.3-Flash text-only 单调用，不代表完整 Agent、Web、工具或多模态能力。
 13. [B04 Brief Planner](RESEARCH_BRIEF_PLANNER_V1.md) 与 [执行记录](sessions/B04-DR-S11-S12.md)：离线 approval gate 与结构化 Planner 边界。
-14. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
-13. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
-14. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
-15. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
-16. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
-17. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
-18. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
+14. [B05 Local Executor and Evidence Graph](LOCAL_RESEARCH_EXECUTOR_V1.md) 与 [执行记录](sessions/B05-DR-S13-S14.md)：离线、只读本地检索、严格 Evidence 构建和最小图边界。
+15. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+16. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
+17. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
+18. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
+19. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
+20. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
+21. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
 
 后续 Session 必须先以本目录的边界和 manifest 做只读预检；不得用路线图的长期目标提前扩张当前 Session 范围。

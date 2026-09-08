@@ -1,0 +1,136 @@
+{
+  "$defs": {
+    "Source": {
+      "additionalProperties": false,
+      "description": "Portable source identity without a private filesystem path.",
+      "properties": {
+        "bibliographic_metadata": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Controlled portable bibliographic fields.",
+          "title": "Bibliographic Metadata",
+          "type": "object"
+        },
+        "canonical_reference": {
+          "description": "Portable DOI, URL, paper key or content reference.",
+          "minLength": 1,
+          "title": "Canonical Reference",
+          "type": "string"
+        },
+        "content_sha256": {
+          "description": "SHA-256 identity of source content.",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/SourceKind",
+          "description": "Source category; Web is contract-only in B01."
+        },
+        "language": {
+          "description": "Source language tag.",
+          "title": "Language",
+          "type": "string"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional timezone-aware UTC publication time.",
+          "title": "Published At"
+        },
+        "source_id": {
+          "description": "Program-generated deterministic source ID.",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Source title.",
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "kind",
+        "canonical_reference",
+        "title",
+        "content_sha256",
+        "language"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceKind": {
+      "enum": [
+        "local_pdf",
+        "passage_corpus",
+        "web"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "chunk_id": {
+      "minLength": 1,
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "page_end": {
+      "minimum": 1,
+      "title": "Page End",
+      "type": "integer"
+    },
+    "page_start": {
+      "minimum": 1,
+      "title": "Page Start",
+      "type": "integer"
+    },
+    "passage_id": {
+      "title": "Passage Id",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/Source"
+    },
+    "text": {
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "passage_id",
+    "source",
+    "text",
+    "page_start",
+    "page_end",
+    "chunk_id"
+  ],
+  "title": "LocalPassage",
+  "type": "object"
+}

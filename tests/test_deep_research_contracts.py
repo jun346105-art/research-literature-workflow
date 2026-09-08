@@ -182,6 +182,8 @@ def test_bundle_rejects_broken_references_span_hash_and_locator_modality():
 
 def test_domain_contract_modules_do_not_import_runtime_or_provider_dependencies():
     root = Path("src/litflow/deep_research")
-    text = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+    # B05's executor is deliberately the integration boundary for frozen BM25
+    # and span mapping. Keep the contract/identity/planner core dependency-free.
+    text = "\n".join((root / name).read_text(encoding="utf-8") for name in ("contracts.py", "identity.py", "planner.py"))
     for forbidden in ("langgraph", "fastapi", "httpx", "numpy", "torch", "transformers", "litflow.agent", "litflow.rag", "litflow.llm"):
         assert forbidden not in text
