@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "evidence_id": {
+      "minLength": 1,
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "quote": {
+      "minLength": 1,
+      "title": "Quote",
+      "type": "string"
+    },
+    "relation": {
+      "default": "support",
+      "enum": [
+        "support",
+        "contradict",
+        "context"
+      ],
+      "title": "Relation",
+      "type": "string"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "quote"
+  ],
+  "title": "CitationProposal",
+  "type": "object"
+}

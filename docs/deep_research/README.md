@@ -5,7 +5,7 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B06 / S15–S16 Evidence Gap / Conflict + Bounded Replan`（`internal_result`；仅离线结构事实与一次重规划）
+- 当前 Session：`B07 / S17–S18 Single Writer + Evidence-grounded Report Validator`（`internal_result`；仅离线 FakeWriter 与确定性验证）
 - 当前简历状态：`not_ready`
 
 按以下顺序使用这些文件：
@@ -25,12 +25,13 @@
 13. [B04 Brief Planner](RESEARCH_BRIEF_PLANNER_V1.md) 与 [执行记录](sessions/B04-DR-S11-S12.md)：离线 approval gate 与结构化 Planner 边界。
 14. [B05 Local Executor and Evidence Graph](LOCAL_RESEARCH_EXECUTOR_V1.md) 与 [执行记录](sessions/B05-DR-S13-S14.md)：离线、只读本地检索、严格 Evidence 构建和最小图边界。
 15. [B06 Gap/Conflict/Replan](EVIDENCE_GAP_CONFLICT_V1.md) 与 [执行记录](sessions/B06-DR-S15-S16.md)：确定性结构缺口、潜在冲突候选与一次有界重规划。
-15. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
-16. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
-17. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
-18. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
-19. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
-20. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
-21. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
+16. [B07 Single Writer](SINGLE_WRITER_V1.md)、[Report Validator](REPORT_VALIDATOR_V1.md)、[offline E2E](OFFLINE_SINGLE_AGENT_E2E_V1.md)、[Schema](writer/v1/README.md) 与 [执行记录](sessions/B07-DR-S17-S18.md)：单一 FakeWriter、程序拥有的 Claim/Citation 与安全展示边界。
+17. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+18. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
+19. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
+20. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
+21. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
+22. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
+23. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
 
 后续 Session 必须先以本目录的边界和 manifest 做只读预检；不得用路线图的长期目标提前扩张当前 Session 范围。

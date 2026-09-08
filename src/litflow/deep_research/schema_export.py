@@ -139,3 +139,37 @@ def write_gap_replan_schemas(output_dir: Path) -> dict[str, Path]:
         target.write_text(json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8", newline="\n")
         written[name] = target
     return written
+
+
+def render_writer_schemas() -> dict[str, str]:
+    """Render B07 untrusted draft and program-owned report schemas canonically."""
+    from .writer import (
+        ClaimProposal,
+        CitationProposal,
+        ReportDraft,
+        ReportSectionDraft,
+        ReportValidationIssue,
+        ReportValidationResult,
+        ValidatedReport,
+    )
+
+    schemas = {
+        "report_draft.schema.json": ReportDraft,
+        "report_section_draft.schema.json": ReportSectionDraft,
+        "claim_proposal.schema.json": ClaimProposal,
+        "citation_proposal.schema.json": CitationProposal,
+        "validated_report.schema.json": ValidatedReport,
+        "report_validation_issue.schema.json": ReportValidationIssue,
+        "report_validation_result.schema.json": ReportValidationResult,
+    }
+    return {name: json.dumps(model.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n" for name, model in schemas.items()}
+
+
+def write_writer_schemas(output_dir: Path) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for name, content in render_writer_schemas().items():
+        target = output_dir / name
+        target.write_text(content, encoding="utf-8", newline="\n")
+        written[name] = target
+    return written

@@ -35,6 +35,7 @@ from .canary import GLMCanaryPlan, GLMCanaryRunner
 from .planner import FakePlanner, Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, ValidatedResearchPlan, plan_approved_brief, require_approved_brief
 from .executor import EvidenceCandidate, EvidenceGraph, ExecutorError, LocalExecutorResult, LocalResearchExecutor, ReadOnlyToolRegistry, ToolName
 from .gap_replan import EvidenceGap, GapConflictAssessment, PotentialConflict, ReplanDecisionRecord, ReplanOutcome, ReplannedResearchPlan, assess_evidence_graph, apply_bounded_replan, decide_replan
+from .writer import FakeWriter, ReportDraft, ReportStatus, ReportValidationResult, SingleWriterRunner, ValidatedReport, Writer, validate_report_draft
 
 __all__ = [
     "BriefApproval",
@@ -103,4 +104,12 @@ __all__ = [
     "assess_evidence_graph",
     "apply_bounded_replan",
     "decide_replan",
+    "FakeWriter",
+    "ReportDraft",
+    "ReportStatus",
+    "ReportValidationResult",
+    "SingleWriterRunner",
+    "ValidatedReport",
+    "Writer",
+    "validate_report_draft",
 ]

@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "CitationProposal": {
+      "properties": {
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "quote": {
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "relation": {
+          "default": "support",
+          "enum": [
+            "support",
+            "contradict",
+            "context"
+          ],
+          "title": "Relation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "title": "CitationProposal",
+      "type": "object"
+    },
+    "ClaimProposal": {
+      "properties": {
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationProposal"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "claim_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Type"
+        },
+        "entities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "language"
+      ],
+      "title": "ClaimProposal",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/ClaimProposal"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "heading": {
+      "minLength": 1,
+      "title": "Heading",
+      "type": "string"
+    }
+  },
+  "required": [
+    "heading"
+  ],
+  "title": "ReportSectionDraft",
+  "type": "object"
+}

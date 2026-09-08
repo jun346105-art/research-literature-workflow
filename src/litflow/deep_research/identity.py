@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any
 
 
-ID_PREFIXES = frozenset({"task", "brief", "approval", "subtask", "source", "evidence", "claim", "citation", "run", "event", "operation", "attempt", "plan", "policy", "runtime", "gap", "conflict", "assessment", "replan"})
+ID_PREFIXES = frozenset({"task", "brief", "approval", "subtask", "source", "evidence", "claim", "citation", "run", "event", "operation", "attempt", "plan", "policy", "runtime", "gap", "conflict", "assessment", "replan", "report", "section", "validation"})
 ID_HEX_LENGTH = 24
 
 

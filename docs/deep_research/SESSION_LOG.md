@@ -23,8 +23,8 @@
 | S14 | 实现 Claim–Evidence Graph | completed (B05 S13/S14 batch; deterministic verified relations only) |
 | S15 | 实现 Evidence Gap / Conflict Checker | completed (B06; offline/internal_result) |
 | S16 | 实现受控 replan | completed (B06; max_replans=1, unified event/ledger) |
-| S17 | 实现 Single Writer | not_started |
-| S18 | 实现 Report Validator 与 safe output | not_started |
+| S17 | 实现 Single Writer | completed (B07 S17/S18 batch; offline FakeWriter/internal_result) |
+| S18 | 实现 Report Validator 与 safe output | completed (B07 S17/S18 batch; deterministic grounding only; author review required) |
 | S19 | 运行固定真实 canary 并保留全部 artifact | completed (B08; `pass_text_only_single_call`; GLM-5.3-Flash text-only single call with replay and cost audit) |
 | S20 | 对 canary 失败做根因审计与一次硬化 | completed (B08R1; offline hardening; pending read-only re-audit) |
 | B08R2 | 保持 v1.1 并冻结 v1.2 attempt identity、实现祖先与源码指纹绑定 | completed; pending read-only re-audit; no second call |
