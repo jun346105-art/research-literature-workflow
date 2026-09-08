@@ -29,7 +29,7 @@
 | S20 | 对 canary 失败做根因审计与一次硬化 | completed (B08R1; offline hardening; pending read-only re-audit) |
 | B08R2 | 保持 v1.1 并冻结 v1.2 attempt identity、实现祖先与源码指纹绑定 | completed; pending read-only re-audit; no second call |
 | B08R3 | 校准 GLM Canary application acknowledgement contract | completed; attempt 003 design frozen; pending read-only re-audit; no second call |
-| B08E2E-PREP | Real GLM DeepResearch E2E 离线准备与三项 pilot 冻结 | completed; `ready_for_real_e2e_read_only_audit`; internal_result; no real E2E/API/Web call; does not occupy S21–S25 |
+| B08E2E-PREP | Real GLM DeepResearch E2E 离线准备与三项 pilot 冻结 | completed; `ready_for_real_e2e_read_only_audit`; internal_result; exit semantics repaired in B08E2E-EXIT-SEMANTICS; no real E2E/API/Web call; does not occupy S21–S25 |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
