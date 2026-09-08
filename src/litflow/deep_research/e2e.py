@@ -35,6 +35,7 @@ WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose one JSON PlannerDraft for the approved brief. Preserve task_id, brief_id, locale, constraints and scope exactly. Use only local keys for dependencies; never create formal IDs, evidence, claims, citations, tools, or final answers."""
 WRITER_PROMPT = """You propose one JSON ReportDraft from the supplied Evidence View and gap/conflict summary. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer. Preserve disclosed uncertainty."""
+_OUTPUT_ROOT = "outputs"
 
 
 def runtime_source_sha256() -> str:
@@ -130,14 +131,14 @@ class GLME2EPilotTask(BaseModel):
             "secret_scan",
         ]
     ]
-    corpus_path: str = Field(pattern=r"^outputs/rag_bm25_v1/[a-z0-9_.-]+$")
+    corpus_path: str = Field(pattern=rf"^{_OUTPUT_ROOT}/rag_bm25_v1/[a-z0-9_.-]+$")
     corpus_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     planner_prompt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     writer_prompt_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     max_planner_calls: Literal[1] = 1
     max_writer_calls: Literal[1] = 1
     max_replans: Literal[1] = 1
-    artifact_dir: str = Field(pattern=r"^outputs/deep_research/e2e/v1/dr-run-[0-9a-f]{24}$")
+    artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1/dr-run-[0-9a-f]{{24}}$")
     run_id: str = Field(pattern=r"^dr-run-[0-9a-f]{24}$")
 
     @field_validator("created_at", "approval_decided_at")
