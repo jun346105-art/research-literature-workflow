@@ -26,6 +26,26 @@ def write_contract_schemas(output_dir: Path) -> dict[str, Path]:
     return {SCHEMA_FILENAME: target}
 
 
+def render_planner_schemas() -> dict[str, str]:
+    """Render strict Planner candidate/result schemas with stable UTF-8/LF content."""
+    from .planner import PlannerDraft, ValidatedResearchPlan
+
+    return {
+        "planner_draft.schema.json": json.dumps(PlannerDraft.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        "validated_research_plan.schema.json": json.dumps(ValidatedResearchPlan.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+    }
+
+
+def write_planner_schemas(output_dir: Path) -> dict[str, Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: dict[str, Path] = {}
+    for name, content in render_planner_schemas().items():
+        target = output_dir / name
+        target.write_text(content, encoding="utf-8", newline="\n")
+        written[name] = target
+    return written
+
+
 def write_runtime_schemas(output_dir: Path) -> dict[str, Path]:
     """Write stable runtime contract schemas without importing a runtime adapter."""
     from .events import RunEvent

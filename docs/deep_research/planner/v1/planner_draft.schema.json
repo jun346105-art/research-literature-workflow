@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "PlannerSubtaskDraft": {
+      "additionalProperties": false,
+      "description": "Model candidate using local keys only; it cannot own a final subtask ID.",
+      "properties": {
+        "completion_criteria": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Completion Criteria",
+          "type": "array"
+        },
+        "contract_version": {
+          "const": "dr-contracts-v1",
+          "default": "dr-contracts-v1",
+          "description": "Stable DeepResearch contract version.",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "dependencies": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependencies",
+          "type": "array"
+        },
+        "expected_evidence": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Evidence",
+          "type": "array"
+        },
+        "local_key": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Local Key",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_key",
+        "question",
+        "rationale"
+      ],
+      "title": "PlannerSubtaskDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strict, untrusted structured candidate returned by one Planner.",
+  "properties": {
+    "brief_id": {
+      "title": "Brief Id",
+      "type": "string"
+    },
+    "constraints": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Constraints",
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "locale": {
+      "title": "Locale",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "dr-planner-draft-v1",
+      "default": "dr-planner-draft-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope_exclusions": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Exclusions",
+      "type": "array"
+    },
+    "scope_inclusions": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Inclusions",
+      "type": "array"
+    },
+    "subtasks": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PlannerSubtaskDraft"
+      },
+      "title": "Subtasks",
+      "type": "array"
+    },
+    "task_id": {
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "brief_id",
+    "locale"
+  ],
+  "title": "PlannerDraft",
+  "type": "object"
+}
