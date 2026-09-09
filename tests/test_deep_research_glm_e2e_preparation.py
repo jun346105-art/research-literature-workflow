@@ -256,6 +256,16 @@ def test_writer_calibration_cli_requires_explicit_mutually_exclusive_mode():
     assert help_result.returncode == 0 and "--dry-run" in help_result.stdout and "--execute" in help_result.stdout
 
 
+def test_writer_calibration_subprocess_enters_execute_branch_without_credential(tmp_path: Path):
+    import sys
+    import shutil
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-subprocess", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "a" * 24)
+    plan_path = tmp_path / "plan.json"; plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
+    env = {"PYTHONPATH": str(Path.cwd() / "src"), "PATH": str(Path(shutil.which("git")).parent) + ";" + str(Path.cwd() / ".venv" / "Scripts"), "SystemRoot": "C:\\Windows", "WINDIR": "C:\\Windows", "TEMP": str(tmp_path), "TMP": str(tmp_path)}
+    result = subprocess.run([sys.executable, "-m", "litflow.deep_research.writer_calibration_cli", "--plan", str(plan_path), "--artifact-dir", plan.artifact_dir, "--execute"], cwd=Path.cwd(), env=env, capture_output=True, text=True)
+    assert result.returncode == 2 and "configuration_invalid" in result.stdout
+
+
 def test_writer_calibration_execute_missing_credential_fails_before_dispatch(tmp_path: Path, monkeypatch):
     from litflow.deep_research import writer_calibration_cli
     plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "c" * 24, run_id=None)
@@ -283,6 +293,42 @@ def test_writer_calibration_execute_offline_mock_enters_real_cli_branch_once(tmp
     assert writer_calibration_cli.main(["--plan", str(plan_path), "--artifact-dir", plan.artifact_dir, "--execute"], repo_root=Path.cwd(), artifact_root=tmp_path) == 0
     target = tmp_path / plan.artifact_dir
     assert (target / "runtime.jsonl").is_file() and (target / "checkpoint.json").is_file() and (target / "calibration_result.json").is_file()
+
+
+@pytest.mark.parametrize(("provider_error", "expected_exit"), (("provider_response_invalid", 2), ("outcome_unknown", 3)))
+def test_writer_calibration_execute_maps_known_and_unknown_and_persists_artifact(tmp_path: Path, monkeypatch, provider_error: str, expected_exit: int):
+    from litflow.deep_research import writer_calibration_cli
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + ("1" if provider_error == "provider_response_invalid" else "2") * 24)
+    path = tmp_path / "plan.json"; path.write_text(plan.model_dump_json(), encoding="utf-8")
+    class ErrorAdapter:
+        def __init__(self, *_args, **_kwargs): self.calls = 0
+        def require_credential_for_execute(self): return "offline-fixture"
+        async def complete(self, **_kwargs):
+            self.calls += 1
+            raise GLMAdapterError(provider_error, outcome_unknown=provider_error == "outcome_unknown", diagnostics={"failure_stage": "transport", "contract_error_code": provider_error, "response_received": False, "response_json_parsed": False})
+    monkeypatch.setattr(writer_calibration_cli, "GLMStructuredAdapter", ErrorAdapter)
+    assert writer_calibration_cli.main(["--plan", str(path), "--artifact-dir", plan.artifact_dir, "--execute"], repo_root=Path.cwd(), artifact_root=tmp_path) == expected_exit
+    target = tmp_path / plan.artifact_dir
+    assert (target / "runtime.jsonl").is_file() and (target / "checkpoint.json").is_file() and (target / "calibration_result.json").is_file()
+    result = json.loads((target / "calibration_result.json").read_text(encoding="utf-8"))
+    assert result["error_code"] == provider_error and result["provider_calls"] == 1 and result["planner_calls"] == result["tool_calls"] == 0
+    assert "offline-fixture" not in (target / "calibration_result.json").read_text(encoding="utf-8")
+
+
+def test_writer_calibration_artifact_exists_fails_closed(tmp_path: Path):
+    from litflow.deep_research.writer_calibration_cli import main
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "9" * 24)
+    path = tmp_path / "plan.json"; path.write_text(plan.model_dump_json(), encoding="utf-8")
+    (tmp_path / plan.artifact_dir).mkdir(parents=True)
+    assert main(["--plan", str(path), "--artifact-dir", plan.artifact_dir, "--dry-run"], repo_root=Path.cwd(), artifact_root=tmp_path) == 2
+
+
+def test_writer_calibration_schema_export_is_byte_stable(tmp_path: Path):
+    from litflow.deep_research.schema_export import write_writer_calibration_schema
+    committed = Path("docs/deep_research/calibration/v1/writer_calibration.schema.json").read_bytes()
+    first = write_writer_calibration_schema(tmp_path / "one").read_bytes()
+    second = write_writer_calibration_schema(tmp_path / "two").read_bytes()
+    assert first == second == committed
 
 
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
