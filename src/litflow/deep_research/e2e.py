@@ -34,7 +34,7 @@ E2E_VERSION = "dr-single-agent-e2e-v1"
 PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
-PLANNER_PROMPT = """You propose one JSON PlannerDraft for the approved brief. Preserve task_id, brief_id, locale, constraints and scope exactly. Use only local keys for dependencies; never create formal IDs, evidence, claims, citations, tools, or final answers."""
+PLANNER_PROMPT = """You propose one JSON PlannerDraft for the approved brief. Return local subtask keys, objectives, allowed operation intent, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. Never create evidence, claims, citations, or final answers."""
 WRITER_PROMPT = """You propose one JSON ReportDraft from the supplied Evidence View and gap/conflict summary. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer. Preserve disclosed uncertainty."""
 _OUTPUT_ROOT = "outputs"
 
@@ -365,7 +365,7 @@ class GLMStructuredPlanner:
             if reply.finish_reason in {"length", "max_tokens"}:
                 raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics, usage=reply.usage)
             try:
-                return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics)
+                return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics, task=task, brief=brief)
             except PlannerResponseError as error:
                 error.usage = reply.usage
                 raise
@@ -391,11 +391,6 @@ class GLMSingleWriter:
             raise WriterError("outcome_unknown" if isinstance(error, GLMAdapterError) and error.outcome_unknown else "writer_contract_invalid", "GLM Writer response is not an admissible draft") from error
 
 
-def _parse_planner_object(content: str) -> dict[str, object]:
-    """Ignore one harmless JSON fence but reject program-controlled identities."""
-    return _parse_planner_object_with_diagnostics(content, diagnostics={})
-
-
 def _provider_diagnostics_from_reply(reply: GLMStructuredReply) -> dict[str, object]:
     return {
         "failure_stage": "planner_application",
@@ -413,7 +408,17 @@ def _provider_diagnostics_from_reply(reply: GLMStructuredReply) -> dict[str, obj
     }
 
 
-def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object]) -> dict[str, object]:
+def _bounded_observed(value: object) -> dict[str, object]:
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return {"observed_value_type": type(value).__name__, "observed_value_length": len(encoded), "observed_value_sha256": sha256_hex(encoded.encode("utf-8"))}
+
+
+def _planner_scope_error(diagnostics: dict[str, object], *, field: str, observed: object, approved: object, local_key: str | None = None) -> PlannerResponseError:
+    safe = {**diagnostics, "failure_stage": "planner_scope", "contract_error_code": "planner_scope_invalid", "validation_rule": "approved_scope_is_program_owned", "field_location": field, "approved_scope_constraint_ids": [str(item) for item in approved] if isinstance(approved, (list, tuple)) else [], "offending_subtask_local_key": local_key, **_bounded_observed(observed)}
+    return PlannerResponseError("planner_scope_invalid", "Planner attempted to provide a program-owned scope or permission field", safe)
+
+
+def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object], task: ResearchTask, brief: ResearchBrief) -> dict[str, object]:
     """Ignore one harmless JSON fence but reject program-controlled identities."""
     normalized = content.strip()
     if normalized.startswith("```") and normalized.endswith("```"):
@@ -428,13 +433,25 @@ def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[st
     forbidden = {"plan_id", "subtask_id", "evidence_id", "claim_id", "citation_id", "sources", "evidence_units", "final_answer"}
     if forbidden.intersection(payload):
         raise PlannerResponseError("planner_schema_invalid", "GLM Planner attempted to own a program-controlled field", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
+    owned = {"task_id": task.task_id, "brief_id": brief.brief_id, "locale": task.locale, "constraints": list(brief.constraints), "scope_inclusions": list(brief.scope_inclusions), "scope_exclusions": list(brief.scope_exclusions)}
+    for field, approved in owned.items():
+        if field in payload and payload[field] != approved:
+            raise _planner_scope_error(diagnostics, field=field, observed=payload[field], approved=approved)
     result = {key: payload[key] for key in PlannerDraft.model_fields if key in payload}
+    result.update(owned)
     subtasks = result.get("subtasks")
     if isinstance(subtasks, list):
         normalized: list[object] = []
         for candidate in subtasks:
             if not isinstance(candidate, dict) or forbidden.intersection(candidate):
                 raise PlannerResponseError("planner_schema_invalid", "GLM Planner subtask is invalid", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
+            local_key = candidate.get("local_key") if isinstance(candidate.get("local_key"), str) else None
+            for permission_field, allowed in (("tool_intent", {"local_read_only_retrieval"}), ("operation_intent", {"local_read_only_retrieval"}), ("corpus_id", {"frozen_local_corpus"})):
+                if permission_field in candidate and candidate[permission_field] not in allowed:
+                    raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].{permission_field}", observed=candidate[permission_field], approved=tuple(sorted(allowed)), local_key=local_key)
+            if any(key in candidate for key in ("source_ids", "web", "vision", "files", "write")):
+                key = next(key for key in ("source_ids", "web", "vision", "files", "write") if key in candidate)
+                raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].{key}", observed=candidate[key], approved=("local_read_only_retrieval",), local_key=local_key)
             normalized.append({key: candidate[key] for key in PlannerSubtaskDraft.model_fields if key in candidate})
         result["subtasks"] = normalized
     try:

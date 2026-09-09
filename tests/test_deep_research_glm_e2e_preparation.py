@@ -189,7 +189,7 @@ def test_planner_application_contract_classification_and_fence_are_deterministic
     assert draft["task_id"] == task.task_id
     for content, code in (
         ("{not-json", "planner_json_invalid"),
-        (json.dumps({"schema_version": "dr-planner-draft-v1", "brief_id": brief.brief_id}), "planner_schema_invalid"),
+        (json.dumps({"schema_version": "dr-planner-draft-v1", "subtasks": [{"local_key": "x"}]}), "planner_schema_invalid"),
     ):
         with pytest.raises(PlannerError) as error:
             asyncio.run(GLMStructuredPlanner(RawStructuredClient(content)).create_draft(task=task, brief=brief))
@@ -207,12 +207,30 @@ def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: P
     with pytest.raises(E2ETerminalError) as error:
         asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "scope-runtime.jsonl", checkpoint_path=tmp_path / "scope-checkpoint.json"))
     assert error.value.error_code == "planner_scope_invalid"
+    scope_event = next(event for event in UnifiedEventStore(tmp_path / "scope-runtime.jsonl", run_id=DeepResearchRunner.run_id(task, brief)).read_all() if event.event_type.value == "operation_failed")
+    assert scope_event.payload["diagnostics"]["validation_rule"] == "approved_scope_is_program_owned"
+    assert scope_event.payload["diagnostics"]["field_location"] == "scope_inclusions"
     bad_dependency = _planner_response(task, brief)
     bad_dependency["subtasks"][0]["dependencies"] = ["missing"]
     dependency_runner, _, _ = _runner(GLMStructuredPlanner(FakeStructuredClient([bad_dependency])), GLMSingleWriter(FakeStructuredClient([])))
     with pytest.raises(E2ETerminalError) as dependency_error:
         asyncio.run(dependency_runner.run(task, brief, approval, event_path=tmp_path / "dependency-runtime.jsonl", checkpoint_path=tmp_path / "dependency-checkpoint.json"))
     assert dependency_error.value.error_code == "planner_dependency_invalid"
+
+
+def test_planner_inherits_approved_scope_and_rejects_explicit_unauthorized_tools():
+    task, brief, _ = _inputs()
+    response = _planner_response(task, brief)
+    for field in ("task_id", "brief_id", "locale", "constraints", "scope_inclusions", "scope_exclusions"):
+        response.pop(field, None)
+    response["subtasks"][0]["tool_intent"] = "local_read_only_retrieval"
+    draft = asyncio.run(GLMStructuredPlanner(FakeStructuredClient([response])).create_draft(task=task, brief=brief))
+    assert draft["task_id"] == task.task_id and draft["brief_id"] == brief.brief_id and draft["scope_inclusions"] == list(brief.scope_inclusions)
+    bad = _planner_response(task, brief)
+    bad["subtasks"][0]["tool_intent"] = "web_search"
+    with pytest.raises(PlannerError) as error:
+        asyncio.run(GLMStructuredPlanner(FakeStructuredClient([bad])).create_draft(task=task, brief=brief))
+    assert error.value.code == "planner_scope_invalid" and getattr(error.value, "diagnostics", {}).get("field_location") == "subtasks[find].tool_intent"
 
 
 def test_planner_known_failure_reconciles_actual_usage_and_elapsed(tmp_path: Path):
