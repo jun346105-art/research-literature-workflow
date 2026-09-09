@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import json
 import subprocess
+from decimal import Decimal
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -54,13 +55,13 @@ class FakeStructuredClient:
 
 
 class RawStructuredClient:
-    def __init__(self, content: str, *, finish_reason: str | None = None):
-        self.content, self.finish_reason = content, finish_reason
+    def __init__(self, content: str, *, finish_reason: str | None = None, usage: TokenUsage | None = None):
+        self.content, self.finish_reason, self.usage = content, finish_reason, usage or TokenUsage()
         self.calls = 0
 
     async def complete(self, *, prompt: str, operation_name: str) -> GLMStructuredReply:
         self.calls += 1
-        return GLMStructuredReply(content=self.content, usage=TokenUsage(), model_identity_verified=True, usage_reported=True, request_id_present=False, finish_reason=self.finish_reason)
+        return GLMStructuredReply(content=self.content, usage=self.usage, model_identity_verified=True, usage_reported=True, request_id_present=False, finish_reason=self.finish_reason)
 
 
 def _inputs():
@@ -211,6 +212,27 @@ def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: P
     with pytest.raises(E2ETerminalError) as dependency_error:
         asyncio.run(dependency_runner.run(task, brief, approval, event_path=tmp_path / "dependency-runtime.jsonl", checkpoint_path=tmp_path / "dependency-checkpoint.json"))
     assert dependency_error.value.error_code == "planner_dependency_invalid"
+
+
+def test_planner_known_failure_reconciles_actual_usage_and_elapsed(tmp_path: Path):
+    task, brief, approval = _inputs()
+    observed = TokenUsage(input_tokens=64, output_tokens=128, cost_micros=Decimal("204.8"))
+    planner = GLMStructuredPlanner(RawStructuredClient("{}", finish_reason="length", usage=observed))
+    runner, _, spec = _runner(planner, GLMSingleWriter(FakeStructuredClient([])))
+    with pytest.raises(E2ETerminalError) as error:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
+    assert error.value.error_code == "planner_content_truncated"
+    run_id = DeepResearchRunner.run_id(task, brief)
+    events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=run_id).read_all()
+    failed = next(event for event in events if event.event_type.value == "operation_failed")
+    assert failed.payload["usage"]["input_tokens"] == 64 and failed.payload["usage"]["output_tokens"] == 128
+    elapsed = next(event.payload["elapsed_s"] for event in events if event.event_type.value == "elapsed_recorded")
+    assert elapsed > 0
+    checkpoint = json.loads((tmp_path / "checkpoint.json").read_text(encoding="utf-8"))
+    assert checkpoint["ledger"]["input_tokens"] == 64 and checkpoint["ledger"]["output_tokens"] == 128
+    assert checkpoint["ledger"]["cost_micros"] == "204.8"
+    replayed = replay_runtime_events(RunState(run_id=run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True), events, spec)
+    assert replayed.ledger.input_tokens == 64 and replayed.ledger.cost_micros == Decimal("204.8")
 
 
 def test_writer_known_and_unknown_are_durable_distinct_terminals_without_retry(tmp_path: Path):
