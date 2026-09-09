@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "CitationProposal": {
+      "properties": {
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "quote": {
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "relation": {
+          "default": "support",
+          "enum": [
+            "support",
+            "contradict",
+            "context"
+          ],
+          "title": "Relation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "quote"
+      ],
+      "title": "CitationProposal",
+      "type": "object"
+    },
+    "ClaimProposal": {
+      "properties": {
+        "citations": {
+          "items": {
+            "$ref": "#/$defs/CitationProposal"
+          },
+          "title": "Citations",
+          "type": "array"
+        },
+        "claim_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Type"
+        },
+        "entities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entities",
+          "type": "array"
+        },
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "language"
+      ],
+      "title": "ClaimProposal",
+      "type": "object"
+    },
+    "ConflictDisclosureDraft": {
+      "properties": {
+        "conflict_id": {
+          "minLength": 1,
+          "title": "Conflict Id",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "label": {
+          "default": "disputed",
+          "enum": [
+            "disputed",
+            "uncertain"
+          ],
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "conflict_id",
+        "evidence_ids"
+      ],
+      "title": "ConflictDisclosureDraft",
+      "type": "object"
+    },
+    "ReportSectionDraft": {
+      "properties": {
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/ClaimProposal"
+          },
+          "title": "Claims",
+          "type": "array"
+        },
+        "heading": {
+          "minLength": 1,
+          "title": "Heading",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading"
+      ],
+      "title": "ReportSectionDraft",
+      "type": "object"
+    }
+  },
+  "description": "Untrusted model content; formal identity is injected by the program.",
+  "properties": {
+    "abstention_reason": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Reason"
+    },
+    "conflict_disclosures": {
+      "items": {
+        "$ref": "#/$defs/ConflictDisclosureDraft"
+      },
+      "title": "Conflict Disclosures",
+      "type": "array"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/ReportSectionDraft"
+      },
+      "minItems": 1,
+      "title": "Sections",
+      "type": "array"
+    }
+  },
+  "required": [
+    "sections"
+  ],
+  "title": "WriterContentDraft",
+  "type": "object"
+}

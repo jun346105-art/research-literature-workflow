@@ -133,6 +133,59 @@ class ReportDraft(_DraftModel):
         return _reject_fields(values, frozenset({"evidence_graph", "evidence_units", "sources", "claims", "citations", "final_answer"}))
 
 
+WRITER_OWNED_FIELDS = frozenset({"schema_version", "task_id", "brief_id", "plan_id", "run_id", "report_id", "claim_id", "citation_id"})
+
+
+class WriterContentDraft(_DraftModel):
+    """Untrusted model content; formal identity is injected by the program."""
+
+    sections: list[ReportSectionDraft] = Field(min_length=1)
+    abstention_reason: str | None = Field(default=None, min_length=1)
+    conflict_disclosures: list[ConflictDisclosureDraft] = Field(default_factory=list)
+
+
+def writer_validation_error_diagnostics(error: ValidationError) -> dict[str, object]:
+    errors = error.errors(include_input=False)
+    return {
+        "failure_stage": "writer_schema",
+        "contract_error_code": "writer_schema_invalid",
+        "validation_errors_count": len(errors),
+        "validation_errors": [
+            {"type": str(item.get("type")), "location": ".".join(str(part) for part in item.get("loc", ())) or "root"}
+            for item in errors[:16]
+        ],
+    }
+
+
+def model_supplied_owned_fields(raw: object) -> tuple[str, ...]:
+    payload = raw.model_dump(mode="json") if isinstance(raw, BaseModel) else raw
+    found: set[str] = set()
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                if key in WRITER_OWNED_FIELDS:
+                    found.add(str(key))
+                visit(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                visit(nested)
+    visit(payload)
+    return tuple(sorted(found))
+
+
+def finalize_writer_content_draft(raw: object, *, task: ResearchTask, brief: ResearchBrief, plan: ValidatedResearchPlan, graph: EvidenceGraph) -> ReportDraft:
+    payload = raw.model_dump(mode="json") if isinstance(raw, BaseModel) else raw
+    if not isinstance(payload, dict):
+        raise WriterError("writer_schema_invalid", "Writer content draft must be an object", {"failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_type": type(payload).__name__})
+    owned = list(model_supplied_owned_fields(payload))
+    content = {key: value for key, value in payload.items() if key not in WRITER_OWNED_FIELDS}
+    try:
+        draft = WriterContentDraft.model_validate(content)
+    except ValidationError as error:
+        raise WriterError("writer_schema_invalid", "Writer content draft failed schema validation", {**writer_validation_error_diagnostics(error), "model_supplied_owned_fields": owned}) from error
+    return ReportDraft(schema_version=REPORT_DRAFT_VERSION, task_id=task.task_id, brief_id=brief.brief_id, plan_id=plan.plan_id, run_id=graph.run_id, sections=draft.sections, abstention_reason=draft.abstention_reason, conflict_disclosures=draft.conflict_disclosures)
+
+
 class ReportValidationIssue(ContractModel):
     issue_id: str
     code: str = Field(min_length=1)
@@ -402,8 +455,7 @@ class SingleWriterRunner:
 
     @staticmethod
     def _validation_error_diagnostics(error: ValidationError) -> dict[str, object]:
-        first = error.errors(include_input=False)[0]
-        return {"failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "pydantic_error_type": str(first.get("type")), "pydantic_error_location": ".".join(str(part) for part in first.get("loc", ())) or "root"}
+        return writer_validation_error_diagnostics(error)
 
     async def run(
         self,
@@ -452,7 +504,8 @@ class SingleWriterRunner:
         try:
             raw = await asyncio.wait_for(self._writer.create_draft(task=task, brief=brief, plan=plan, graph=graph, assessment=assessment), timeout=self._budget.operation_timeout_s)
             usage = TokenUsage.model_validate(getattr(self._writer, "last_usage", usage).model_dump(mode="json") if isinstance(getattr(self._writer, "last_usage", usage), TokenUsage) else usage.model_dump(mode="json"))
-            draft = ReportDraft.model_validate(raw)
+            supplied_owned_fields = list(model_supplied_owned_fields(raw))
+            draft = finalize_writer_content_draft(raw, task=task, brief=brief, plan=plan, graph=graph)
             validation = validate_report_draft(task, brief, approval, plan, graph, assessment, draft)
             writer_error_code = _writer_validation_error_code(validation)
             if writer_error_code is not None:
@@ -498,7 +551,7 @@ class SingleWriterRunner:
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise WriterError(code, "untrusted writer draft failed before report display") from error
         result_hash = sha256_hex(canonical_json_bytes(validation.model_dump(mode="json")))
-        success_payload = {"operation_name": "single_writer", "attempt_number": 1, "status": "success", "usage": usage.model_dump(mode="json"), "result_sha256": result_hash, "validation": validation.model_dump(mode="json"), "artifact_refs": artifact_refs or {}}
+        success_payload = {"operation_name": "single_writer", "attempt_number": 1, "status": "success", "usage": usage.model_dump(mode="json"), "result_sha256": result_hash, "validation": validation.model_dump(mode="json"), "artifact_refs": artifact_refs or {}, "model_supplied_owned_fields": supplied_owned_fields}
         safe_draft = getattr(self._writer, "last_draft", None)
         if isinstance(safe_draft, dict):
             success_payload["draft"] = safe_draft

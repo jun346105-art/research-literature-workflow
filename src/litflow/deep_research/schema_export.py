@@ -151,10 +151,12 @@ def render_writer_schemas() -> dict[str, str]:
         ReportValidationIssue,
         ReportValidationResult,
         ValidatedReport,
+        WriterContentDraft,
     )
 
     schemas = {
         "report_draft.schema.json": ReportDraft,
+        "writer_content_draft.schema.json": WriterContentDraft,
         "report_section_draft.schema.json": ReportSectionDraft,
         "claim_proposal.schema.json": ClaimProposal,
         "citation_proposal.schema.json": CitationProposal,

@@ -31,11 +31,12 @@ from litflow.deep_research.e2e import (
     write_e2e_pilot_attempt_schema,
 )
 from litflow.deep_research.executor import LocalResearchExecutor, ReadOnlyToolRegistry
-from litflow.deep_research.planner import PlannerDraft, PlannerError, PlannerSubtaskDraft
+from litflow.deep_research.gap_replan import AssessmentContext, assess_evidence_graph
+from litflow.deep_research.planner import FakePlanner, PlannerDraft, PlannerError, PlannerSubtaskDraft, plan_approved_brief
 from litflow.deep_research.operations import OperationKind
 from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated_checkpoint, reduce_runtime_events, replay_runtime_events
 from litflow.deep_research.state import RunState
-from litflow.deep_research.writer import ReportStatus
+from litflow.deep_research.writer import ReportStatus, SingleWriterRunner
 from litflow.deep_research.writer import WriterError
 from litflow.deep_research.writer_calibration import WriterCalibrationPlan, build_writer_calibration_fixture, calibration_run_id, preflight_writer_calibration
 
@@ -129,7 +130,8 @@ def test_glm_adapters_apply_json_application_contracts_without_formal_ids():
     assert draft["subtasks"][0].get("subtask_id") is None
     writer = GLMSingleWriter(FakeStructuredClient([{ "schema_version": "dr-report-draft-v1", "task_id": task.task_id, "brief_id": brief.brief_id, "plan_id": "dr-plan-" + "a" * 24, "run_id": "dr-run-" + "b" * 24, "sections": [{"heading": "Findings", "claims": []}], "harmless_metadata": "ignored" }]))
     raw = asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
-    assert raw["harmless_metadata"] == "ignored"
+    assert "harmless_metadata" not in raw
+    assert not (set(raw) & {"schema_version", "task_id", "brief_id", "plan_id", "run_id"})
 
 
 def test_glm_planner_ignores_harmless_metadata_but_rejects_formal_identity():
@@ -388,8 +390,43 @@ def test_writer_schema_failure_has_bounded_diagnostics():
         asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
     assert error.value.code == "writer_schema_invalid"
     assert error.value.diagnostics["failure_stage"] == "writer_schema"
-    assert "pydantic_error_location" in error.value.diagnostics
+    assert error.value.diagnostics["validation_errors"] and "location" in error.value.diagnostics["validation_errors"][0]
     assert "raw_response" not in error.value.diagnostics and "authorization" not in error.value.diagnostics
+
+
+def test_writer_prompt_does_not_request_system_identity_fields():
+    from litflow.deep_research.e2e import WRITER_PROMPT
+    for field in ("schema_version", "task_id", "brief_id", "plan_id", "run_id", "report_id", "claim_id", "citation_id"):
+        assert f'"{field}":' not in WRITER_PROMPT
+    assert "Never output schema_version" in WRITER_PROMPT
+
+
+def test_writer_response_owned_identity_is_discarded_before_finalization(tmp_path: Path):
+    from litflow.deep_research.writer import FakeWriter
+    task, brief, approval = _inputs()
+    plan = asyncio.run(plan_approved_brief(task, brief, approval, FakePlanner(_planner_response(task, brief))))
+    execution = asyncio.run(LocalResearchExecutor(ReadOnlyToolRegistry(_corpus())).execute(task, brief, approval, plan, event_path=tmp_path / "executor.jsonl", checkpoint_path=tmp_path / "executor.checkpoint.json"))
+    graph = execution.evidence_graph
+    assessment = asyncio.run(assess_evidence_graph(graph, (), AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks))))
+    unit = graph.evidence_units[0]
+    content = {"sections": [{"heading": "Findings", "claims": [{"text": "The fixture is grounded.", "language": "en", "citations": [{"evidence_id": unit.evidence_id, "quote": unit.verbatim_content, "relation": "support"}]}]}]}
+    content.update({"schema_version": "wrong", "task_id": "dr-task-short", "brief_id": "brief-short", "plan_id": "plan-short", "run_id": "run-short"})
+    writer = FakeWriter(content)
+    result = asyncio.run(SingleWriterRunner(writer).run(task, brief, approval, plan, graph, assessment, event_path=tmp_path / "identity.jsonl", checkpoint_path=tmp_path / "identity.checkpoint.json"))
+    report = result.validation.report
+    assert report is not None and report.task_id == task.task_id and report.brief_id == brief.brief_id and report.plan_id == plan.plan_id and report.run_id == graph.run_id
+    event = next(event for event in result.events if event.event_type.value == "operation_succeeded")
+    assert set(event.payload["model_supplied_owned_fields"]) == {"schema_version", "task_id", "brief_id", "plan_id", "run_id"}
+
+
+def test_writer_content_schema_reports_bounded_multiple_errors_without_values():
+    writer = GLMSingleWriter(RawStructuredClient(json.dumps({"sections": [{"claims": [{"citations": [{}]}]}]})))
+    with pytest.raises(WriterError) as error:
+        asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
+    diagnostics = error.value.diagnostics
+    assert 1 <= diagnostics["validation_errors_count"] <= 16
+    assert all(set(item) == {"type", "location"} for item in diagnostics["validation_errors"])
+    assert "input" not in json.dumps(diagnostics).lower()
 
 
 def test_planner_known_failure_reconciles_actual_usage_and_elapsed(tmp_path: Path):

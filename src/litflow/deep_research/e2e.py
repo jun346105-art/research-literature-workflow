@@ -27,7 +27,7 @@ from .operations import OperationKind
 from .planner import Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, ValidatedResearchPlan, plan_approved_brief
 from .runtime_v2 import GENESIS_HASH, CoordinatedCheckpointV2, RuntimeEventEnvelope, RuntimeEventType, UnifiedEventStore, create_runtime_event, reduce_runtime_events, replay_runtime_events, write_coordinated_checkpoint
 from .state import RunState, RunStatus, transition
-from .writer import ReportStatus, ReportValidationResult, SingleWriterRunner, Writer, WriterError
+from .writer import ReportStatus, ReportValidationResult, SingleWriterRunner, Writer, WriterContentDraft, WriterError, model_supplied_owned_fields, writer_validation_error_diagnostics
 
 
 E2E_PLAN_VERSION = "dr-glm-e2e-pilot-v1"
@@ -36,7 +36,7 @@ PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","research_action":"search_and_read_local_evidence","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Every item must choose research_action from `search_and_read_local_evidence` or `verify_local_evidence`; these are the only executor-supported actions. Return local subtask keys, objectives, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, compose/write/report/summary subtasks, or final answers."""
-WRITER_PROMPT = """You output exactly one JSON object matching this ReportDraft shape, with no Markdown fence or explanation. Minimal valid example: {"schema_version":"dr-report-draft-v1","task_id":"<input task_id>","brief_id":"<input brief_id>","plan_id":"<input plan_id>","run_id":"<input run_id>","sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Do not invent Source, Evidence, page, passage, Claim, Citation, or report IDs and do not modify evidence. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
+WRITER_PROMPT = """You output exactly one JSON object containing only Writer content, with no Markdown fence or explanation. Minimal valid example: {"sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Never output schema_version, task_id, brief_id, plan_id, run_id, report_id, claim_id, citation_id, Source, Evidence, page, passage, Claim, Citation, or report IDs; those identities belong to the program. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
 _OUTPUT_ROOT = "outputs"
 
 
@@ -399,7 +399,7 @@ class GLMSingleWriter:
     """Real-provider-capable Writer adapter; final report ownership remains in B07."""
 
     def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None) -> None:
-        self._client, self.last_usage, self.reservation_usage = client, TokenUsage(), reservation_usage or TokenUsage()
+        self._client, self.last_usage, self.reservation_usage, self.last_draft, self.model_supplied_owned_fields = client, TokenUsage(), reservation_usage or TokenUsage(), None, ()
 
     async def create_draft(self, **kwargs: object) -> object:
         graph = kwargs["graph"]
@@ -423,14 +423,14 @@ class GLMSingleWriter:
                 raise WriterError("writer_json_invalid", "Writer response is not JSON", {**diagnostics, "failure_stage": "writer_json", "contract_error_code": "writer_json_invalid"}) from error
             if not isinstance(payload, dict):
                 raise WriterError("writer_schema_invalid", "Writer response must be a JSON object", {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_type": type(payload).__name__})
-            safe = {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_keys": sorted(str(key) for key in payload), "sections_count": len(payload.get("sections", [])) if isinstance(payload.get("sections"), list) else 0, "claims_count": sum(len(item.get("claims", [])) for item in payload.get("sections", []) if isinstance(item, dict) and isinstance(item.get("claims", []), list)), "citations_count": sum(len(claim.get("citations", [])) for item in payload.get("sections", []) if isinstance(item, dict) for claim in item.get("claims", []) if isinstance(claim, dict) and isinstance(claim.get("citations", []), list))}
+            from .writer import WRITER_OWNED_FIELDS
+            self.model_supplied_owned_fields = model_supplied_owned_fields(payload)
+            safe = {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_keys": sorted(str(key) for key in payload), "model_supplied_owned_fields": list(self.model_supplied_owned_fields), "sections_count": len(payload.get("sections", [])) if isinstance(payload.get("sections"), list) else 0, "claims_count": sum(len(item.get("claims", [])) for item in payload.get("sections", []) if isinstance(item, dict) and isinstance(item.get("claims", []), list)), "citations_count": sum(len(claim.get("citations", [])) for item in payload.get("sections", []) if isinstance(item, dict) for claim in item.get("claims", []) if isinstance(claim, dict) and isinstance(claim.get("citations", []), list))}
             try:
-                from .writer import ReportDraft
-                self.last_draft = ReportDraft.model_validate(payload).model_dump(mode="json")
+                self.last_draft = WriterContentDraft.model_validate({key: value for key, value in payload.items() if key not in WRITER_OWNED_FIELDS}).model_dump(mode="json")
             except ValidationError as error:
-                first = error.errors(include_input=False)[0]
-                raise WriterError("writer_schema_invalid", "Writer response failed the ReportDraft schema", {**safe, "pydantic_error_type": str(first.get("type")), "pydantic_error_location": ".".join(str(part) for part in first.get("loc", ())) or "root"}) from error
-            return payload
+                raise WriterError("writer_schema_invalid", "Writer response failed the WriterContentDraft schema", {**safe, **writer_validation_error_diagnostics(error)}) from error
+            return self.last_draft
         except GLMAdapterError as error:
             code = "outcome_unknown" if error.outcome_unknown else "provider_response_invalid"
             diagnostics = error.diagnostics or {"failure_stage": "writer_provider", "contract_error_code": code}

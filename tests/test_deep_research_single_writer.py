@@ -100,7 +100,7 @@ def test_empty_evidence_missing_fields_and_graph_mutation_fail_closed(tmp_path: 
         ReportDraft.model_validate({"schema_version": "dr-report-draft-v1"})
     with pytest.raises(ValidationError, match="program-controlled"):
         ReportDraft.model_validate({**raw, "evidence_graph": graph.model_dump(mode="json")})
-    with pytest.raises(WriterError, match="writer_draft_invalid"):
+    with pytest.raises(WriterError, match="writer_schema_invalid"):
         asyncio.run(SingleWriterRunner(FakeWriter({"schema_version": "dr-report-draft-v1"})).run(task, brief, approval, plan, graph, assessment, event_path=tmp_path / "malformed.jsonl", checkpoint_path=tmp_path / "malformed.checkpoint.json"))
 
 
