@@ -34,6 +34,7 @@
 | B08E2E-R2 | Attempt-003 budget, usage and elapsed calibration; Attempt-004 freeze | completed; Attempt-003 immutable; Attempt-004 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R3 | Attempt-004 stage-specific reasoning and token budget calibration; Attempt-005 freeze | completed; Attempt-004 immutable; Attempt-005 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R4 | Attempt-005 scope contract calibration and diagnostics; Attempt-006 freeze | completed; Attempt-005 immutable; Attempt-006 dry-run only; no new real E2E/API/Web call |
+| B08E2E-R5 | Attempt-006 non-empty Planner output contract and Prompt calibration; Attempt-007 freeze | completed; Attempt-006 immutable; Attempt-007 dry-run only; no new real E2E/API/Web call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
