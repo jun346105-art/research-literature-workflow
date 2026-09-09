@@ -249,14 +249,14 @@
         },
         "max_input_tokens": {
           "default": 1024,
-          "maximum": 1024,
+          "maximum": 4096,
           "minimum": 512,
           "title": "Max Input Tokens",
           "type": "integer"
         },
         "max_output_tokens": {
           "default": 1024,
-          "maximum": 1024,
+          "maximum": 4096,
           "minimum": 256,
           "title": "Max Output Tokens",
           "type": "integer"
@@ -274,14 +274,16 @@
           "type": "string"
         },
         "monetary_budget_limit_micros": {
-          "const": 10000,
           "default": 10000,
+          "maximum": 20000,
+          "minimum": 10000,
           "title": "Monetary Budget Limit Micros",
           "type": "integer"
         },
         "operation_timeout_seconds": {
-          "const": 30,
-          "default": 30,
+          "default": 60,
+          "maximum": 60,
+          "minimum": 30,
           "title": "Operation Timeout Seconds",
           "type": "integer"
         },
@@ -297,17 +299,44 @@
           "title": "Parallel Enabled",
           "type": "boolean"
         },
+        "planner_max_input_tokens": {
+          "const": 2048,
+          "default": 2048,
+          "title": "Planner Max Input Tokens",
+          "type": "integer"
+        },
         "planner_max_output_tokens": {
-          "const": 1024,
-          "default": 1024,
+          "const": 4096,
+          "default": 4096,
           "title": "Planner Max Output Tokens",
           "type": "integer"
         },
+        "planner_reasoning_effort": {
+          "default": "low",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
+          "title": "Planner Reasoning Effort",
+          "type": "string"
+        },
         "reasoning_effort": {
-          "const": "max",
           "default": "max",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
           "title": "Reasoning Effort",
           "type": "string"
+        },
+        "run_timeout_seconds": {
+          "default": 180,
+          "maximum": 180,
+          "minimum": 90,
+          "title": "Run Timeout Seconds",
+          "type": "integer"
         },
         "temperature": {
           "const": 1,
@@ -351,11 +380,27 @@
           "title": "Web Enabled",
           "type": "boolean"
         },
+        "writer_max_input_tokens": {
+          "const": 4096,
+          "default": 4096,
+          "title": "Writer Max Input Tokens",
+          "type": "integer"
+        },
         "writer_max_output_tokens": {
-          "const": 1024,
-          "default": 1024,
+          "const": 4096,
+          "default": 4096,
           "title": "Writer Max Output Tokens",
           "type": "integer"
+        },
+        "writer_reasoning_effort": {
+          "default": "high",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
+          "title": "Writer Reasoning Effort",
+          "type": "string"
         }
       },
       "title": "GLMInvocationPolicy",
@@ -385,11 +430,14 @@
         "max_retries": 0,
         "model_id": "glm-5.3-flash",
         "monetary_budget_limit_micros": 10000,
-        "operation_timeout_seconds": 30,
+        "operation_timeout_seconds": 60,
         "output_price_per_million_micros": 1400000,
         "parallel_enabled": false,
-        "planner_max_output_tokens": 1024,
+        "planner_max_input_tokens": 2048,
+        "planner_max_output_tokens": 4096,
+        "planner_reasoning_effort": "low",
         "reasoning_effort": "max",
+        "run_timeout_seconds": 180,
         "temperature": 1,
         "thinking_type": "enabled",
         "tools_enabled": false,
@@ -397,7 +445,9 @@
         "video_enabled": false,
         "vision_enabled": false,
         "web_enabled": false,
-        "writer_max_output_tokens": 1024
+        "writer_max_input_tokens": 4096,
+        "writer_max_output_tokens": 4096,
+        "writer_reasoning_effort": "high"
       }
     },
     "provider": {
