@@ -279,8 +279,8 @@ class GLME2ECrossPaperAttemptTask(GLME2EPilotAttemptTask):
     """Cross-paper v1.2 task with explicit corpus source selection."""
 
     artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
-    selected_source_keys: tuple[str, ...] = Field(min_length=2, max_length=8)
-    selected_passage_ids: tuple[str, ...] = Field(min_length=2, max_length=16)
+    selected_source_keys: list[str] = Field(min_length=2, max_length=8)
+    selected_passage_ids: list[str] = Field(min_length=2, max_length=16)
     task_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
