@@ -376,7 +376,7 @@ class GLMStructuredPlanner:
     """Real-provider-capable Planner adapter; formal Plan IDs remain program-owned."""
 
     def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None) -> None:
-        self._client, self.last_usage, self.reservation_usage = client, TokenUsage(), reservation_usage or TokenUsage()
+        self._client, self.last_usage, self.reservation_usage, self.last_draft = client, TokenUsage(), reservation_usage or TokenUsage(), None
 
     async def create_draft(self, *, task: ResearchTask, brief: ResearchBrief) -> object:
         prompt = f"{PLANNER_PROMPT}\nApproved brief: {json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
@@ -426,7 +426,7 @@ class GLMSingleWriter:
             safe = {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_keys": sorted(str(key) for key in payload), "sections_count": len(payload.get("sections", [])) if isinstance(payload.get("sections"), list) else 0, "claims_count": sum(len(item.get("claims", [])) for item in payload.get("sections", []) if isinstance(item, dict) and isinstance(item.get("claims", []), list)), "citations_count": sum(len(claim.get("citations", [])) for item in payload.get("sections", []) if isinstance(item, dict) for claim in item.get("claims", []) if isinstance(claim, dict) and isinstance(claim.get("citations", []), list))}
             try:
                 from .writer import ReportDraft
-                ReportDraft.model_validate(payload)
+                self.last_draft = ReportDraft.model_validate(payload).model_dump(mode="json")
             except ValidationError as error:
                 first = error.errors(include_input=False)[0]
                 raise WriterError("writer_schema_invalid", "Writer response failed the ReportDraft schema", {**safe, "pydantic_error_type": str(first.get("type")), "pydantic_error_location": ".".join(str(part) for part in first.get("loc", ())) or "root"}) from error

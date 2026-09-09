@@ -498,7 +498,11 @@ class SingleWriterRunner:
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise WriterError(code, "untrusted writer draft failed before report display") from error
         result_hash = sha256_hex(canonical_json_bytes(validation.model_dump(mode="json")))
-        self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "single_writer", "attempt_number": 1, "status": "success", "usage": usage.model_dump(mode="json"), "result_sha256": result_hash, "validation": validation.model_dump(mode="json"), "artifact_refs": artifact_refs or {}}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+        success_payload = {"operation_name": "single_writer", "attempt_number": 1, "status": "success", "usage": usage.model_dump(mode="json"), "result_sha256": result_hash, "validation": validation.model_dump(mode="json"), "artifact_refs": artifact_refs or {}}
+        safe_draft = getattr(self._writer, "last_draft", None)
+        if isinstance(safe_draft, dict):
+            success_payload["draft"] = safe_draft
+        self._append(store, events, RuntimeEventType.operation_succeeded, success_payload, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
         state = self._lifecycle(store, events, state, RunStatus.validating)
         state = self._lifecycle(store, events, state, RunStatus.insufficient_evidence if validation.status is ReportStatus.insufficient_evidence else RunStatus.complete)
