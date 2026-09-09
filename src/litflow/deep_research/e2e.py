@@ -7,6 +7,7 @@ import json
 import os
 import socket
 import subprocess
+import tempfile
 import time
 import urllib.error
 from datetime import datetime
@@ -19,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from .budgets import BudgetSpec, TokenUsage
 from .canary import GLM_ENDPOINT, GLM_MODEL, _urllib_transport
 from .contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
-from .executor import LocalResearchExecutor
+from .executor import EvidenceGraph, LocalResearchExecutor
 from .gap_replan import AssessmentContext, GapConflictAssessment, SubtaskEvidenceRequirement, assess_evidence_graph
 from .identity import canonical_json_bytes, make_stable_id, sha256_hex
 from .operations import OperationKind
@@ -35,7 +36,7 @@ PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Return local subtask keys, objectives, allowed operation intent, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, or final answers."""
-WRITER_PROMPT = """You propose one JSON ReportDraft from the supplied Evidence View and gap/conflict summary. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer. Preserve disclosed uncertainty."""
+WRITER_PROMPT = """You output exactly one JSON object matching this ReportDraft shape. Minimal valid example: {"schema_version":"dr-report-draft-v1","task_id":"<input task_id>","brief_id":"<input brief_id>","plan_id":"<input plan_id>","run_id":"<input run_id>","sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty; claims must be non-empty unless using an explicit abstention section. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer; never emit Markdown fences or explanations. Preserve uncertainty and author review."""
 _OUTPUT_ROOT = "outputs"
 
 
@@ -46,8 +47,29 @@ def runtime_source_sha256() -> str:
         "src/litflow/deep_research/e2e_cli.py": Path(__file__).resolve().with_name("e2e_cli.py"),
         "src/litflow/deep_research/executor.py": Path(__file__).resolve().with_name("executor.py"),
         "src/litflow/deep_research/writer.py": Path(__file__).resolve().with_name("writer.py"),
+        "src/litflow/deep_research/writer_calibration.py": Path(__file__).resolve().with_name("writer_calibration.py"),
+        "src/litflow/deep_research/writer_calibration_cli.py": Path(__file__).resolve().with_name("writer_calibration_cli.py"),
     }
     return sha256_hex(canonical_json_bytes({name: sha256_hex(path.read_bytes()) for name, path in paths.items()}))
+
+
+def _write_json_artifact(path: Path, value: object) -> str:
+    encoded = canonical_json_bytes(value) + b"\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+    return sha256_hex(encoded)
+
+
+def _read_hashed_json(path: Path, expected_sha256: str, model: type[BaseModel]) -> BaseModel:
+    data = path.read_bytes()
+    if sha256_hex(data) != expected_sha256:
+        raise E2EConfigurationError(f"artifact hash mismatch: {path.name}")
+    return model.model_validate_json(data)
 
 
 class E2EConfigurationError(ValueError):
@@ -386,9 +408,15 @@ class GLMSingleWriter:
         try:
             reply = await self._client.complete(prompt=prompt, operation_name="glm_single_writer")
             self.last_usage = reply.usage
-            return json.loads(reply.content)
-        except (json.JSONDecodeError, GLMAdapterError) as error:
-            raise WriterError("outcome_unknown" if isinstance(error, GLMAdapterError) and error.outcome_unknown else "writer_contract_invalid", "GLM Writer response is not an admissible draft") from error
+            diagnostics = _provider_diagnostics_from_reply(reply)
+            if reply.finish_reason in {"length", "max_tokens"}:
+                raise WriterError("writer_content_truncated", "Writer response ended at the output limit", diagnostics)
+            try:
+                return json.loads(reply.content)
+            except json.JSONDecodeError as error:
+                raise WriterError("writer_json_invalid", "Writer response is not JSON", {**diagnostics, "failure_stage": "writer_json", "contract_error_code": "writer_json_invalid"}) from error
+        except GLMAdapterError as error:
+            raise WriterError("outcome_unknown" if error.outcome_unknown else "provider_response_invalid", "GLM Writer response is not an admissible draft", error.diagnostics) from error
 
 
 def _provider_diagnostics_from_reply(reply: GLMStructuredReply) -> dict[str, object]:
@@ -530,7 +558,15 @@ class DeepResearchRunner:
             validation = ReportValidationResult.model_validate(report_event.payload["validation"])
             return DeepResearchE2EResult(run_id=run_id, terminal=validation.status.value, plan=plan, validation=validation, resumed=True)
         if events and plan_event is not None:
-            raise E2EConfigurationError("incomplete durable run requires manual review; no component is re-invoked")
+            artifact_refs = next((event.payload.get("artifact_refs") for event in reversed(events) if event.event_type is RuntimeEventType.elapsed_recorded and event.payload.get("artifact_refs")), None)
+            if not isinstance(artifact_refs, dict):
+                raise E2EConfigurationError("durable business artifacts are missing")
+            artifact_dir = event_path.parent
+            plan = _read_hashed_json(artifact_dir / "validated_plan.json", str(plan_event.payload.get("plan_artifact_sha256")), ValidatedResearchPlan)
+            graph = _read_hashed_json(artifact_dir / "evidence_graph.json", str(artifact_refs.get("evidence_graph_sha256")), EvidenceGraph)
+            assessment = _read_hashed_json(artifact_dir / "assessment.json", str(artifact_refs.get("assessment_sha256")), GapConflictAssessment)
+            writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs)
+            return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation, resumed=True)
         if events:
             replayed = replay_runtime_events(initial, events, self._budget)
             if replayed.manual_intervention is not None:
@@ -559,12 +595,16 @@ class DeepResearchRunner:
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise E2ETerminalError(code, outcome_unknown=error.code == "outcome_unknown") from error
         usage = getattr(self._planner, "last_usage", TokenUsage())
-        self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+        plan_artifact_sha256 = _write_json_artifact(event_path.parent / "validated_plan.json", plan.model_dump(mode="json"))
+        self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "plan_artifact_sha256": plan_artifact_sha256, "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
         execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id)
         assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))
-        writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, execution.evidence_graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path)
+        events = store.read_all()
+        artifact_refs = {"plan_sha256": plan_artifact_sha256, "evidence_graph_sha256": _write_json_artifact(event_path.parent / "evidence_graph.json", execution.evidence_graph.model_dump(mode="json")), "assessment_sha256": _write_json_artifact(event_path.parent / "assessment.json", assessment.model_dump(mode="json"))}
+        self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": 0.000001, "artifact_refs": artifact_refs}, causal_parent_id=events[-1].event_id)
+        writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, execution.evidence_graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs)
         return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation)
 
 

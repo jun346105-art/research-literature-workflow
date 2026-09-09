@@ -37,6 +37,7 @@ from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated
 from litflow.deep_research.state import RunState
 from litflow.deep_research.writer import ReportStatus
 from litflow.deep_research.writer import WriterError
+from litflow.deep_research.writer_calibration import WriterCalibrationPlan, preflight_writer_calibration
 
 
 NOW = datetime(2026, 9, 8, tzinfo=UTC)
@@ -110,6 +111,8 @@ def test_formal_runner_composes_injected_adapters_through_one_stream_and_resume(
     result = asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
     assert result.terminal == "complete" and result.validation and result.validation.status is ReportStatus.complete
     assert planner_client.calls == 1 and writer_client.calls == 0 and len(writer_calls) == 1
+    assert all((tmp_path / name).is_file() for name in ("validated_plan.json", "evidence_graph.json", "assessment.json"))
+    assert all((tmp_path / name).is_file() for name in ("validated_plan.json", "evidence_graph.json", "assessment.json"))
     events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=result.run_id).read_all()
     initial = RunState(run_id=result.run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True)
     full = replay_runtime_events(initial, events, spec)
@@ -215,6 +218,24 @@ def test_planner_prompt_freezes_nonempty_shape_and_schema_limits():
     from litflow.deep_research.e2e import PLANNER_PROMPT
 
     assert "subtasks" in PLANNER_PROMPT and "non-empty" in PLANNER_PROMPT and "local_key" in PLANNER_PROMPT
+
+
+def test_writer_provider_contract_errors_have_safe_diagnostics():
+    for content, code in (("not-json", "writer_json_invalid"), ("{}", "writer_content_truncated")):
+        writer = GLMSingleWriter(RawStructuredClient(content, finish_reason="length" if code == "writer_content_truncated" else None))
+        with pytest.raises(WriterError) as error:
+            asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
+        assert error.value.code == code
+        assert error.value.diagnostics and "content_sha256" in error.value.diagnostics
+        assert "raw_response" not in error.value.diagnostics and "authorization" not in error.value.diagnostics
+
+
+def test_writer_calibration_preflight_is_offline_and_artifact_unique():
+    import subprocess
+    from litflow.deep_research.e2e import runtime_source_sha256
+
+    plan = WriterCalibrationPlan(implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), calibration_id="writer-calibration-001", artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "a" * 24)
+    preflight_writer_calibration(plan, repo_root=Path.cwd())
 
 
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):

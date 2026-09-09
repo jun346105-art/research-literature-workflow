@@ -38,6 +38,7 @@ from .gap_replan import EvidenceGap, GapConflictAssessment, PotentialConflict, R
 from .writer import FakeWriter, ReportDraft, ReportStatus, ReportValidationResult, SingleWriterRunner, ValidatedReport, Writer, validate_report_draft
 from .e2e import DeepResearchRunner, GLME2EPilotPlan, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, preflight_e2e_pilot
 from .e2e import E2ETerminalError, GLME2EPilotAttemptPlan, parse_e2e_pilot_plan
+from .writer_calibration import WriterCalibrationPlan, WriterCalibrationRunner, preflight_writer_calibration
 
 __all__ = [
     "BriefApproval",
@@ -123,4 +124,7 @@ __all__ = [
     "E2ETerminalError",
     "GLME2EPilotAttemptPlan",
     "parse_e2e_pilot_plan",
+    "WriterCalibrationPlan",
+    "WriterCalibrationRunner",
+    "preflight_writer_calibration",
 ]
