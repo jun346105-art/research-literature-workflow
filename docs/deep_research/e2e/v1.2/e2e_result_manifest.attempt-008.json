@@ -1,0 +1,61 @@
+{
+  "schema_version": "dr-glm-e2e-result-v1",
+  "plan_path": "docs/deep_research/e2e/v1.2/glm_e2e_pilot_plan.attempt-008.json",
+  "implementation_commit_sha": "f53a2a1554744ae7e8fc9b48796e417c3d95d5b1",
+  "runtime_source_sha256": "4316910cc027744314eb657f7d579a82ac7d068a2b46590901757fbcf6efc472",
+  "planner_prompt_sha256": "cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b",
+  "writer_prompt_sha256": "a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1",
+  "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
+  "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+  "provider": "zhipu-bigmodel",
+  "model_id": "glm-5.3-flash",
+  "run_id": "dr-run-8b30915e93a6e6b5ee8137c5",
+  "terminal": "complete",
+  "report_status": "complete",
+  "provider_calls": 2,
+  "planner_calls": 1,
+  "writer_calls": 1,
+  "tool_calls": 4,
+  "retries": 0,
+  "replans": 0,
+  "counts": {
+    "subtasks": 2,
+    "sources": 2,
+    "evidence_units": 2,
+    "claims": 6,
+    "citations": 9,
+    "gaps": 0,
+    "conflicts": 0
+  },
+  "usage": {
+    "input_tokens": 4215,
+    "output_tokens": 1278,
+    "total_tokens": 5493,
+    "cost_micros": "3475.2",
+    "elapsed_s": 11.940211900000577
+  },
+  "deterministic_grounding_verified": true,
+  "replay": {
+    "full_replay_matches": true,
+    "checkpoint_replay_matches": true,
+    "external_provider_calls": 0,
+    "external_planner_calls": 0,
+    "external_writer_calls": 0,
+    "external_tool_calls": 0
+  },
+  "secret_scan": {
+    "credential_persisted": false,
+    "authorization_persisted": false,
+    "raw_reasoning_persisted": false,
+    "private_absolute_path_persisted": false
+  },
+  "author_review_required": true,
+  "publication_ready": false,
+  "artifacts": [
+    {"file": "assessment.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5/assessment.json", "bytes": 200, "sha256": "b0348654b7552c947123d19f9c46ace5fb127e76e26a454ae298450cd2c39e61"},
+    {"file": "checkpoint.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5/checkpoint.json", "bytes": 5428, "sha256": "1d41690892927461231f0a96737b2fb2de0ff4f9aba03f89db7548539e7a1db6"},
+    {"file": "evidence_graph.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5/evidence_graph.json", "bytes": 11714, "sha256": "64398a8575f9568deddb03eefe11191052bc4613f2ba4e6fa051045789251c43"},
+    {"file": "runtime.jsonl", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5/runtime.jsonl", "bytes": 35239, "sha256": "28aeda95616d9f2179bf5fc2a15a6762457103f6cfc642b584b1d183516b215b"},
+    {"file": "validated_plan.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5/validated_plan.json", "bytes": 1249, "sha256": "4971a45a13f0a04f828adc91d0c068b941fb28f235ad8cd82c7aa8a1be4f5df9"}
+  ]
+}

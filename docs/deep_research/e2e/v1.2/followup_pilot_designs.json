@@ -1,0 +1,64 @@
+{
+  "schema_version": "dr-glm-e2e-followup-design-v1",
+  "design_status": "design_only_not_executed",
+  "implementation_commit_sha": "012e454a01620bbdef0ce067d3f942433b15f7a5",
+  "runtime_source_sha256": "4316910cc027744314eb657f7d579a82ac7d068a2b46590901757fbcf6efc472",
+  "planner_prompt_sha256": "cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b",
+  "writer_prompt_sha256": "a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1",
+  "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
+  "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+  "provider": "zhipu-bigmodel",
+  "model_id": "glm-5.3-flash",
+  "policy": {
+    "planner_reasoning_effort": "low",
+    "writer_reasoning_effort": "high",
+    "planner_max_input_tokens": 2048,
+    "planner_max_output_tokens": 4096,
+    "writer_max_input_tokens": 4096,
+    "writer_max_output_tokens": 4096,
+    "max_provider_calls": 2,
+    "max_provider_attempts": 2,
+    "max_retries": 0,
+    "max_replans": 1,
+    "operation_timeout_seconds": 60,
+    "run_timeout_seconds": 180,
+    "hard_cost_limit_cny": "0.02",
+    "web_enabled": false,
+    "vision_enabled": false,
+    "files_enabled": false,
+    "parallel_enabled": false,
+    "fallback_enabled": false
+  },
+  "pilots": [
+    {
+      "task_key": "cross_paper_comparison",
+      "attempt_id": "glm-5.3-flash-deepresearch-cross-paper-001",
+      "task_id": "dr-task-ee0fc936d6efdaf45c2d6566",
+      "brief_id": "dr-brief-0784ae0da15d3261fc5ca8f6",
+      "run_id": "dr-run-8e3c2028b68e14c88fc7b17e",
+      "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e",
+      "acceptance": {
+        "minimum_independent_sources": 2,
+        "claim_evidence_binding": "each comparison claim cites its source-specific Evidence",
+        "cross_source_comparison_required": true,
+        "force_conflict_or_replan": false,
+        "quote_span_grounding_required": true
+      }
+    },
+    {
+      "task_key": "insufficient_evidence",
+      "attempt_id": "glm-5.3-flash-deepresearch-insufficient-evidence-001",
+      "task_id": "dr-task-4e78911df9ce081d08aacf6a",
+      "brief_id": "dr-brief-84aad028176f94da6be6aef7",
+      "run_id": "dr-run-def2aef07b645306d3be21d1",
+      "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-def2aef07b645306d3be21d1",
+      "acceptance": {
+        "allowed_terminal_statuses": ["insufficient_evidence", "partial"],
+        "unsupported_claims_allowed": false,
+        "fabricated_citations_allowed": false,
+        "structured_abstention_reason_required": true,
+        "quote_span_grounding_required": true
+      }
+    }
+  ]
+}

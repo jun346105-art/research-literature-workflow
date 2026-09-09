@@ -5,8 +5,9 @@
 ## 版本与使用
 
 - 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
-- 当前 Session：`B08E2E-R8 Calibration Closure / single-paper Attempt-008 freeze`（`internal_result`；仅离线验证与计划冻结，未执行 Attempt-008）
-- 当前简历状态：`not_ready`
+- 当前 Session：`B08E2E-R8 Attempt-008 Closure / follow-up pilot design`（`real_single_paper_e2e_pass`；后续 Pilot 仅设计冻结）
+- 当前组件状态：`real_single_paper_e2e_pass`
+- 当前简历状态：`ready_with_scope_limitations`
 
 按以下顺序使用这些文件：
 
@@ -26,7 +27,7 @@
 14. [B05 Local Executor and Evidence Graph](LOCAL_RESEARCH_EXECUTOR_V1.md) 与 [执行记录](sessions/B05-DR-S13-S14.md)：离线、只读本地检索、严格 Evidence 构建和最小图边界。
 15. [B06 Gap/Conflict/Replan](EVIDENCE_GAP_CONFLICT_V1.md) 与 [执行记录](sessions/B06-DR-S15-S16.md)：确定性结构缺口、潜在冲突候选与一次有界重规划。
 16. [B07 Single Writer](SINGLE_WRITER_V1.md)、[Report Validator](REPORT_VALIDATOR_V1.md)、[offline E2E](OFFLINE_SINGLE_AGENT_E2E_V1.md)、[Schema](writer/v1/README.md) 与 [执行记录](sessions/B07-DR-S17-S18.md)：单一 FakeWriter、程序拥有的 Claim/Citation 与安全展示边界。
-17. [GLM E2E Preparation](GLM_DEEP_RESEARCH_E2E_PREP_V1.md)、[v1 pilot](e2e/v1/README.md)、[v1.1 attempts](e2e/v1.1/README.md)、[v1.2 single-paper Attempt-008](e2e/v1.2/README.md)、[执行记录](sessions/B08E2E-PREP.md)、[exit semantics repair](sessions/B08E2E-EXIT-SEMANTICS.md)、[Planner incident repair](sessions/B08E2E-R1-PLANNER-CONTRACT.md)、[budget calibration](sessions/B08E2E-R2-BUDGET-CALIBRATION.md)、[stage budgets](sessions/B08E2E-R3-STAGE-BUDGETS.md)、[scope calibration](sessions/B08E2E-R4-SCOPE-CONTRACT.md)、[Planner output contract](sessions/B08E2E-R5-PLANNER-OUTPUT-CONTRACT.md)、[Writer calibration](sessions/B08E2E-R6-WRITER-CALIBRATION.md)、[CLI wiring](sessions/B08E2E-R6C-WRITER-CALIBRATION-CLI.md) 与 [Writer identity ownership](sessions/B08E2E-R7-WRITER-IDENTITY-OWNERSHIP.md)：单 Agent GLM Planner/Writer 的离线准备；calibration-003 已完成 Writer-only 验证，Attempt-008 仅待手动执行。
+17. [GLM E2E Preparation](GLM_DEEP_RESEARCH_E2E_PREP_V1.md)、[v1 pilot](e2e/v1/README.md)、[v1.1 attempts](e2e/v1.1/README.md)、[v1.2 single-paper Attempt-008](e2e/v1.2/README.md)、[Follow-up Pilot Designs](e2e/v1.2/FOLLOWUP_PILOTS.md)、[Writer Calibration Result](WRITER_CALIBRATION_RESULT_V1.md)、[Attempt-008 Result](REAL_SINGLE_PAPER_E2E_RESULT_V1.md)、[R8 Session](sessions/B08E2E-R8-ATTEMPT-008-CLOSURE.md)、[执行记录](sessions/B08E2E-PREP.md)、[exit semantics repair](sessions/B08E2E-EXIT-SEMANTICS.md)、[Planner incident repair](sessions/B08E2E-R1-PLANNER-CONTRACT.md)、[budget calibration](sessions/B08E2E-R2-BUDGET-CALIBRATION.md)、[stage budgets](sessions/B08E2E-R3-STAGE-BUDGETS.md)、[scope calibration](sessions/B08E2E-R4-SCOPE-CONTRACT.md)、[Planner output contract](sessions/B08E2E-R5-PLANNER-OUTPUT-CONTRACT.md)、[Writer calibration](sessions/B08E2E-R6-WRITER-CALIBRATION.md)、[CLI wiring](sessions/B08E2E-R6C-WRITER-CALIBRATION-CLI.md) 与 [Writer identity ownership](sessions/B08E2E-R7-WRITER-IDENTITY-OWNERSHIP.md)：单 Agent GLM Planner/Writer 的受控 E2E 结果与后续 Pilot 设计；仅 Attempt-008 单篇 local-only 结果通过，后续 Pilot 未执行。
 18. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
 19. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
 20. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
