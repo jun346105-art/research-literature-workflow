@@ -37,7 +37,7 @@ from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated
 from litflow.deep_research.state import RunState
 from litflow.deep_research.writer import ReportStatus
 from litflow.deep_research.writer import WriterError
-from litflow.deep_research.writer_calibration import WriterCalibrationPlan, preflight_writer_calibration
+from litflow.deep_research.writer_calibration import WriterCalibrationPlan, build_writer_calibration_fixture, calibration_run_id, preflight_writer_calibration
 
 
 NOW = datetime(2026, 9, 8, tzinfo=UTC)
@@ -238,10 +238,51 @@ def test_writer_calibration_preflight_is_offline_and_artifact_unique():
     preflight_writer_calibration(plan, repo_root=Path.cwd())
 
 
-def test_committed_writer_calibration_cli_preflight_is_network_denied():
+def test_committed_writer_calibration_cli_preflight_is_network_denied(tmp_path: Path, monkeypatch):
     from litflow.deep_research.writer_calibration_cli import main
 
-    assert main(["--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730", "--dry-run"]) == 0
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "e" * 24)
+    path = tmp_path / "plan.json"; path.write_text(plan.model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
+    assert main(["--plan", str(path), "--artifact-dir", plan.artifact_dir, "--dry-run"], repo_root=Path.cwd(), artifact_root=tmp_path) == 0
+
+
+def test_writer_calibration_cli_requires_explicit_mutually_exclusive_mode():
+    import subprocess
+    command = [".venv\\Scripts\\python.exe", "-m", "litflow.deep_research.writer_calibration_cli", "--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    assert result.returncode == 2
+    help_result = subprocess.run(command[:3] + ["--help"], capture_output=True, text=True)
+    assert help_result.returncode == 0 and "--dry-run" in help_result.stdout and "--execute" in help_result.stdout
+
+
+def test_writer_calibration_execute_missing_credential_fails_before_dispatch(tmp_path: Path, monkeypatch):
+    from litflow.deep_research import writer_calibration_cli
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "c" * 24, run_id=None)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
+    monkeypatch.setattr(writer_calibration_cli.GLMStructuredAdapter, "require_credential_for_execute", lambda _self: (_ for _ in ()).throw(E2EConfigurationError("credential missing")))
+    assert writer_calibration_cli.main(["--plan", str(plan_path), "--artifact-dir", plan.artifact_dir, "--execute"], repo_root=Path.cwd(), artifact_root=tmp_path) == 2
+    assert not (tmp_path / plan.artifact_dir).exists()
+
+
+def test_writer_calibration_execute_offline_mock_enters_real_cli_branch_once(tmp_path: Path, monkeypatch):
+    from litflow.deep_research import writer_calibration_cli
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "d" * 24)
+    task, brief, approval, validated_plan, graph, assessment = build_writer_calibration_fixture(plan)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
+    class OfflineAdapter:
+        def __init__(self, *_args, **_kwargs): self.calls = 0
+        def require_credential_for_execute(self): return "offline-fixture"
+        async def complete(self, *, prompt: str, operation_name: str):
+            self.calls += 1
+            unit = graph.evidence_units[0]
+            return GLMStructuredReply(content=json.dumps({"schema_version": "dr-report-draft-v1", "task_id": task.task_id, "brief_id": brief.brief_id, "plan_id": validated_plan.plan_id, "run_id": graph.run_id, "sections": [{"heading": "Findings", "claims": [{"text": "The fixture is grounded.", "language": "en", "citations": [{"evidence_id": unit.evidence_id, "quote": unit.verbatim_content, "relation": "support"}]}]}]}), usage=TokenUsage(input_tokens=10, output_tokens=20), model_identity_verified=True, usage_reported=True, request_id_present=False)
+    monkeypatch.setattr(writer_calibration_cli, "GLMStructuredAdapter", OfflineAdapter)
+    assert writer_calibration_cli.main(["--plan", str(plan_path), "--artifact-dir", plan.artifact_dir, "--execute"], repo_root=Path.cwd(), artifact_root=tmp_path) == 0
+    target = tmp_path / plan.artifact_dir
+    assert (target / "runtime.jsonl").is_file() and (target / "checkpoint.json").is_file() and (target / "calibration_result.json").is_file()
 
 
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
@@ -465,11 +506,13 @@ def test_pilot_preflight_is_offline_fails_closed_and_schema_is_stable(tmp_path: 
     assert write_e2e_pilot_schema(tmp_path / "schemas").read_bytes() == write_e2e_pilot_schema(tmp_path / "schemas-again").read_bytes()
 
 
-def test_committed_pilot_cli_preflight_is_network_denied(monkeypatch):
+def test_committed_pilot_cli_preflight_is_network_denied(tmp_path: Path, monkeypatch):
     from litflow.deep_research.writer_calibration_cli import main
 
+    plan = WriterCalibrationPlan(calibration_id="writer-calibration-test", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "f" * 24)
+    path = tmp_path / "plan.json"; path.write_text(plan.model_dump_json(), encoding="utf-8")
     monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
-    assert main(["--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730", "--dry-run"]) == 0
+    assert main(["--plan", str(path), "--artifact-dir", plan.artifact_dir, "--dry-run"], repo_root=Path.cwd(), artifact_root=tmp_path) == 0
 
 
 @pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))

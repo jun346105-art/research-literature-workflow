@@ -262,6 +262,19 @@
         "writer_reasoning_effort": "high"
       }
     },
+    "run_id": {
+      "anyOf": [
+        {
+          "pattern": "^dr-run-[0-9a-f]{24}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Id"
+    },
     "runtime_source_sha256": {
       "pattern": "^[0-9a-f]{64}$",
       "title": "Runtime Source Sha256",

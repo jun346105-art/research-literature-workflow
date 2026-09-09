@@ -181,3 +181,16 @@ def write_e2e_pilot_schemas(output_dir: Path) -> dict[str, Path]:
 
     path = write_e2e_pilot_schema(output_dir)
     return {path.name: path}
+
+
+def render_writer_calibration_schema() -> str:
+    from .writer_calibration import WriterCalibrationPlan
+
+    return json.dumps(WriterCalibrationPlan.model_json_schema(), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
+def write_writer_calibration_schema(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    target = output_dir / "writer_calibration.schema.json"
+    target.write_text(render_writer_calibration_schema(), encoding="utf-8", newline="\n")
+    return target
