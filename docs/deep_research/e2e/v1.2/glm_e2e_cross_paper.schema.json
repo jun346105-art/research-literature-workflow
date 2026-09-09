@@ -1,0 +1,504 @@
+{
+  "$defs": {
+    "GLME2ECrossPaperAttemptTask": {
+      "additionalProperties": false,
+      "description": "Cross-paper v1.2 task with explicit corpus source selection.",
+      "properties": {
+        "acceptance_metrics": {
+          "items": {
+            "enum": [
+              "terminal_status",
+              "evidence_citation_quote_grounding",
+              "unsupported_claim_count",
+              "abstention_correctness",
+              "provider_attempts_responses",
+              "tokens_cost",
+              "latency",
+              "replay_zero_calls",
+              "secret_scan"
+            ],
+            "type": "string"
+          },
+          "title": "Acceptance Metrics",
+          "type": "array"
+        },
+        "approval_actor": {
+          "minLength": 1,
+          "title": "Approval Actor",
+          "type": "string"
+        },
+        "approval_decided_at": {
+          "minLength": 20,
+          "title": "Approval Decided At",
+          "type": "string"
+        },
+        "artifact_dir": {
+          "pattern": "^outputs/deep_research/e2e/v1\\.2/dr-run-[0-9a-f]{24}$",
+          "title": "Artifact Dir",
+          "type": "string"
+        },
+        "attempt_id": {
+          "pattern": "^[a-z0-9][a-z0-9.-]*$",
+          "title": "Attempt Id",
+          "type": "string"
+        },
+        "brief_deliverable": {
+          "const": "grounded report",
+          "default": "grounded report",
+          "title": "Brief Deliverable",
+          "type": "string"
+        },
+        "brief_id": {
+          "pattern": "^dr-brief-[0-9a-f]{24}$",
+          "title": "Brief Id",
+          "type": "string"
+        },
+        "brief_objective": {
+          "minLength": 1,
+          "title": "Brief Objective",
+          "type": "string"
+        },
+        "constraints": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Constraints",
+          "type": "array"
+        },
+        "corpus_path": {
+          "pattern": "^outputs/rag_bm25_v1/[a-z0-9_.-]+$",
+          "title": "Corpus Path",
+          "type": "string"
+        },
+        "corpus_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Corpus Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "minLength": 20,
+          "title": "Created At",
+          "type": "string"
+        },
+        "deliverable_type": {
+          "const": "grounded_report",
+          "default": "grounded_report",
+          "title": "Deliverable Type",
+          "type": "string"
+        },
+        "expected_terminal": {
+          "enum": [
+            "complete",
+            "partial",
+            "insufficient_evidence"
+          ],
+          "title": "Expected Terminal",
+          "type": "string"
+        },
+        "implementation_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Implementation Commit Sha",
+          "type": "string"
+        },
+        "locale": {
+          "const": "en",
+          "default": "en",
+          "title": "Locale",
+          "type": "string"
+        },
+        "max_planner_calls": {
+          "const": 1,
+          "default": 1,
+          "title": "Max Planner Calls",
+          "type": "integer"
+        },
+        "max_replans": {
+          "const": 1,
+          "default": 1,
+          "title": "Max Replans",
+          "type": "integer"
+        },
+        "max_writer_calls": {
+          "const": 1,
+          "default": 1,
+          "title": "Max Writer Calls",
+          "type": "integer"
+        },
+        "original_question": {
+          "minLength": 1,
+          "title": "Original Question",
+          "type": "string"
+        },
+        "planner_prompt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Planner Prompt Sha256",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^dr-run-[0-9a-f]{24}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "runtime_source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Runtime Source Sha256",
+          "type": "string"
+        },
+        "scope_exclusions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Exclusions",
+          "type": "array"
+        },
+        "scope_inclusions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Inclusions",
+          "type": "array"
+        },
+        "selected_passage_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 2,
+          "title": "Selected Passage Ids",
+          "type": "array"
+        },
+        "selected_source_keys": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Selected Source Keys",
+          "type": "array"
+        },
+        "success_criteria": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Success Criteria",
+          "type": "array"
+        },
+        "task_id": {
+          "pattern": "^dr-task-[0-9a-f]{24}$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "task_input_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Task Input Sha256",
+          "type": "string"
+        },
+        "task_key": {
+          "enum": [
+            "single_paper",
+            "cross_paper_comparison",
+            "insufficient_evidence"
+          ],
+          "title": "Task Key",
+          "type": "string"
+        },
+        "writer_prompt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Writer Prompt Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_key",
+        "task_id",
+        "brief_id",
+        "original_question",
+        "constraints",
+        "created_at",
+        "brief_objective",
+        "scope_inclusions",
+        "scope_exclusions",
+        "success_criteria",
+        "approval_actor",
+        "approval_decided_at",
+        "implementation_commit_sha",
+        "runtime_source_sha256",
+        "expected_terminal",
+        "acceptance_metrics",
+        "corpus_path",
+        "corpus_sha256",
+        "planner_prompt_sha256",
+        "writer_prompt_sha256",
+        "artifact_dir",
+        "run_id",
+        "attempt_id",
+        "selected_source_keys",
+        "selected_passage_ids",
+        "task_input_sha256"
+      ],
+      "title": "GLME2ECrossPaperAttemptTask",
+      "type": "object"
+    },
+    "GLMInvocationPolicy": {
+      "additionalProperties": false,
+      "description": "Shared, ordinary-model, text-only provider contract for Planner and Writer.",
+      "properties": {
+        "credential_environment_variable": {
+          "const": "ZHIPUAI_API_KEY",
+          "default": "ZHIPUAI_API_KEY",
+          "title": "Credential Environment Variable",
+          "type": "string"
+        },
+        "endpoint": {
+          "const": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+          "default": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "fallback_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Fallback Enabled",
+          "type": "boolean"
+        },
+        "files_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Files Enabled",
+          "type": "boolean"
+        },
+        "input_price_per_million_micros": {
+          "const": 400000,
+          "default": 400000,
+          "title": "Input Price Per Million Micros",
+          "type": "integer"
+        },
+        "max_input_tokens": {
+          "default": 1024,
+          "maximum": 4096,
+          "minimum": 512,
+          "title": "Max Input Tokens",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 1024,
+          "maximum": 4096,
+          "minimum": 256,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "max_retries": {
+          "const": 0,
+          "default": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "model_id": {
+          "const": "glm-5.3-flash",
+          "default": "glm-5.3-flash",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "monetary_budget_limit_micros": {
+          "default": 10000,
+          "maximum": 20000,
+          "minimum": 10000,
+          "title": "Monetary Budget Limit Micros",
+          "type": "integer"
+        },
+        "operation_timeout_seconds": {
+          "default": 60,
+          "maximum": 60,
+          "minimum": 30,
+          "title": "Operation Timeout Seconds",
+          "type": "integer"
+        },
+        "output_price_per_million_micros": {
+          "const": 1400000,
+          "default": 1400000,
+          "title": "Output Price Per Million Micros",
+          "type": "integer"
+        },
+        "parallel_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Parallel Enabled",
+          "type": "boolean"
+        },
+        "planner_max_input_tokens": {
+          "const": 2048,
+          "default": 2048,
+          "title": "Planner Max Input Tokens",
+          "type": "integer"
+        },
+        "planner_max_output_tokens": {
+          "const": 4096,
+          "default": 4096,
+          "title": "Planner Max Output Tokens",
+          "type": "integer"
+        },
+        "planner_reasoning_effort": {
+          "default": "low",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
+          "title": "Planner Reasoning Effort",
+          "type": "string"
+        },
+        "reasoning_effort": {
+          "default": "max",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
+          "title": "Reasoning Effort",
+          "type": "string"
+        },
+        "run_timeout_seconds": {
+          "default": 180,
+          "maximum": 180,
+          "minimum": 90,
+          "title": "Run Timeout Seconds",
+          "type": "integer"
+        },
+        "temperature": {
+          "const": 1,
+          "default": 1,
+          "title": "Temperature",
+          "type": "integer"
+        },
+        "thinking_type": {
+          "const": "enabled",
+          "default": "enabled",
+          "title": "Thinking Type",
+          "type": "string"
+        },
+        "tools_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Tools Enabled",
+          "type": "boolean"
+        },
+        "top_p": {
+          "const": 0.95,
+          "default": 0.95,
+          "title": "Top P",
+          "type": "number"
+        },
+        "video_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Video Enabled",
+          "type": "boolean"
+        },
+        "vision_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Vision Enabled",
+          "type": "boolean"
+        },
+        "web_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Web Enabled",
+          "type": "boolean"
+        },
+        "writer_max_input_tokens": {
+          "const": 4096,
+          "default": 4096,
+          "title": "Writer Max Input Tokens",
+          "type": "integer"
+        },
+        "writer_max_output_tokens": {
+          "const": 4096,
+          "default": 4096,
+          "title": "Writer Max Output Tokens",
+          "type": "integer"
+        },
+        "writer_reasoning_effort": {
+          "default": "high",
+          "enum": [
+            "low",
+            "high",
+            "max"
+          ],
+          "title": "Writer Reasoning Effort",
+          "type": "string"
+        }
+      },
+      "title": "GLMInvocationPolicy",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One-task v1.2 plan for a source-isolated cross-paper comparison.",
+  "properties": {
+    "channel": {
+      "const": "ordinary_model_api",
+      "default": "ordinary_model_api",
+      "title": "Channel",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "#/$defs/GLMInvocationPolicy",
+      "default": {
+        "credential_environment_variable": "ZHIPUAI_API_KEY",
+        "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "fallback_enabled": false,
+        "files_enabled": false,
+        "input_price_per_million_micros": 400000,
+        "max_input_tokens": 1024,
+        "max_output_tokens": 1024,
+        "max_retries": 0,
+        "model_id": "glm-5.3-flash",
+        "monetary_budget_limit_micros": 10000,
+        "operation_timeout_seconds": 60,
+        "output_price_per_million_micros": 1400000,
+        "parallel_enabled": false,
+        "planner_max_input_tokens": 2048,
+        "planner_max_output_tokens": 4096,
+        "planner_reasoning_effort": "low",
+        "reasoning_effort": "max",
+        "run_timeout_seconds": 180,
+        "temperature": 1,
+        "thinking_type": "enabled",
+        "tools_enabled": false,
+        "top_p": 0.95,
+        "video_enabled": false,
+        "vision_enabled": false,
+        "web_enabled": false,
+        "writer_max_input_tokens": 4096,
+        "writer_max_output_tokens": 4096,
+        "writer_reasoning_effort": "high"
+      }
+    },
+    "provider": {
+      "const": "zhipu-bigmodel",
+      "default": "zhipu-bigmodel",
+      "title": "Provider",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "dr-glm-e2e-pilot-v1.2-cross-paper",
+      "default": "dr-glm-e2e-pilot-v1.2-cross-paper",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/GLME2ECrossPaperAttemptTask"
+      },
+      "title": "Tasks",
+      "type": "array"
+    }
+  },
+  "required": [
+    "tasks"
+  ],
+  "title": "GLME2ECrossPaperAttemptPlan",
+  "type": "object"
+}

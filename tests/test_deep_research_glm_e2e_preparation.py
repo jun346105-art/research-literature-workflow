@@ -341,7 +341,7 @@ def test_single_paper_attempt_008_plan_preflight_and_schema_are_deterministic(tm
     item = dict(raw["tasks"][0])
     item.update({"attempt_id": "glm-5.3-flash-deepresearch-e2e-008", "implementation_commit_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), "runtime_source_sha256": runtime_source_sha256(), "planner_prompt_sha256": prompt_hashes()["planner"], "writer_prompt_sha256": prompt_hashes()["writer"], "run_id": "dr-run-8b30915e93a6e6b5ee8137c5", "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5"})
     plan = GLME2ESinglePaperAttemptPlan.model_validate({"schema_version": "dr-glm-e2e-pilot-v1.2", "provider": raw["provider"], "channel": raw["channel"], "policy": raw["policy"], "tasks": [item]})
-    with pytest.raises(E2EConfigurationError, match="artifact"):
+    with pytest.raises(E2EConfigurationError, match="binding|artifact"):
         preflight_e2e_pilot(plan, repo_root=Path.cwd())
     committed = Path("docs/deep_research/e2e/v1.2/glm_e2e_pilot.schema.json").read_bytes()
     assert write_e2e_single_paper_schema(tmp_path).read_bytes() == committed

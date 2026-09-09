@@ -6,7 +6,7 @@ import asyncio
 import time
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Callable, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -470,6 +470,7 @@ class SingleWriterRunner:
         checkpoint_path: Path,
         deadline_exceeded: bool = False,
         artifact_refs: dict[str, object] | None = None,
+        validation_guard: Callable[[EvidenceGraph, ReportValidationResult], None] | None = None,
     ) -> OfflineWriterResult:
         _validate_inputs(task, brief, approval, plan, graph, assessment)
         initial = RunState(run_id=graph.run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True)
@@ -507,6 +508,8 @@ class SingleWriterRunner:
             supplied_owned_fields = list(model_supplied_owned_fields(raw))
             draft = finalize_writer_content_draft(raw, task=task, brief=brief, plan=plan, graph=graph)
             validation = validate_report_draft(task, brief, approval, plan, graph, assessment, draft)
+            if validation_guard is not None:
+                validation_guard(graph, validation)
             writer_error_code = _writer_validation_error_code(validation)
             if writer_error_code is not None:
                 proposal_claims = sum(len(section.claims) for section in draft.sections)

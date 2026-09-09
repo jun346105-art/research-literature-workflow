@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from .budgets import BudgetSpec, TokenUsage
 from .canary import GLM_ENDPOINT, GLM_MODEL, _urllib_transport
-from .contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
+from .contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask, Source, SourceKind
 from .executor import EvidenceGraph, LocalResearchExecutor
 from .gap_replan import AssessmentContext, GapConflictAssessment, SubtaskEvidenceRequirement, assess_evidence_graph
 from .identity import canonical_json_bytes, make_stable_id, sha256_hex
@@ -275,7 +275,42 @@ class GLME2ESinglePaperAttemptPlan(GLME2EPilotPlan):
         return self
 
 
-E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan | GLME2ESinglePaperAttemptPlan
+class GLME2ECrossPaperAttemptTask(GLME2EPilotAttemptTask):
+    """Cross-paper v1.2 task with explicit corpus source selection."""
+
+    artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
+    selected_source_keys: tuple[str, ...] = Field(min_length=2, max_length=8)
+    selected_passage_ids: tuple[str, ...] = Field(min_length=2, max_length=16)
+    task_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def require_cross_paper_inputs(self) -> "GLME2ECrossPaperAttemptTask":
+        if self.task_key != "cross_paper_comparison" or len(set(self.selected_source_keys)) != len(self.selected_source_keys) or len(set(self.selected_passage_ids)) != len(self.selected_passage_ids):
+            raise ValueError("cross-paper task must select distinct source and passage identities")
+        return self
+
+
+def task_input_sha256(task: GLME2EPilotTask) -> str:
+    value = {"task_key": task.task_key, "original_question": task.original_question, "brief_objective": task.brief_objective, "constraints": list(task.constraints), "scope_inclusions": list(task.scope_inclusions), "scope_exclusions": list(task.scope_exclusions), "corpus_path": task.corpus_path, "corpus_sha256": task.corpus_sha256}
+    if isinstance(task, GLME2ECrossPaperAttemptTask):
+        value.update({"selected_source_keys": list(task.selected_source_keys), "selected_passage_ids": list(task.selected_passage_ids)})
+    return sha256_hex(canonical_json_bytes(value))
+
+
+class GLME2ECrossPaperAttemptPlan(GLME2EPilotPlan):
+    """One-task v1.2 plan for a source-isolated cross-paper comparison."""
+
+    schema_version: Literal["dr-glm-e2e-pilot-v1.2-cross-paper"] = "dr-glm-e2e-pilot-v1.2-cross-paper"
+    tasks: list[GLME2ECrossPaperAttemptTask]
+
+    @model_validator(mode="after")
+    def require_cross_paper(self) -> "GLME2ECrossPaperAttemptPlan":
+        if len(self.tasks) != 1 or self.tasks[0].task_key != "cross_paper_comparison":
+            raise ValueError("cross-paper plan must contain exactly one cross_paper_comparison task")
+        return self
+
+
+E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan | GLME2ESinglePaperAttemptPlan | GLME2ECrossPaperAttemptPlan
 
 
 def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
@@ -285,6 +320,8 @@ def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
         return GLME2EPilotAttemptPlan.model_validate(data)
     if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2":
         return GLME2ESinglePaperAttemptPlan.model_validate(data)
+    if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2-cross-paper":
+        return GLME2ECrossPaperAttemptPlan.model_validate(data)
     raise E2EConfigurationError("unsupported GLM E2E pilot schema version")
 
 
@@ -551,11 +588,25 @@ class DeepResearchE2EResult(BaseModel):
     resumed: bool = False
 
 
+def require_cross_paper_comparison(graph: EvidenceGraph, validation: ReportValidationResult) -> None:
+    """Require one structurally cross-source Claim without judging its semantics."""
+    if len(graph.sources) < 2 or validation.report is None:
+        raise WriterError("cross_paper_comparison_invalid", "cross-paper output requires two independent sources", {"failure_stage": "cross_paper_validation", "contract_error_code": "cross_paper_comparison_invalid", "source_count": len(graph.sources), "evidence_count": len(graph.evidence_units), "comparison_claim_count": 0})
+    source_by_evidence = {unit.evidence_id: unit.source_id for unit in graph.evidence_units}
+    comparison_claims = 0
+    for claim in validation.report.claims:
+        source_ids = {source_by_evidence[citation.evidence_id] for citation in validation.report.citations if citation.claim_id == claim.claim_id and citation.evidence_id in source_by_evidence}
+        if len(source_ids) >= 2:
+            comparison_claims += 1
+    if comparison_claims == 0:
+        raise WriterError("cross_paper_comparison_invalid", "at least one Claim must cite Evidence from two independent sources", {"failure_stage": "cross_paper_validation", "contract_error_code": "cross_paper_comparison_invalid", "source_count": len(graph.sources), "evidence_count": len(graph.evidence_units), "comparison_claim_count": 0})
+
+
 class DeepResearchRunner:
     """One injected single-agent composition; it creates no new runtime or Event Store."""
 
-    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = ()) -> None:
-        self._planner, self._executor, self._writer, self._budget, self._requirements = planner, executor, writer, budget, requirements
+    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = (), comparison_required: bool = False) -> None:
+        self._planner, self._executor, self._writer, self._budget, self._requirements, self._comparison_required = planner, executor, writer, budget, requirements, comparison_required
 
     @staticmethod
     def run_id(task: ResearchTask, brief: ResearchBrief, *, attempt_id: str | None = None) -> str:
@@ -607,7 +658,7 @@ class DeepResearchRunner:
             plan = _read_hashed_json(artifact_dir / "validated_plan.json", str(plan_event.payload.get("plan_artifact_sha256")), ValidatedResearchPlan)
             graph = _read_hashed_json(artifact_dir / "evidence_graph.json", str(artifact_refs.get("evidence_graph_sha256")), EvidenceGraph)
             assessment = _read_hashed_json(artifact_dir / "assessment.json", str(artifact_refs.get("assessment_sha256")), GapConflictAssessment)
-            writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs)
+            writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs, validation_guard=require_cross_paper_comparison if self._comparison_required else None)
             return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation, resumed=True)
         if events:
             replayed = replay_runtime_events(initial, events, self._budget)
@@ -646,7 +697,7 @@ class DeepResearchRunner:
         events = store.read_all()
         artifact_refs = {"plan_sha256": plan_artifact_sha256, "evidence_graph_sha256": _write_json_artifact(event_path.parent / "evidence_graph.json", execution.evidence_graph.model_dump(mode="json")), "assessment_sha256": _write_json_artifact(event_path.parent / "assessment.json", assessment.model_dump(mode="json"))}
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": 0.000001, "artifact_refs": artifact_refs}, causal_parent_id=events[-1].event_id)
-        writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, execution.evidence_graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs)
+        writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, execution.evidence_graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs, validation_guard=require_cross_paper_comparison if self._comparison_required else None)
         return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation)
 
 
@@ -691,6 +742,19 @@ def write_e2e_single_paper_schema(output_dir: Path) -> Path:
     return path
 
 
+def render_e2e_cross_paper_schema() -> str:
+    schema = GLME2ECrossPaperAttemptPlan.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    return json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
+def write_e2e_cross_paper_schema(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "glm_e2e_cross_paper.schema.json"
+    path.write_text(render_e2e_cross_paper_schema(), encoding="utf-8", newline="\n")
+    return path
+
+
 def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path | None = None) -> tuple[GLME2EPilotTask, ...]:
     """Read-only plan/artifact/corpus verification; it never reads a credential or transports."""
     hashes = prompt_hashes()
@@ -700,9 +764,13 @@ def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path |
     except (OSError, subprocess.CalledProcessError) as error:
         raise E2EConfigurationError("cannot resolve E2E implementation Git identity") from error
     single_paper_plan = isinstance(plan, GLME2ESinglePaperAttemptPlan)
+    cross_paper_plan = isinstance(plan, GLME2ECrossPaperAttemptPlan)
     if single_paper_plan:
         if len(plan.tasks) != 1 or plan.tasks[0].task_key != "single_paper":
             raise E2EConfigurationError("v1.2 plan must freeze exactly one single_paper task")
+    elif cross_paper_plan:
+        if len(plan.tasks) != 1 or plan.tasks[0].task_key != "cross_paper_comparison":
+            raise E2EConfigurationError("cross-paper plan must freeze exactly one comparison task")
     elif len(plan.tasks) != 3 or {item.task_key for item in plan.tasks} != {"single_paper", "cross_paper_comparison", "insufficient_evidence"}:
         raise E2EConfigurationError("pilot must freeze exactly the three authorized task categories")
     ids = [item.run_id for item in plan.tasks]
@@ -721,6 +789,19 @@ def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path |
         corpus = repo_root / item.corpus_path
         if not corpus.is_file() or sha256_hex(corpus.read_bytes()) != item.corpus_sha256:
             raise E2EConfigurationError("frozen corpus identity mismatch")
+        if isinstance(item, GLME2ECrossPaperAttemptTask):
+            if item.task_input_sha256 != task_input_sha256(item):
+                raise E2EConfigurationError("cross-paper task input identity mismatch")
+            rows = [json.loads(line) for line in corpus.read_text(encoding="utf-8").splitlines() if line]
+            by_paper = {str(row.get("paper_key")): row for row in rows if row.get("paper_key")}
+            if not set(item.selected_source_keys).issubset(by_paper):
+                raise E2EConfigurationError("cross-paper source selection is not in the frozen corpus")
+            selected = [next((row for row in rows if row.get("passage_id") == passage_id), None) for passage_id in item.selected_passage_ids]
+            if any(row is None for row in selected) or set(str(row.get("paper_key")) for row in selected if row) != set(item.selected_source_keys):
+                raise E2EConfigurationError("cross-paper passages must cover the selected independent sources")
+            source_ids = {Source.create(SourceKind.passage_corpus, f"corpus:{key}:{str(by_paper[key].get('source_context_sha256'))}", str(by_paper[key].get("title") or key), str(by_paper[key].get("source_context_sha256")), "en").source_id for key in item.selected_source_keys}
+            if len(source_ids) != len(item.selected_source_keys):
+                raise E2EConfigurationError("cross-paper sources must have distinct stable IDs")
         artifact = repo_root / item.artifact_dir
         if artifact.exists():
             raise E2EConfigurationError("pilot artifact directory must not already exist")

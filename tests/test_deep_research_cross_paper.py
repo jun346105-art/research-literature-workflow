@@ -1,0 +1,83 @@
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+
+from litflow.deep_research.budgets import BudgetSpec
+from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
+from litflow.deep_research.e2e import GLMSingleWriter, DeepResearchRunner, require_cross_paper_comparison
+from litflow.deep_research.executor import EvidenceCandidate, LocalResearchExecutor, ReadOnlyToolRegistry
+from litflow.deep_research.gap_replan import AssessmentContext, assess_evidence_graph
+from litflow.deep_research.planner import FakePlanner, PlannerDraft, PlannerSubtaskDraft, plan_approved_brief
+from litflow.deep_research.runtime_v2 import RuntimeEventType, UnifiedEventStore
+from litflow.deep_research.writer import FakeWriter, ReportDraft, ReportStatus, SingleWriterRunner, WriterError, validate_report_draft
+
+
+NOW = datetime(2026, 9, 10, tzinfo=UTC)
+
+
+def _corpus() -> list[dict[str, object]]:
+    rows = [json.loads(line) for line in Path("outputs/rag_bm25_v1/passages.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    selected = []
+    for paper, passage in (("L4DLHQUZ", "L4DLHQUZ:L4DLHQUZ_chunk_0007"), ("3NLKTSIP", "3NLKTSIP:3NLKTSIP_chunk_0005")):
+        row = next(item for item in rows if item["passage_id"] == passage)
+        assert row["paper_key"] == paper
+        selected.append(row)
+    return selected
+
+
+def _inputs(tmp_path: Path):
+    task = ResearchTask.create("How do selected local papers describe their approaches to multi-scale feature handling?", "en", ("local-only", "cross-paper"), "grounded_report", NOW)
+    brief = ResearchBrief.create(task.task_id, "Compare only explicitly grounded method descriptions from selected local papers.", ("method comparison",), (), "grounded report", ("one comparison grounded claim",), task.constraints, BriefApprovalStatus.approved)
+    approval = BriefApproval.create(brief.brief_id, task.task_id, BriefApprovalStatus.approved, "human", NOW)
+    draft = PlannerDraft(task_id=task.task_id, brief_id=brief.brief_id, locale="en", constraints=brief.constraints, scope_inclusions=brief.scope_inclusions, scope_exclusions=brief.scope_exclusions, subtasks=(
+        PlannerSubtaskDraft(local_key="paper_a", question="retrieve TPMN multi-level feature fusion", rationale="capture source A method details", expected_evidence=("method passage",), completion_criteria=("one grounded result",)),
+        PlannerSubtaskDraft(local_key="paper_b", question="retrieve multi-scale convolutional feature fusion", rationale="capture source B method details", expected_evidence=("method passage",), completion_criteria=("one grounded result",)),
+    ))
+    plan = asyncio.run(plan_approved_brief(task, brief, approval, FakePlanner(draft)))
+    spec = BudgetSpec(max_provider_calls=1, max_provider_attempts=1, max_tool_calls=8, max_tool_attempts=8, max_retries=0, max_replans=0, run_timeout_s=90, operation_timeout_s=30)
+    registry = ReadOnlyToolRegistry(_corpus())
+    executor = LocalResearchExecutor(registry, budget=spec)
+    candidates = {plan.subtasks[0].subtask_id: (EvidenceCandidate(passage_id="L4DLHQUZ:L4DLHQUZ_chunk_0007", quote_hint=next(x["text"] for x in _corpus() if x["paper_key"] == "L4DLHQUZ")),), plan.subtasks[1].subtask_id: (EvidenceCandidate(passage_id="3NLKTSIP:3NLKTSIP_chunk_0005", quote_hint=next(x["text"] for x in _corpus() if x["paper_key"] == "3NLKTSIP")),)}
+    executed = asyncio.run(executor.execute(task, brief, approval, plan, event_path=tmp_path / "tools.jsonl", checkpoint_path=tmp_path / "tools.checkpoint.json", candidates=candidates, run_id="dr-run-cross-paper-test"))
+    assessment = asyncio.run(assess_evidence_graph(executed.evidence_graph, (), AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks))))
+    return task, brief, approval, plan, executed.evidence_graph, assessment, spec, registry
+
+
+def _draft(task, brief, plan, graph, *, both: bool = True):
+    units = list(graph.evidence_units)
+    citations = [{"evidence_id": units[0].evidence_id, "quote": units[0].verbatim_content, "relation": "support"}]
+    if both:
+        citations.append({"evidence_id": units[1].evidence_id, "quote": units[1].verbatim_content, "relation": "support"})
+    return ReportDraft.model_validate({"schema_version": "dr-report-draft-v1", "task_id": task.task_id, "brief_id": brief.brief_id, "plan_id": plan.plan_id, "run_id": graph.run_id, "sections": [{"heading": "Comparison", "claims": [{"text": "The two papers use distinct multi-scale feature handling strategies.", "language": "en", "citations": citations}]}]})
+
+
+def test_frozen_corpus_has_two_distinct_sources_and_real_passages(tmp_path: Path):
+    task, brief, approval, plan, graph, assessment, spec, registry = _inputs(tmp_path)
+    assert len(graph.sources) == 2 and len({item.source_id for item in graph.sources}) == 2
+    assert len(graph.evidence_units) == 2 and {item.source_id for item in graph.evidence_units} == {item.source_id for item in graph.sources}
+    assert all(item.locator.passage_id and item.locator.page_number and item.locator.span_start is not None and item.locator.span_end is not None for item in graph.evidence_units)
+
+
+def test_cross_paper_claim_requires_two_source_citations(tmp_path: Path):
+    task, brief, approval, plan, graph, assessment, spec, registry = _inputs(tmp_path)
+    passing = validate_report_draft(task, brief, approval, plan, graph, assessment, _draft(task, brief, plan, graph))
+    assert passing.status is ReportStatus.complete
+    require_cross_paper_comparison(graph, passing)
+    failing = validate_report_draft(task, brief, approval, plan, graph, assessment, _draft(task, brief, plan, graph, both=False))
+    with pytest.raises(WriterError, match="cross_paper_comparison_invalid"):
+        require_cross_paper_comparison(graph, failing)
+
+
+def test_cross_paper_runner_persists_gate_failure_without_external_calls(tmp_path: Path):
+    task, brief, approval, plan, graph, assessment, spec, registry = _inputs(tmp_path)
+    writer = FakeWriter(_draft(task, brief, plan, graph, both=False).model_dump(mode="json"))
+    with pytest.raises(WriterError, match="cross_paper_comparison_invalid"):
+        asyncio.run(SingleWriterRunner(writer, budget=spec).run(task, brief, approval, plan, graph, assessment, event_path=tmp_path / "writer.jsonl", checkpoint_path=tmp_path / "writer.checkpoint.json", validation_guard=require_cross_paper_comparison))
+    events = UnifiedEventStore(tmp_path / "writer.jsonl", run_id=graph.run_id).read_all()
+    assert writer.calls == 1 and any(event.event_type is RuntimeEventType.operation_failed and event.payload.get("operation_name") == "single_writer" for event in events)
