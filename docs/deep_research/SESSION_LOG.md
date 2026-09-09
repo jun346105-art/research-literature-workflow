@@ -35,6 +35,7 @@
 | B08E2E-R3 | Attempt-004 stage-specific reasoning and token budget calibration; Attempt-005 freeze | completed; Attempt-004 immutable; Attempt-005 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R4 | Attempt-005 scope contract calibration and diagnostics; Attempt-006 freeze | completed; Attempt-005 immutable; Attempt-006 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R5 | Attempt-006 non-empty Planner output contract and Prompt calibration; Attempt-007 freeze | completed; Attempt-006 immutable; Attempt-007 dry-run only; no new real E2E/API/Web call |
+| B08E2E-R6 | Attempt-007 Writer contract calibration, durable business artifacts and Writer-only dev channel | completed; implementation `adc04db10d41eb82bc1f1035f12f0d365f0dea51`; Attempt-007 immutable; calibration dry-run only; no new real E2E/API/Web call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -78,3 +79,9 @@
 | S61 | 做安全、隐私与故障演练 | not_started |
 | S62 | 完成 README、架构、Demo、面试材料 | not_started |
 | S63 | Portfolio Release 与冻结 | not_started |
+
+### B08E2E-R6 evidence
+
+- Attempt-007 artifact `outputs/deep_research/e2e/v1/dr-run-f0357940cdcc28c42a2ed283` remains read-only. Current SHA-256: `runtime.jsonl` = `23D163B105ED8222A3D869BAB53353CD9EF94B2928A996745C06176104263DE1`; `checkpoint.json` = `F3FA39A377A1C290704DB1AB46CBFE8BFA54243652D0572ABB9A9C1AF3BC9944`.
+- Writer-only plan: [`calibration/v1/writer_calibration_plan.json`](calibration/v1/writer_calibration_plan.json), `calibration_id=writer-calibration-001`, implementation commit `adc04db10d41eb82bc1f1035f12f0d365f0dea51`, runtime source SHA-256 `8bd375796790060d057a6cfb26064fb7ecadfe22a2db295977103c3aa8997aa4`, target `outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730`.
+- Only offline schema, mock/network-deny tests and dry-run/preflight were executed. No Key was read and no Provider/API/HTTP call or calibration artifact was created.
