@@ -313,7 +313,7 @@ class LocalResearchExecutor:
             if allowed_passages:
                 selected_hits = tuple(hit for hit in hits if hit.passage_id in allowed_passages)
                 if not selected_hits:
-                    raise ExecutorError("cross_paper_source_selection_mismatch", "retrieval returned no passage from the immutable cross-paper allowlist")
+                    raise ExecutorError("selected_source_evidence_missing", "retrieval returned no passage from the immutable cross-paper allowlist")
                 hits = selected_hits
             selected = candidates.get(subtask.subtask_id) if candidates else None
             evidence_ids: list[str] = []
