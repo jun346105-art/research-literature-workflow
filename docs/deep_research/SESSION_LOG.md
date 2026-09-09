@@ -36,7 +36,8 @@
 | B08E2E-R4 | Attempt-005 scope contract calibration and diagnostics; Attempt-006 freeze | completed; Attempt-005 immutable; Attempt-006 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R5 | Attempt-006 non-empty Planner output contract and Prompt calibration; Attempt-007 freeze | completed; Attempt-006 immutable; Attempt-007 dry-run only; no new real E2E/API/Web call |
 | B08E2E-R6 | Attempt-007 Writer contract calibration, durable business artifacts and Writer-only dev channel | completed; implementation `adc04db10d41eb82bc1f1035f12f0d365f0dea51`; Attempt-007 immutable; calibration dry-run only; no new real E2E/API/Web call |
-| B08E2E-R6C | Writer Calibration CLI explicit dry-run/execute wiring; calibration-001 retained as preflight-only; calibration-002 frozen for separate manual execution | completed; implementation `e8b12789cc747359808a351e70f5c4861edb4163`; calibration-002 preflight passed; no Key/HTTP/real Writer call |
+| B08E2E-R6C | Writer Calibration CLI explicit dry-run/execute wiring; calibration-001 retained as preflight-only; calibration-002 execution | completed; implementation `e8b12789cc747359808a351e70f5c4861edb4163`; calibration-002 known failure `writer_schema_invalid`; no retry |
+| B08E2E-R7 | Writer identity ownership and content-draft finalization; calibration-003 freeze | completed; implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`; calibration-003 preflight passed; no real calibration call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -90,5 +91,12 @@
 ### B08E2E-R6C evidence
 
 - `writer-calibration-001` and its plan remain unchanged and are recorded as `preflight_passed / real_execute_not_run`.
-- [Calibration-002 plan](calibration/v1/writer_calibration_plan.calibration-002.json) binds implementation `e8b12789cc747359808a351e70f5c4861edb4163` and runtime source SHA-256 `84d1a54b7d775aca38cf831589694aa91313d6712fc707151677470cfff9ee8d` to run `dr-run-06f51068840bca6b745f6268`; its artifact target is `outputs/deep_research/writer_calibration/v1/dr-calibration-06f51068840bca6b745f6268` and is currently absent.
-- Offline CLI tests cover explicit mode selection, credential pre-dispatch failure, one Writer execution, known/unknown exit mapping, artifact persistence and network denial. No real calibration artifact exists.
+- [Calibration-002 plan](calibration/v1/writer_calibration_plan.calibration-002.json) binds implementation `e8b12789cc747359808a351e70f5c4861edb4163` and runtime source SHA-256 `84d1a54b7d775aca38cf831589694aa91313d6712fc707151677470cfff9ee8d` to run `dr-run-06f51068840bca6b745f6268`; its one artifact is retained as known failure `writer_schema_invalid`.
+- Calibration-002 SHA-256: `runtime.jsonl` = `ACDE359A71E70309628662AC32718633A623C1163867313C7A6830A8BC08FE2F`; `checkpoint.json` = `705F8A0FD3DF880CACEAC4E5E15A5A49E842041D647553BCE65039D37B5575C9`; `calibration_result.json` = `964FF4275B3A3D25F57ABEA98016F95D9EA12AEF9B1FB90764470A55162E2787`.
+- Offline CLI tests cover explicit mode selection, credential pre-dispatch failure, one Writer execution, known/unknown exit mapping, artifact persistence and network denial. Calibration-002 was not retried.
+
+### B08E2E-R7 evidence
+
+- Calibration-003 plan: [`calibration/v1/writer_calibration_plan.calibration-003.json`](calibration/v1/writer_calibration_plan.calibration-003.json), implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`, runtime source SHA-256 `ced52128187176fd7e8f59b41e20df215df183525054aa2749f25d0cf12865e1`, run `dr-run-ea36f934bb751fb5a0d4885a`, target `outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a` (absent).
+- R7 changes keep formal `ReportDraft`/`ValidatedReport` ownership in program code and add the untrusted `WriterContentDraft` schema. Model-supplied identity field names are bounded diagnostics only; their values are discarded.
+- Only offline tests and calibration-003 dry-run/preflight were executed. No Key, HTTP, Provider call or real calibration-003 artifact exists.
