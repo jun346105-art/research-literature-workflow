@@ -397,7 +397,7 @@ def test_committed_pilot_cli_preflight_is_network_denied(monkeypatch):
     from litflow.deep_research.e2e_cli import main
 
     monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
-    assert main(["--plan", "docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-005.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-56f11fc0f4a9837584adfa39", "--dry-run"]) == 0
+    assert main(["--plan", "docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-006.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-8fa213c01f754bdf1c8c8f8b", "--dry-run"]) == 0
 
 
 @pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))
@@ -456,7 +456,7 @@ def test_execute_cli_invalid_configuration_remains_known_failure(monkeypatch):
 
 
 def test_committed_pilot_freezes_three_distinct_tasks_and_schema(tmp_path: Path):
-    plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-005.json").read_text(encoding="utf-8")))
+    plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-006.json").read_text(encoding="utf-8")))
     tasks = preflight_e2e_pilot(plan, repo_root=Path.cwd())
     assert {item.task_key for item in tasks} == {"single_paper", "cross_paper_comparison", "insufficient_evidence"}
     assert len({item.run_id for item in tasks}) == len({item.artifact_dir for item in tasks}) == 3
