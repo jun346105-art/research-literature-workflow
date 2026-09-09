@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from .budgets import BudgetSpec, TokenUsage
 from .canary import GLM_ENDPOINT, GLM_MODEL, _urllib_transport
 from .contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask, Source, SourceKind
-from .executor import EvidenceGraph, LocalResearchExecutor
+from .executor import EvidenceGraph, ExecutorError, LocalResearchExecutor
 from .gap_replan import AssessmentContext, GapConflictAssessment, SubtaskEvidenceRequirement, assess_evidence_graph
 from .identity import canonical_json_bytes, make_stable_id, sha256_hex
 from .operations import OperationKind
@@ -37,6 +37,7 @@ WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","research_action":"search_and_read_local_evidence","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Every item must choose research_action from `search_and_read_local_evidence` or `verify_local_evidence`; these are the only executor-supported actions. Return local subtask keys, objectives, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, compose/write/report/summary subtasks, or final answers."""
 WRITER_PROMPT = """You output exactly one JSON object containing only Writer content, with no Markdown fence or explanation. Minimal valid example: {"sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Never output schema_version, task_id, brief_id, plan_id, run_id, report_id, claim_id, citation_id, Source, Evidence, page, passage, Claim, Citation, or report IDs; those identities belong to the program. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
+CROSS_WRITER_PROMPT_SUFFIX = """ This is a cross-paper comparison, not separate summaries: include at least one comparison Claim whose Citation suggestions cover Evidence from two different Source IDs. Keep source-specific Claims separate and never merge unrelated claims."""
 _OUTPUT_ROOT = "outputs"
 
 
@@ -456,13 +457,14 @@ class GLMStructuredPlanner:
 class GLMSingleWriter:
     """Real-provider-capable Writer adapter; final report ownership remains in B07."""
 
-    def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None) -> None:
-        self._client, self.last_usage, self.reservation_usage, self.last_draft, self.model_supplied_owned_fields = client, TokenUsage(), reservation_usage or TokenUsage(), None, ()
+    def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None, comparison_required: bool = False) -> None:
+        self._client, self.last_usage, self.reservation_usage, self.last_draft, self.model_supplied_owned_fields, self._comparison_required = client, TokenUsage(), reservation_usage or TokenUsage(), None, (), comparison_required
 
     async def create_draft(self, **kwargs: object) -> object:
         graph = kwargs["graph"]
         assessment = kwargs["assessment"]
-        prompt = f"{WRITER_PROMPT}\nEvidence view: {json.dumps(graph.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}\nAssessment: {json.dumps(assessment.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
+        comparison_instruction = CROSS_WRITER_PROMPT_SUFFIX if self._comparison_required else ""
+        prompt = f"{WRITER_PROMPT}{comparison_instruction}\nEvidence view: {json.dumps(graph.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}\nAssessment: {json.dumps(assessment.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
         try:
             reply = await self._client.complete(prompt=prompt, operation_name="glm_single_writer")
             self.last_usage = reply.usage
@@ -602,11 +604,23 @@ def require_cross_paper_comparison(graph: EvidenceGraph, validation: ReportValid
         raise WriterError("cross_paper_comparison_invalid", "at least one Claim must cite Evidence from two independent sources", {"failure_stage": "cross_paper_validation", "contract_error_code": "cross_paper_comparison_invalid", "source_count": len(graph.sources), "evidence_count": len(graph.evidence_units), "comparison_claim_count": 0})
 
 
+def _validate_cross_paper_allowlist(graph: EvidenceGraph, allowed_source_keys: tuple[str, ...], allowed_passage_ids: tuple[str, ...]) -> None:
+    if not allowed_source_keys and not allowed_passage_ids:
+        return
+    actual_source_keys = {str(source.bibliographic_metadata.get("paper_key")) for source in graph.sources}
+    actual_passages = {unit.locator.passage_id for unit in graph.evidence_units if unit.locator.passage_id}
+    missing_sources = sorted(set(allowed_source_keys) - actual_source_keys)
+    unexpected_sources = sorted(actual_source_keys - set(allowed_source_keys))
+    unexpected_passages = sorted(actual_passages - set(allowed_passage_ids))
+    if missing_sources or unexpected_sources or unexpected_passages:
+        raise ExecutorError("cross_paper_source_selection_mismatch", "EvidenceGraph does not match the immutable cross-paper allowlist")
+
+
 class DeepResearchRunner:
     """One injected single-agent composition; it creates no new runtime or Event Store."""
 
-    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = (), comparison_required: bool = False) -> None:
-        self._planner, self._executor, self._writer, self._budget, self._requirements, self._comparison_required = planner, executor, writer, budget, requirements, comparison_required
+    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = (), comparison_required: bool = False, allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = ()) -> None:
+        self._planner, self._executor, self._writer, self._budget, self._requirements, self._comparison_required, self._allowed_source_keys, self._allowed_passage_ids = planner, executor, writer, budget, requirements, comparison_required, allowed_source_keys, allowed_passage_ids
 
     @staticmethod
     def run_id(task: ResearchTask, brief: ResearchBrief, *, attempt_id: str | None = None) -> str:
@@ -658,6 +672,8 @@ class DeepResearchRunner:
             plan = _read_hashed_json(artifact_dir / "validated_plan.json", str(plan_event.payload.get("plan_artifact_sha256")), ValidatedResearchPlan)
             graph = _read_hashed_json(artifact_dir / "evidence_graph.json", str(artifact_refs.get("evidence_graph_sha256")), EvidenceGraph)
             assessment = _read_hashed_json(artifact_dir / "assessment.json", str(artifact_refs.get("assessment_sha256")), GapConflictAssessment)
+            if self._allowed_source_keys or self._allowed_passage_ids:
+                _validate_cross_paper_allowlist(graph, self._allowed_source_keys, self._allowed_passage_ids)
             writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs, validation_guard=require_cross_paper_comparison if self._comparison_required else None)
             return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation, resumed=True)
         if events:
@@ -692,7 +708,9 @@ class DeepResearchRunner:
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "plan_artifact_sha256": plan_artifact_sha256, "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
-        execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id)
+        execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id, allowed_source_keys=self._allowed_source_keys or None, allowed_passage_ids=self._allowed_passage_ids or None)
+        if self._allowed_source_keys or self._allowed_passage_ids:
+            _validate_cross_paper_allowlist(execution.evidence_graph, self._allowed_source_keys, self._allowed_passage_ids)
         assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))
         events = store.read_all()
         artifact_refs = {"plan_sha256": plan_artifact_sha256, "evidence_graph_sha256": _write_json_artifact(event_path.parent / "evidence_graph.json", execution.evidence_graph.model_dump(mode="json")), "assessment_sha256": _write_json_artifact(event_path.parent / "assessment.json", assessment.model_dump(mode="json"))}
@@ -701,8 +719,9 @@ class DeepResearchRunner:
         return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation)
 
 
-def prompt_hashes() -> dict[str, str]:
-    return {"planner": sha256_hex(PLANNER_PROMPT.encode("utf-8")), "writer": sha256_hex(WRITER_PROMPT.encode("utf-8"))}
+def prompt_hashes(*, comparison_required: bool = False) -> dict[str, str]:
+    writer_prompt = WRITER_PROMPT + (CROSS_WRITER_PROMPT_SUFFIX if comparison_required else "")
+    return {"planner": sha256_hex(PLANNER_PROMPT.encode("utf-8")), "writer": sha256_hex(writer_prompt.encode("utf-8"))}
 
 
 def render_e2e_pilot_schema() -> str:
@@ -757,7 +776,7 @@ def write_e2e_cross_paper_schema(output_dir: Path) -> Path:
 
 def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path | None = None) -> tuple[GLME2EPilotTask, ...]:
     """Read-only plan/artifact/corpus verification; it never reads a credential or transports."""
-    hashes = prompt_hashes()
+    hashes = prompt_hashes(comparison_required=isinstance(plan, GLME2ECrossPaperAttemptPlan))
     git_root = git_root or Path.cwd()
     try:
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_root, check=True, capture_output=True, text=True).stdout.strip()

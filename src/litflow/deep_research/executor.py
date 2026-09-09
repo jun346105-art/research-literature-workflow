@@ -278,6 +278,8 @@ class LocalResearchExecutor:
         checkpoint_path: Path,
         candidates: dict[str, tuple[EvidenceCandidate, ...]] | None = None,
         run_id: str | None = None,
+        allowed_source_keys: tuple[str, ...] | None = None,
+        allowed_passage_ids: tuple[str, ...] | None = None,
     ) -> LocalExecutorResult:
         self._validate_plan(task, brief, approval, plan)
         run_id = run_id or make_stable_id("run", {"runtime": EXECUTOR_VERSION, "plan_id": plan.plan_id})
@@ -298,6 +300,8 @@ class LocalResearchExecutor:
         edges: set[tuple[str, str, str]] = set()
         results: list[SubtaskExecutionResult] = []
         complete: set[str] = set()
+        allowed_sources = frozenset(allowed_source_keys or ())
+        allowed_passages = frozenset(allowed_passage_ids or ())
         for subtask in plan.subtasks:
             if self._token.cancelled:
                 raise ExecutorError("cancelled", "execution was cancelled before the next subtask")
@@ -306,6 +310,11 @@ class LocalResearchExecutor:
             hits = await self._tool(store, events, initial_state, subtask, ToolName.search_local_corpus, LocalSearchRequest(query=subtask.question))
             if not hits:
                 raise ExecutorError("source_not_found", "local corpus search returned no passage")
+            if allowed_passages:
+                selected_hits = tuple(hit for hit in hits if hit.passage_id in allowed_passages)
+                if not selected_hits:
+                    raise ExecutorError("cross_paper_source_selection_mismatch", "retrieval returned no passage from the immutable cross-paper allowlist")
+                hits = selected_hits
             selected = candidates.get(subtask.subtask_id) if candidates else None
             evidence_ids: list[str] = []
             candidate_items: list[tuple[EvidenceCandidate, LocalPassage]] = []
@@ -315,10 +324,15 @@ class LocalResearchExecutor:
                 candidate_items.append((EvidenceCandidate(passage_id=passage.passage_id, quote_hint=passage.text), passage))
             else:
                 for candidate in selected:
+                    if allowed_passages and candidate.passage_id not in allowed_passages:
+                        raise ExecutorError("cross_paper_source_selection_mismatch", "candidate passage is outside the immutable cross-paper allowlist")
                     passage = await self._tool(store, events, initial_state, subtask, ToolName.read_passage, ReadPassageRequest(passage_id=candidate.passage_id))
                     assert isinstance(passage, LocalPassage)
-                    candidate_items.append((candidate, passage))
+                candidate_items.append((candidate, passage))
             for candidate, passage in candidate_items:
+                source_key = passage.source.bibliographic_metadata.get("paper_key")
+                if allowed_sources and source_key not in allowed_sources:
+                    raise ExecutorError("cross_paper_source_selection_mismatch", "passage source is outside the immutable cross-paper allowlist")
                 unit = build_evidence(candidate, passage)
                 sources[passage.source.source_id] = passage.source
                 evidence[unit.evidence_id] = unit

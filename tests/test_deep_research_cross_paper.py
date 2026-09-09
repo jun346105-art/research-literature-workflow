@@ -10,8 +10,8 @@ import pytest
 
 from litflow.deep_research.budgets import BudgetSpec
 from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
-from litflow.deep_research.e2e import GLMSingleWriter, DeepResearchRunner, require_cross_paper_comparison
-from litflow.deep_research.executor import EvidenceCandidate, LocalResearchExecutor, ReadOnlyToolRegistry
+from litflow.deep_research.e2e import GLMSingleWriter, DeepResearchRunner, _validate_cross_paper_allowlist, require_cross_paper_comparison
+from litflow.deep_research.executor import EvidenceCandidate, ExecutorError, LocalResearchExecutor, ReadOnlyToolRegistry
 from litflow.deep_research.gap_replan import AssessmentContext, assess_evidence_graph
 from litflow.deep_research.planner import FakePlanner, PlannerDraft, PlannerSubtaskDraft, plan_approved_brief
 from litflow.deep_research.runtime_v2 import RuntimeEventType, UnifiedEventStore
@@ -29,6 +29,10 @@ def _corpus() -> list[dict[str, object]]:
         assert row["paper_key"] == paper
         selected.append(row)
     return selected
+
+
+def _full_corpus() -> list[dict[str, object]]:
+    return [json.loads(line) for line in Path("outputs/rag_bm25_v1/passages.jsonl").read_text(encoding="utf-8").splitlines() if line]
 
 
 def _inputs(tmp_path: Path):
@@ -81,3 +85,27 @@ def test_cross_paper_runner_persists_gate_failure_without_external_calls(tmp_pat
         asyncio.run(SingleWriterRunner(writer, budget=spec).run(task, brief, approval, plan, graph, assessment, event_path=tmp_path / "writer.jsonl", checkpoint_path=tmp_path / "writer.checkpoint.json", validation_guard=require_cross_paper_comparison))
     events = UnifiedEventStore(tmp_path / "writer.jsonl", run_id=graph.run_id).read_all()
     assert writer.calls == 1 and any(event.event_type is RuntimeEventType.operation_failed and event.payload.get("operation_name") == "single_writer" for event in events)
+
+
+def test_executor_allowlist_excludes_unselected_retrieval_results(tmp_path: Path):
+    task, brief, approval, plan, _, _, spec, registry = _inputs(tmp_path)
+    registry = ReadOnlyToolRegistry(_full_corpus())
+    candidates = {plan.subtasks[0].subtask_id: (EvidenceCandidate(passage_id="L4DLHQUZ:L4DLHQUZ_chunk_0007", quote_hint=next(x["text"] for x in _corpus() if x["paper_key"] == "L4DLHQUZ")),), plan.subtasks[1].subtask_id: (EvidenceCandidate(passage_id="3NLKTSIP:3NLKTSIP_chunk_0005", quote_hint=next(x["text"] for x in _corpus() if x["paper_key"] == "3NLKTSIP")),)}
+    allowed_passages = tuple(row["passage_id"] for row in _full_corpus() if row["paper_key"] in {"L4DLHQUZ", "3NLKTSIP"})
+    result = asyncio.run(LocalResearchExecutor(registry, budget=spec).execute(task, brief, approval, plan, event_path=tmp_path / "allow.jsonl", checkpoint_path=tmp_path / "allow.checkpoint.json", candidates=candidates, run_id="dr-run-cross-allow", allowed_source_keys=("L4DLHQUZ", "3NLKTSIP"), allowed_passage_ids=allowed_passages))
+    assert {source.bibliographic_metadata["paper_key"] for source in result.evidence_graph.sources} == {"L4DLHQUZ", "3NLKTSIP"}
+
+
+def test_executor_rejects_unselected_candidate_before_evidence_graph(tmp_path: Path):
+    task, brief, approval, plan, _, _, spec, _ = _inputs(tmp_path)
+    registry = ReadOnlyToolRegistry(_full_corpus())
+    bad = {plan.subtasks[0].subtask_id: (EvidenceCandidate(passage_id="Q55RU9N6:Q55RU9N6_chunk_0008", quote_hint="wrong source"),), plan.subtasks[1].subtask_id: (EvidenceCandidate(passage_id="3NLKTSIP:3NLKTSIP_chunk_0005", quote_hint=next(x["text"] for x in _corpus() if x["paper_key"] == "3NLKTSIP")),)}
+    with pytest.raises(ExecutorError, match="cross_paper_source_selection_mismatch"):
+        asyncio.run(LocalResearchExecutor(registry, budget=spec).execute(task, brief, approval, plan, event_path=tmp_path / "bad.jsonl", checkpoint_path=tmp_path / "bad.checkpoint.json", candidates=bad, run_id="dr-run-cross-bad", allowed_source_keys=("L4DLHQUZ", "3NLKTSIP"), allowed_passage_ids=("L4DLHQUZ:L4DLHQUZ_chunk_0007", "3NLKTSIP:3NLKTSIP_chunk_0005")))
+
+
+def test_cross_allowlist_reports_missing_selected_source(tmp_path: Path):
+    _, _, _, _, graph, _, _, _ = _inputs(tmp_path)
+    one_source = graph.model_copy(update={"sources": (graph.sources[0],), "evidence_units": tuple(unit for unit in graph.evidence_units if unit.source_id == graph.sources[0].source_id), "edges": tuple(edge for edge in graph.edges if edge.from_id in {graph.sources[0].source_id, graph.evidence_units[0].evidence_id} or edge.to_id in {graph.sources[0].source_id, graph.evidence_units[0].evidence_id})})
+    with pytest.raises(ExecutorError, match="cross_paper_source_selection_mismatch"):
+        _validate_cross_paper_allowlist(one_source, ("L4DLHQUZ", "3NLKTSIP"), ("L4DLHQUZ:L4DLHQUZ_chunk_0007", "3NLKTSIP:3NLKTSIP_chunk_0005"))

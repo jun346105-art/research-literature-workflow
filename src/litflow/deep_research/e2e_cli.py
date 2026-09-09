@@ -37,9 +37,11 @@ def main(argv: list[str] | None = None) -> int:
         runner = DeepResearchRunner(
             GLMStructuredPlanner(adapter, reservation_usage=plan.policy.reservation("planner")),
             LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=plan.budget_spec()),
-            GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation("writer")),
+            GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation("writer"), comparison_required=task.task_key == "cross_paper_comparison"),
             budget=plan.budget_spec(),
             comparison_required=task.task_key == "cross_paper_comparison",
+            allowed_source_keys=tuple(getattr(task, "selected_source_keys", ())),
+            allowed_passage_ids=tuple(getattr(task, "selected_passage_ids", ())),
         )
         result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=getattr(task, "attempt_id", None)))
         print(json.dumps({"terminal": result.terminal, "run_id": result.run_id}, ensure_ascii=False))
