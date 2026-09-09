@@ -1,8 +1,8 @@
 {
   "schema_version": "dr-glm-e2e-followup-design-v1",
   "design_status": "design_only_not_executed",
-  "implementation_commit_sha": "012e454a01620bbdef0ce067d3f942433b15f7a5",
-  "runtime_source_sha256": "4316910cc027744314eb657f7d579a82ac7d068a2b46590901757fbcf6efc472",
+  "implementation_commit_sha": "d286ca0c3a187d7237e399d766a2370f5683812b",
+  "runtime_source_sha256": "76b894d0b596c16d804ba1fedd893a64e4e717a28de11a866e2ae673e65db2d3",
   "planner_prompt_sha256": "cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b",
   "writer_prompt_sha256": "a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1",
   "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
@@ -37,6 +37,11 @@
       "brief_id": "dr-brief-0784ae0da15d3261fc5ca8f6",
       "run_id": "dr-run-8e3c2028b68e14c88fc7b17e",
       "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e",
+      "plan_path": "docs/deep_research/e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json",
+      "schema_version": "dr-glm-e2e-pilot-v1.2-cross-paper",
+      "task_input_sha256": "4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e",
+      "selected_source_ids": ["dr-source-76a2766b4e0d53670687ff4e", "dr-source-c82227e5b40e464045457dd3"],
+      "selected_passage_ids": ["L4DLHQUZ:L4DLHQUZ_chunk_0007", "3NLKTSIP:3NLKTSIP_chunk_0005"],
       "acceptance": {
         "minimum_independent_sources": 2,
         "claim_evidence_binding": "each comparison claim cites its source-specific Evidence",
@@ -52,6 +57,7 @@
       "brief_id": "dr-brief-84aad028176f94da6be6aef7",
       "run_id": "dr-run-def2aef07b645306d3be21d1",
       "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-def2aef07b645306d3be21d1",
+      "schema_version": "dr-glm-e2e-followup-design-v1",
       "acceptance": {
         "allowed_terminal_statuses": ["insufficient_evidence", "partial"],
         "unsupported_claims_allowed": false,
