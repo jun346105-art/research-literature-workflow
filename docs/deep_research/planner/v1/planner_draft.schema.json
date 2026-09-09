@@ -114,6 +114,8 @@
       "items": {
         "$ref": "#/$defs/PlannerSubtaskDraft"
       },
+      "maxItems": 8,
+      "minItems": 1,
       "title": "Subtasks",
       "type": "array"
     },
@@ -129,4 +131,4 @@
   ],
   "title": "PlannerDraft",
   "type": "object"
-}
+}\n

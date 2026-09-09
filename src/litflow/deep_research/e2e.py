@@ -34,7 +34,7 @@ E2E_VERSION = "dr-single-agent-e2e-v1"
 PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
-PLANNER_PROMPT = """You propose one JSON PlannerDraft for the approved brief. Return local subtask keys, objectives, allowed operation intent, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. Never create evidence, claims, citations, or final answers."""
+PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Return local subtask keys, objectives, allowed operation intent, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, or final answers."""
 WRITER_PROMPT = """You propose one JSON ReportDraft from the supplied Evidence View and gap/conflict summary. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer. Preserve disclosed uncertainty."""
 _OUTPUT_ROOT = "outputs"
 
@@ -418,6 +418,12 @@ def _planner_scope_error(diagnostics: dict[str, object], *, field: str, observed
     return PlannerResponseError("planner_scope_invalid", "Planner attempted to provide a program-owned scope or permission field", safe)
 
 
+def _planner_empty_error(diagnostics: dict[str, object], *, payload: dict[str, object]) -> PlannerResponseError:
+    subtasks = payload.get("subtasks")
+    safe = {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_empty", "observed_keys": sorted(key for key in payload if isinstance(key, str)), "subtasks_field_present": "subtasks" in payload, "observed_subtasks_type": type(subtasks).__name__ if subtasks is not None else "null", "observed_subtask_count": len(subtasks) if isinstance(subtasks, list) else 0, "normalization_input_count": len(subtasks) if isinstance(subtasks, list) else 0, "normalization_accepted_count": 0, "rejected_item_count": 0, "rejected_reason_code": "subtasks_missing_or_empty"}
+    return PlannerResponseError("planner_empty", "PlannerDraft must contain at least one subtask", safe)
+
+
 def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object], task: ResearchTask, brief: ResearchBrief) -> dict[str, object]:
     """Ignore one harmless JSON fence but reject program-controlled identities."""
     normalized = content.strip()
@@ -439,6 +445,8 @@ def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[st
             raise _planner_scope_error(diagnostics, field=field, observed=payload[field], approved=approved)
     result = {key: payload[key] for key in PlannerDraft.model_fields if key in payload}
     result.update(owned)
+    if "subtasks" not in result or result["subtasks"] is None or result["subtasks"] == []:
+        raise _planner_empty_error(diagnostics, payload=payload)
     subtasks = result.get("subtasks")
     if isinstance(subtasks, list):
         normalized: list[object] = []

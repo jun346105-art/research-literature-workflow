@@ -199,6 +199,24 @@ def test_planner_application_contract_classification_and_fence_are_deterministic
     assert truncated.value.code == "planner_content_truncated"
 
 
+@pytest.mark.parametrize("payload", ({"schema_version": "dr-planner-draft-v1"}, {"schema_version": "dr-planner-draft-v1", "subtasks": None}, {"schema_version": "dr-planner-draft-v1", "subtasks": []}, {"schema_version": "dr-planner-draft-v1", "subtask": [{"local_key": "x"}]}))
+def test_empty_planner_shapes_have_safe_nonempty_diagnostics(payload):
+    task, brief, _ = _inputs()
+    with pytest.raises(PlannerError) as error:
+        asyncio.run(GLMStructuredPlanner(FakeStructuredClient([payload])).create_draft(task=task, brief=brief))
+    assert error.value.code == "planner_empty"
+    diagnostics = getattr(error.value, "diagnostics", {})
+    assert diagnostics["contract_error_code"] == "planner_empty"
+    assert diagnostics["normalization_accepted_count"] == 0
+    assert "raw_response" not in diagnostics and "reasoning" not in diagnostics
+
+
+def test_planner_prompt_freezes_nonempty_shape_and_schema_limits():
+    from litflow.deep_research.e2e import PLANNER_PROMPT
+
+    assert "subtasks" in PLANNER_PROMPT and "non-empty" in PLANNER_PROMPT and "local_key" in PLANNER_PROMPT
+
+
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
     task, brief, approval = _inputs()
     bad_scope = _planner_response(task, brief)

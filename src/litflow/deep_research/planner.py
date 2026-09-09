@@ -67,7 +67,7 @@ class PlannerDraft(ContractModel):
     constraints: tuple[str, ...] = ()
     scope_inclusions: tuple[str, ...] = ()
     scope_exclusions: tuple[str, ...] = ()
-    subtasks: tuple[PlannerSubtaskDraft, ...] = ()
+    subtasks: tuple[PlannerSubtaskDraft, ...] = Field(default=(), min_length=1, max_length=8)
 
 
 class ValidatedResearchPlan(ContractModel):
