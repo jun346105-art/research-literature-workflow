@@ -38,6 +38,7 @@
 | B08E2E-R6 | Attempt-007 Writer contract calibration, durable business artifacts and Writer-only dev channel | completed; implementation `adc04db10d41eb82bc1f1035f12f0d365f0dea51`; Attempt-007 immutable; calibration dry-run only; no new real E2E/API/Web call |
 | B08E2E-R6C | Writer Calibration CLI explicit dry-run/execute wiring; calibration-001 retained as preflight-only; calibration-002 execution | completed; implementation `e8b12789cc747359808a351e70f5c4861edb4163`; calibration-002 known failure `writer_schema_invalid`; no retry |
 | B08E2E-R7 | Writer identity ownership and content-draft finalization; calibration-003 freeze | completed; implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`; calibration-003 preflight passed; no real calibration call |
+| B08E2E-R8 | Close successful writer-calibration-003 and freeze single-paper E2E Attempt-008 | completed; calibration-003 `pass_writer_contract_and_deterministic_grounding`; Attempt-008 preflight only; no real Attempt-008 call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -100,3 +101,10 @@
 - Calibration-003 plan: [`calibration/v1/writer_calibration_plan.calibration-003.json`](calibration/v1/writer_calibration_plan.calibration-003.json), implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`, runtime source SHA-256 `ced52128187176fd7e8f59b41e20df215df183525054aa2749f25d0cf12865e1`, run `dr-run-ea36f934bb751fb5a0d4885a`, target `outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a` (absent).
 - R7 changes keep formal `ReportDraft`/`ValidatedReport` ownership in program code and add the untrusted `WriterContentDraft` schema. Model-supplied identity field names are bounded diagnostics only; their values are discarded.
 - Only offline tests and calibration-003 dry-run/preflight were executed. No Key, HTTP, Provider call or real calibration-003 artifact exists.
+
+### B08E2E-R8 evidence
+
+- Calibration-003 closure manifest: [`calibration/v1/writer_calibration_result_manifest.attempt-003.json`](calibration/v1/writer_calibration_result_manifest.attempt-003.json); result: [`WRITER_CALIBRATION_RESULT_V1.md`](WRITER_CALIBRATION_RESULT_V1.md).
+- Attempt-008 plan: [`e2e/v1.2/glm_e2e_pilot_plan.attempt-008.json`](e2e/v1.2/glm_e2e_pilot_plan.attempt-008.json), one `single_paper` task, run `dr-run-8b30915e93a6e6b5ee8137c5`, target `outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5` (absent).
+- Plan is bound to implementation commit `f53a2a1554744ae7e8fc9b48796e417c3d95d5b1`, runtime source SHA-256 `4316910cc027744314eb657f7d579a82ac7d068a2b46590901757fbcf6efc472`, Planner prompt SHA-256 `cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b`, Writer prompt SHA-256 `a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1`, and corpus SHA-256 `d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6`.
+- Only offline preflight and Mock/Replay tests were run. No Attempt-008 artifact, Key read, HTTP call or Provider execution occurred.
