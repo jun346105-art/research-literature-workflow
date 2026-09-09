@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from .e2e import DeepResearchRunner, E2ETerminalError, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, parse_e2e_pilot_plan, preflight_e2e_pilot
-from .executor import LocalResearchExecutor, ReadOnlyToolRegistry
+from .executor import ExecutorError, LocalResearchExecutor, ReadOnlyToolRegistry
 from .writer import WriterError
 
 
@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
         adapter = GLMStructuredAdapter(plan.policy)
         adapter.require_credential_for_execute()
         runner = DeepResearchRunner(
-            GLMStructuredPlanner(adapter, reservation_usage=plan.policy.reservation("planner")),
+            GLMStructuredPlanner(adapter, reservation_usage=plan.policy.reservation("planner"), selected_source_keys=tuple(getattr(task, "selected_source_keys", ()))),
             LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=plan.budget_spec()),
             GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation("writer"), comparison_required=task.task_key == "cross_paper_comparison"),
             budget=plan.budget_spec(),
@@ -51,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
         return 3 if error.outcome_unknown else 2
     except WriterError as error:
         print(json.dumps({"terminal": "failed", "error_code": error.code, "diagnostics": error.diagnostics}, ensure_ascii=False))
+        return 2
+    except ExecutorError as error:
+        print(json.dumps({"terminal": "failed", "error_code": error.code}, ensure_ascii=False))
         return 2
     except (ValueError, OSError) as error:
         print(json.dumps({"terminal": "failed", "error_code": type(error).__name__}, ensure_ascii=False))

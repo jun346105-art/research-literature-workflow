@@ -36,6 +36,7 @@ PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","research_action":"search_and_read_local_evidence","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Every item must choose research_action from `search_and_read_local_evidence` or `verify_local_evidence`; these are the only executor-supported actions. Return local subtask keys, objectives, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, compose/write/report/summary subtasks, or final answers."""
+CROSS_PLANNER_PROMPT_SUFFIX = """ This is a cross-paper comparison: retrieve evidence from each listed selected source key, keep each source's evidence separate, and plan a later comparison Claim without inventing or substituting a source."""
 WRITER_PROMPT = """You output exactly one JSON object containing only Writer content, with no Markdown fence or explanation. Minimal valid example: {"sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Never output schema_version, task_id, brief_id, plan_id, run_id, report_id, claim_id, citation_id, Source, Evidence, page, passage, Claim, Citation, or report IDs; those identities belong to the program. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
 CROSS_WRITER_PROMPT_SUFFIX = """ This is a cross-paper comparison, not separate summaries: include at least one comparison Claim whose Citation suggestions cover Evidence from two different Source IDs. Keep source-specific Claims separate and never merge unrelated claims."""
 _OUTPUT_ROOT = "outputs"
@@ -434,11 +435,12 @@ class GLMStructuredAdapter:
 class GLMStructuredPlanner:
     """Real-provider-capable Planner adapter; formal Plan IDs remain program-owned."""
 
-    def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None) -> None:
-        self._client, self.last_usage, self.reservation_usage, self.last_draft = client, TokenUsage(), reservation_usage or TokenUsage(), None
+    def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None, selected_source_keys: tuple[str, ...] = ()) -> None:
+        self._client, self.last_usage, self.reservation_usage, self.last_draft, self._selected_source_keys = client, TokenUsage(), reservation_usage or TokenUsage(), None, selected_source_keys
 
     async def create_draft(self, *, task: ResearchTask, brief: ResearchBrief) -> object:
-        prompt = f"{PLANNER_PROMPT}\nApproved brief: {json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
+        source_instruction = f"\nSelected source keys (program-owned allowlist): {json.dumps(list(self._selected_source_keys), ensure_ascii=False)}" if self._selected_source_keys else ""
+        prompt = f"{PLANNER_PROMPT}{CROSS_PLANNER_PROMPT_SUFFIX if self._selected_source_keys else ''}{source_instruction}\nApproved brief: {json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True)}"
         try:
             reply = await self._client.complete(prompt=prompt, operation_name="glm_structured_planner")
             self.last_usage = reply.usage
@@ -720,8 +722,9 @@ class DeepResearchRunner:
 
 
 def prompt_hashes(*, comparison_required: bool = False) -> dict[str, str]:
+    planner_prompt = PLANNER_PROMPT + (CROSS_PLANNER_PROMPT_SUFFIX if comparison_required else "")
     writer_prompt = WRITER_PROMPT + (CROSS_WRITER_PROMPT_SUFFIX if comparison_required else "")
-    return {"planner": sha256_hex(PLANNER_PROMPT.encode("utf-8")), "writer": sha256_hex(writer_prompt.encode("utf-8"))}
+    return {"planner": sha256_hex(planner_prompt.encode("utf-8")), "writer": sha256_hex(writer_prompt.encode("utf-8"))}
 
 
 def render_e2e_pilot_schema() -> str:
