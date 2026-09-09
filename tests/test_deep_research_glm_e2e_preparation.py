@@ -53,6 +53,16 @@ class FakeStructuredClient:
         return GLMStructuredReply(content=json.dumps(response), usage=TokenUsage(), model_identity_verified=True, usage_reported=True, request_id_present=True)
 
 
+class RawStructuredClient:
+    def __init__(self, content: str, *, finish_reason: str | None = None):
+        self.content, self.finish_reason = content, finish_reason
+        self.calls = 0
+
+    async def complete(self, *, prompt: str, operation_name: str) -> GLMStructuredReply:
+        self.calls += 1
+        return GLMStructuredReply(content=self.content, usage=TokenUsage(), model_identity_verified=True, usage_reported=True, request_id_present=False, finish_reason=self.finish_reason)
+
+
 def _inputs():
     task = ResearchTask.create("Which local evidence supports alpha?", "en", ("local-only",), "grounded_report", NOW)
     brief = ResearchBrief.create(task.task_id, "Find local alpha evidence.", ("alpha",), (), "report", ("quote",), ("local-only",), BriefApprovalStatus.approved)
@@ -139,7 +149,7 @@ def test_adapter_error_is_classified_and_never_silently_falls_back():
 
 def test_planner_unknown_is_durable_exit_class_three_and_never_calls_writer_or_retries(tmp_path: Path):
     task, brief, approval = _inputs()
-    planner_client = FakeStructuredClient([GLMAdapterError("outcome_unknown", outcome_unknown=True)])
+    planner_client = FakeStructuredClient([GLMAdapterError("outcome_unknown", outcome_unknown=True, diagnostics={"failure_stage": "transport", "contract_error_code": "outcome_unknown", "http_status": None, "response_received": False, "response_json_parsed": False, "model_identity_verified": False, "usage_reported": False, "finish_reason": None, "content_length": 0, "content_sha256": None, "observed_type": "unknown", "observed_keys": []})])
     writer_client = FakeStructuredClient([])
     runner, registry, spec = _runner(GLMStructuredPlanner(planner_client), GLMSingleWriter(writer_client))
     with pytest.raises(E2ETerminalError) as error:
@@ -148,7 +158,10 @@ def test_planner_unknown_is_durable_exit_class_three_and_never_calls_writer_or_r
     assert planner_client.calls == 1 and writer_client.calls == 0 and registry.calls == []
     run_id = DeepResearchRunner.run_id(task, brief)
     events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=run_id).read_all()
-    assert events[-1].event_type.value == "operation_unknown" and (tmp_path / "checkpoint.json").is_file()
+    assert any(event.event_type.value == "operation_unknown" for event in events) and (tmp_path / "checkpoint.json").is_file()
+    diagnostics = next(event.payload["diagnostics"] for event in events if event.event_type.value == "operation_unknown")
+    assert {"failure_stage", "contract_error_code", "http_status", "response_received", "response_json_parsed", "model_identity_verified", "usage_reported", "finish_reason", "content_length", "content_sha256", "observed_type", "observed_keys"}.issubset(diagnostics)
+    assert "raw_response" not in diagnostics and "authorization" not in diagnostics and "api_key" not in diagnostics
     replayed = replay_runtime_events(RunState(run_id=run_id, task_id=task.task_id, brief_id=brief.brief_id, brief_approved=True), events, spec)
     assert replayed.manual_intervention is not None and planner_client.calls == 1 and writer_client.calls == 0
 
@@ -160,8 +173,44 @@ def test_planner_known_failure_is_durable_and_exit_class_two_without_writer(tmp_
     runner, registry, _ = _runner(GLMStructuredPlanner(planner_client), GLMSingleWriter(writer_client))
     with pytest.raises(E2ETerminalError) as error:
         asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
-    assert error.value.error_code == "planner_contract_invalid" and not error.value.outcome_unknown
+    assert error.value.error_code == "provider_response_invalid" and not error.value.outcome_unknown
     assert planner_client.calls == 1 and writer_client.calls == 0 and registry.calls == []
+    checkpoint = json.loads((tmp_path / "checkpoint.json").read_text(encoding="utf-8"))
+    assert checkpoint["run_state"]["status"] == "failed" and checkpoint["run_state"]["terminal_reason"] == "provider_response_invalid"
+
+
+def test_planner_application_contract_classification_and_fence_are_deterministic():
+    task, brief, _ = _inputs()
+    raw = json.dumps(_planner_response(task, brief), ensure_ascii=False, separators=(",", ":"))
+    fenced = RawStructuredClient("```json\n" + raw + "\n```")
+    draft = asyncio.run(GLMStructuredPlanner(fenced).create_draft(task=task, brief=brief))
+    assert draft["task_id"] == task.task_id
+    for content, code in (
+        ("{not-json", "planner_json_invalid"),
+        (json.dumps({"schema_version": "dr-planner-draft-v1", "brief_id": brief.brief_id}), "planner_schema_invalid"),
+    ):
+        with pytest.raises(PlannerError) as error:
+            asyncio.run(GLMStructuredPlanner(RawStructuredClient(content)).create_draft(task=task, brief=brief))
+        assert error.value.code == code
+    with pytest.raises(PlannerError) as truncated:
+        asyncio.run(GLMStructuredPlanner(RawStructuredClient(raw, finish_reason="length")).create_draft(task=task, brief=brief))
+    assert truncated.value.code == "planner_content_truncated"
+
+
+def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
+    task, brief, approval = _inputs()
+    bad_scope = _planner_response(task, brief)
+    bad_scope["scope_inclusions"] = ["outside-scope"]
+    runner, _, _ = _runner(GLMStructuredPlanner(FakeStructuredClient([bad_scope])), GLMSingleWriter(FakeStructuredClient([])))
+    with pytest.raises(E2ETerminalError) as error:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "scope-runtime.jsonl", checkpoint_path=tmp_path / "scope-checkpoint.json"))
+    assert error.value.error_code == "planner_scope_invalid"
+    bad_dependency = _planner_response(task, brief)
+    bad_dependency["subtasks"][0]["dependencies"] = ["missing"]
+    dependency_runner, _, _ = _runner(GLMStructuredPlanner(FakeStructuredClient([bad_dependency])), GLMSingleWriter(FakeStructuredClient([])))
+    with pytest.raises(E2ETerminalError) as dependency_error:
+        asyncio.run(dependency_runner.run(task, brief, approval, event_path=tmp_path / "dependency-runtime.jsonl", checkpoint_path=tmp_path / "dependency-checkpoint.json"))
+    assert dependency_error.value.error_code == "planner_dependency_invalid"
 
 
 def test_writer_known_and_unknown_are_durable_distinct_terminals_without_retry(tmp_path: Path):
@@ -189,10 +238,10 @@ def test_writer_known_and_unknown_are_durable_distinct_terminals_without_retry(t
     ("status", "payload", "error"),
     (
         (200, {"model": "glm-5.3-flash", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}, "id": "opaque"}, None),
-        (401, {"error": {"message": "denied"}}, "http_non_2xx"),
-        (200, {"error": {"message": "denied"}}, "provider_error_envelope"),
-        (200, {"model": "other", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}}, "model_identity_unverified"),
-        (200, {"model": "glm-5.3-flash", "choices": [{"message": {"content": "{}"}}]}, "usage_missing"),
+        (401, {"error": {"message": "denied"}}, "transport_failure"),
+        (200, {"error": {"message": "denied"}}, "provider_response_invalid"),
+        (200, {"model": "other", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3}}, "provider_response_invalid"),
+        (200, {"model": "glm-5.3-flash", "choices": [{"message": {"content": "{}"}}]}, "provider_response_invalid"),
     ),
 )
 def test_shared_glm_adapter_classifies_mock_transport_without_environment_access(status, payload, error):
@@ -212,7 +261,7 @@ def test_shared_glm_adapter_keeps_malformed_json_and_timeout_fail_closed():
     async def malformed(**_kwargs):
         return 200, {}, b"not-json"
 
-    with pytest.raises(GLMAdapterError, match="response_body_not_json"):
+    with pytest.raises(GLMAdapterError, match="provider_response_invalid"):
         asyncio.run(GLMStructuredAdapter(GLMInvocationPolicy(), transport=malformed, credential="offline-fixture").complete(prompt="offline", operation_name="test"))
 
     async def lost(**_kwargs):

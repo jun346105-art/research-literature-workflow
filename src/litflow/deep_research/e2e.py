@@ -61,9 +61,17 @@ class E2ETerminalError(ValueError):
         super().__init__(error_code)
 
 
+class PlannerResponseError(PlannerError):
+    """Planner contract error carrying only redacted structural diagnostics."""
+
+    def __init__(self, code: str, message: str, diagnostics: dict[str, object] | None = None):
+        self.diagnostics = diagnostics or {}
+        super().__init__(code, message)
+
+
 class GLMAdapterError(ValueError):
-    def __init__(self, code: str, *, outcome_unknown: bool = False):
-        self.code, self.outcome_unknown = code, outcome_unknown
+    def __init__(self, code: str, *, outcome_unknown: bool = False, diagnostics: dict[str, object] | None = None):
+        self.code, self.outcome_unknown, self.diagnostics = code, outcome_unknown, diagnostics or {}
         super().__init__(code)
 
 
@@ -235,6 +243,41 @@ class GLMStructuredReply(BaseModel):
     model_identity_verified: bool
     usage_reported: bool
     request_id_present: bool
+    http_status: int | None = None
+    response_received: bool = True
+    response_json_parsed: bool = True
+    finish_reason: str | None = None
+    content_length: int = 0
+    content_sha256: str | None = None
+    observed_type: str = "object"
+    observed_keys: tuple[str, ...] = ()
+
+
+_SAFE_PROVIDER_KEYS = frozenset({"choices", "error", "id", "model", "request_id", "usage"})
+
+
+def _provider_shape(payload: object) -> tuple[str, tuple[str, ...]]:
+    if not isinstance(payload, dict):
+        return type(payload).__name__, ()
+    return "object", tuple(sorted(key for key in payload if isinstance(key, str) and key in _SAFE_PROVIDER_KEYS))
+
+
+def _provider_diagnostics(*, status: int | None, received: bool, parsed: bool, payload: object = None, failure_stage: str, error_code: str, content: str | None = None, finish_reason: str | None = None, model_identity_verified: bool = False, usage_reported: bool = False) -> dict[str, object]:
+    observed_type, observed_keys = _provider_shape(payload)
+    return {
+        "failure_stage": failure_stage,
+        "contract_error_code": error_code,
+        "http_status": status,
+        "response_received": received,
+        "response_json_parsed": parsed,
+        "model_identity_verified": model_identity_verified,
+        "usage_reported": usage_reported,
+        "finish_reason": finish_reason,
+        "content_length": len(content) if content is not None else 0,
+        "content_sha256": sha256_hex(content.encode("utf-8")) if content is not None else None,
+        "observed_type": observed_type,
+        "observed_keys": list(observed_keys),
+    }
 
 
 @runtime_checkable
@@ -261,28 +304,37 @@ class GLMStructuredAdapter:
         try:
             status, headers, raw = await self._transport(url=self._policy.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=body, timeout_s=float(self._policy.operation_timeout_seconds))
         except (TimeoutError, socket.timeout, ConnectionError, ConnectionResetError, urllib.error.URLError) as error:
-            raise GLMAdapterError("outcome_unknown", outcome_unknown=True) from error
+            raise GLMAdapterError("outcome_unknown", outcome_unknown=True, diagnostics=_provider_diagnostics(status=None, received=False, parsed=False, failure_stage="transport", error_code="outcome_unknown")) from error
         if not 200 <= status < 300:
-            raise GLMAdapterError("http_non_2xx")
+            try:
+                error_payload = json.loads(raw.decode("utf-8"))
+                parsed = True
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                error_payload, parsed = None, False
+            raise GLMAdapterError("transport_failure", diagnostics=_provider_diagnostics(status=status, received=True, parsed=parsed, payload=error_payload, failure_stage="transport", error_code="transport_failure"))
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise GLMAdapterError("response_body_not_json") from error
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=False, failure_stage="provider_response", error_code="provider_response_invalid")) from error
         if not isinstance(payload, dict) or isinstance(payload.get("error"), dict):
-            raise GLMAdapterError("provider_error_envelope")
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid"))
         choices = payload.get("choices")
         content = choices[0].get("message", {}).get("content") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
         if not isinstance(content, str):
-            raise GLMAdapterError("content_missing")
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid"))
+        finish_reason = choices[0].get("finish_reason") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
+        if finish_reason is not None and not isinstance(finish_reason, str):
+            finish_reason = None
         if payload.get("model") != self._policy.model_id:
-            raise GLMAdapterError("model_identity_unverified")
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason))
         usage = payload.get("usage")
         if not isinstance(usage, dict) or not all(isinstance(usage.get(field), int) for field in ("prompt_tokens", "completion_tokens", "total_tokens")):
-            raise GLMAdapterError("usage_missing")
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason, model_identity_verified=True))
         token_usage = self._policy.usage(usage["prompt_tokens"], usage["completion_tokens"])
         if token_usage.total_tokens != usage["total_tokens"]:
-            raise GLMAdapterError("usage_inconsistent")
-        return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str))
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason, model_identity_verified=True))
+        observed_type, observed_keys = _provider_shape(payload)
+        return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=finish_reason, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type=observed_type, observed_keys=observed_keys)
 
 
 class GLMStructuredPlanner:
@@ -296,9 +348,12 @@ class GLMStructuredPlanner:
         try:
             reply = await self._client.complete(prompt=prompt, operation_name="glm_structured_planner")
             self.last_usage = reply.usage
-            return _parse_planner_object(reply.content)
-        except (json.JSONDecodeError, GLMAdapterError) as error:
-            raise PlannerError("outcome_unknown" if isinstance(error, GLMAdapterError) and error.outcome_unknown else "planner_contract_invalid", "GLM Planner response is not an admissible draft") from error
+            diagnostics = _provider_diagnostics_from_reply(reply)
+            if reply.finish_reason in {"length", "max_tokens"}:
+                raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics)
+            return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics)
+        except GLMAdapterError as error:
+            raise PlannerResponseError(error.code, "GLM Planner provider response was not admissible", error.diagnostics) from error
 
 
 class GLMSingleWriter:
@@ -320,26 +375,58 @@ class GLMSingleWriter:
 
 
 def _parse_planner_object(content: str) -> dict[str, object]:
-    """Ignore harmless provider metadata but reject any attempt to own formal identifiers."""
+    """Ignore one harmless JSON fence but reject program-controlled identities."""
+    return _parse_planner_object_with_diagnostics(content, diagnostics={})
+
+
+def _provider_diagnostics_from_reply(reply: GLMStructuredReply) -> dict[str, object]:
+    return {
+        "failure_stage": "planner_application",
+        "contract_error_code": None,
+        "http_status": reply.http_status,
+        "response_received": reply.response_received,
+        "response_json_parsed": reply.response_json_parsed,
+        "model_identity_verified": reply.model_identity_verified,
+        "usage_reported": reply.usage_reported,
+        "finish_reason": reply.finish_reason,
+        "content_length": reply.content_length,
+        "content_sha256": reply.content_sha256,
+        "observed_type": reply.observed_type,
+        "observed_keys": list(reply.observed_keys),
+    }
+
+
+def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object]) -> dict[str, object]:
+    """Ignore one harmless JSON fence but reject program-controlled identities."""
+    normalized = content.strip()
+    if normalized.startswith("```") and normalized.endswith("```"):
+        lines = normalized.splitlines()
+        normalized = "\n".join(lines[1:-1]).strip()
     try:
-        payload = json.loads(content)
+        payload = json.loads(normalized)
     except json.JSONDecodeError as error:
-        raise PlannerError("planner_contract_invalid", "GLM Planner response is not JSON") from error
+        raise PlannerResponseError("planner_json_invalid", "GLM Planner response is not JSON", {**diagnostics, "failure_stage": "planner_json", "contract_error_code": "planner_json_invalid"}) from error
     if not isinstance(payload, dict):
-        raise PlannerError("planner_contract_invalid", "GLM Planner response must be an object")
+        raise PlannerResponseError("planner_json_invalid", "GLM Planner response must be an object", {**diagnostics, "failure_stage": "planner_json", "contract_error_code": "planner_json_invalid"})
     forbidden = {"plan_id", "subtask_id", "evidence_id", "claim_id", "citation_id", "sources", "evidence_units", "final_answer"}
     if forbidden.intersection(payload):
-        raise PlannerError("planner_contract_invalid", "GLM Planner attempted to own a program-controlled field")
+        raise PlannerResponseError("planner_schema_invalid", "GLM Planner attempted to own a program-controlled field", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
     result = {key: payload[key] for key in PlannerDraft.model_fields if key in payload}
     subtasks = result.get("subtasks")
     if isinstance(subtasks, list):
         normalized: list[object] = []
         for candidate in subtasks:
             if not isinstance(candidate, dict) or forbidden.intersection(candidate):
-                raise PlannerError("planner_contract_invalid", "GLM Planner subtask is invalid")
+                raise PlannerResponseError("planner_schema_invalid", "GLM Planner subtask is invalid", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
             normalized.append({key: candidate[key] for key in PlannerSubtaskDraft.model_fields if key in candidate})
         result["subtasks"] = normalized
-    return result
+    try:
+        validated = PlannerDraft.model_validate(result)
+    except ValidationError as error:
+        first = error.errors(include_input=False)[0]
+        location = ".".join(str(part) for part in first.get("loc", ())) or "root"
+        raise PlannerResponseError("planner_schema_invalid", "GLM Planner draft failed schema validation", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid", "pydantic_error_type": str(first.get("type")), "pydantic_error_location": location}) from error
+    return validated.model_dump(mode="json")
 
 
 class DeepResearchE2EResult(BaseModel):
@@ -370,10 +457,22 @@ class DeepResearchRunner:
         event = create_runtime_event(store.run_id, len(events) + 1, event_type, payload=payload, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=causal_parent_id, previous_event_hash=events[-1].event_hash if events else GENESIS_HASH)
         store.append(event); events.append(event); return event
 
-    def _lifecycle(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], state: RunState, target: RunStatus) -> RunState:
-        state, lifecycle = transition(state, target)
+    def _lifecycle(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], state: RunState, target: RunStatus, reason: str | None = None) -> RunState:
+        state, lifecycle = transition(state, target, reason=reason)
         self._append(store, events, RuntimeEventType.lifecycle_transition, lifecycle.model_dump(mode="json"), causal_parent_id=events[-1].event_id)
         return state
+
+    @staticmethod
+    def _planner_error_code(code: str) -> str:
+        return {
+            "planner_contract_invalid": "planner_schema_invalid",
+            "planner_scope_violation": "planner_scope_invalid",
+            "planner_cycle_detected": "planner_dependency_invalid",
+            "content_missing": "provider_response_invalid",
+            "provider_error_envelope": "provider_response_invalid",
+            "model_identity_unverified": "provider_response_invalid",
+            "usage_missing": "provider_response_invalid",
+        }.get(code, code)
 
     async def run(self, task: ResearchTask, brief: ResearchBrief, approval: BriefApproval, *, event_path: Path, checkpoint_path: Path, attempt_id: str | None = None) -> DeepResearchE2EResult:
         if brief.approval_status is not BriefApprovalStatus.approved:
@@ -407,10 +506,13 @@ class DeepResearchRunner:
         try:
             plan = await plan_approved_brief(task, brief, approval, self._planner)
         except PlannerError as error:
+            code = self._planner_error_code(error.code)
             kind = RuntimeEventType.operation_unknown if error.code == "outcome_unknown" else RuntimeEventType.operation_failed
-            self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": error.code, "attempt_number": 1, "usage": TokenUsage().model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            diagnostics = getattr(error, "diagnostics", {})
+            self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": code, "attempt_number": 1, "usage": TokenUsage().model_dump(mode="json"), "diagnostics": diagnostics}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
-            raise E2ETerminalError(error.code, outcome_unknown=error.code == "outcome_unknown") from error
+            raise E2ETerminalError(code, outcome_unknown=error.code == "outcome_unknown") from error
         usage = getattr(self._planner, "last_usage", TokenUsage())
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
