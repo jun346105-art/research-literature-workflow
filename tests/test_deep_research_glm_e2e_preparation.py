@@ -238,6 +238,12 @@ def test_writer_calibration_preflight_is_offline_and_artifact_unique():
     preflight_writer_calibration(plan, repo_root=Path.cwd())
 
 
+def test_committed_writer_calibration_cli_preflight_is_network_denied():
+    from litflow.deep_research.writer_calibration_cli import main
+
+    assert main(["--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730", "--dry-run"]) == 0
+
+
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
     task, brief, approval = _inputs()
     bad_scope = _planner_response(task, brief)
@@ -305,7 +311,7 @@ def test_writer_known_and_unknown_are_durable_distinct_terminals_without_retry(t
             result = asyncio.run(runner.run(task, brief, approval, event_path=event_path, checkpoint_path=checkpoint))
             assert result.terminal == "manual_review_required" and result.validation is not None
         else:
-            with pytest.raises(WriterError, match="writer_contract_invalid"):
+            with pytest.raises(WriterError, match="provider_response_invalid"):
                 asyncio.run(runner.run(task, brief, approval, event_path=event_path, checkpoint_path=checkpoint))
         events = UnifiedEventStore(event_path, run_id=DeepResearchRunner.run_id(task, brief)).read_all()
         assert any(event.event_type.value == expected and event.payload.get("operation_name") == "single_writer" for event in events)

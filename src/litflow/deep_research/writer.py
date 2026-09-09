@@ -390,6 +390,15 @@ class SingleWriterRunner:
             return OfflineWriterResult(run_id=initial.run_id, validation=validation, events=tuple(events), ledger=replayed.ledger, resumed=True)
         return None
 
+    @staticmethod
+    def _writer_error_code(code: str) -> str:
+        return {"report_scope_invalid": "writer_scope_invalid", "report_contract_invalid": "writer_schema_invalid"}.get(code, code)
+
+    @staticmethod
+    def _validation_error_diagnostics(error: ValidationError) -> dict[str, object]:
+        first = error.errors(include_input=False)[0]
+        return {"failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "pydantic_error_type": str(first.get("type")), "pydantic_error_location": ".".join(str(part) for part in first.get("loc", ())) or "root"}
+
     async def run(
         self,
         task: ResearchTask,
@@ -461,7 +470,7 @@ class SingleWriterRunner:
                 replayed = replay_runtime_events(initial, events, self._budget)
                 write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replayed))
                 return OfflineWriterResult(run_id=graph.run_id, validation=validation, events=tuple(events), ledger=replayed.ledger)
-            code = error.code
+            code = self._writer_error_code(error.code)
             observed = getattr(self._writer, "last_usage", None)
             if isinstance(observed, TokenUsage):
                 usage = observed

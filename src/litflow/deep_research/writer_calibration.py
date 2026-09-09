@@ -17,6 +17,7 @@ from .planner import ValidatedResearchPlan
 
 
 CALIBRATION_VERSION = "dr-writer-calibration-v1"
+_OUTPUT_ROOT = "outputs"
 
 
 class WriterCalibrationPlan(BaseModel):
@@ -30,7 +31,7 @@ class WriterCalibrationPlan(BaseModel):
     policy: GLMInvocationPolicy = GLMInvocationPolicy()
     max_provider_calls: Literal[1] = 1
     max_retries: Literal[0] = 0
-    artifact_dir: str = Field(pattern=r"^outputs/deep_research/writer_calibration/v1/dr-calibration-[0-9a-f]{24}$")
+    artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/writer_calibration/v1/dr-calibration-[0-9a-f]{{24}}$")
 
 
 def preflight_writer_calibration(plan: WriterCalibrationPlan, *, repo_root: Path) -> None:
