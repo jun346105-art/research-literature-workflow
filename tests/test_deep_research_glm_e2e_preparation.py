@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from litflow.deep_research.budgets import BudgetSpec, TokenUsage
+from litflow.deep_research.budgets import BudgetLedger, BudgetSpec, TokenUsage
 from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
 from litflow.deep_research.e2e import (
     DeepResearchRunner,
@@ -32,6 +32,7 @@ from litflow.deep_research.e2e import (
 )
 from litflow.deep_research.executor import LocalResearchExecutor, ReadOnlyToolRegistry
 from litflow.deep_research.planner import PlannerDraft, PlannerError, PlannerSubtaskDraft
+from litflow.deep_research.operations import OperationKind
 from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated_checkpoint, reduce_runtime_events, replay_runtime_events
 from litflow.deep_research.state import RunState
 from litflow.deep_research.writer import ReportStatus
@@ -301,10 +302,36 @@ def test_glm_adapter_freezes_text_only_request_and_never_serializes_credential()
         captured.update(kwargs)
         return 200, {}, json.dumps({"model": "glm-5.3-flash", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode("utf-8")
 
-    asyncio.run(GLMStructuredAdapter(GLMInvocationPolicy(), transport=transport, credential="offline-fixture-token").complete(prompt="offline", operation_name="test"))
+    asyncio.run(GLMStructuredAdapter(GLMInvocationPolicy(), transport=transport, credential="offline-fixture-token").complete(prompt="offline", operation_name="glm_structured_planner"))
     request = json.loads(captured["body"])
     assert request["model"] == "glm-5.3-flash" and request["stream"] is False and request["thinking"] == {"type": "enabled"}
+    assert request["reasoning_effort"] == "low" and request["max_tokens"] == 4096
     assert "tools" not in request and "offline-fixture-token" not in captured["body"].decode("utf-8")
+
+
+def test_writer_stage_uses_high_reasoning_and_same_shared_transport():
+    captured = {}
+
+    async def transport(**kwargs):
+        captured.update(kwargs)
+        return 200, {}, json.dumps({"model": "glm-5.3-flash", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode("utf-8")
+
+    asyncio.run(GLMStructuredAdapter(GLMInvocationPolicy(), transport=transport, credential="offline-fixture-token").complete(prompt="offline", operation_name="glm_single_writer"))
+    request = json.loads(captured["body"])
+    assert request["reasoning_effort"] == "high" and request["max_tokens"] == 4096
+
+
+def test_stage_specific_budget_reserves_two_calls_and_rejects_third_before_dispatch():
+    policy = GLMInvocationPolicy()
+    spec = BudgetSpec(max_provider_calls=2, max_provider_attempts=2, max_input_tokens=6144, max_output_tokens=8192, max_total_tokens=14336, max_cost_micros=20000, max_retries=0, max_replans=1, run_timeout_s=180, operation_timeout_s=60)
+    ledger = BudgetLedger.empty(spec)
+    first = policy.reservation("planner")
+    second = policy.reservation("writer")
+    ledger, _ = ledger.reserve(spec, operation_id="dr-operation-" + "a" * 24, attempt_id="dr-attempt-" + "a" * 24, kind=OperationKind.provider, usage=first)
+    ledger, _ = ledger.reserve(spec, operation_id="dr-operation-" + "b" * 24, attempt_id="dr-attempt-" + "b" * 24, kind=OperationKind.provider, usage=second)
+    with pytest.raises(ValueError, match="budget exhausted"):
+        ledger.reserve(spec, operation_id="dr-operation-" + "c" * 24, attempt_id="dr-attempt-" + "c" * 24, kind=OperationKind.provider, usage=second)
+    assert first.total_tokens == 6144 and second.total_tokens == 8192 and ledger.cost_micros <= 20000
 
 
 @pytest.mark.parametrize("fail_at", (4, 5))

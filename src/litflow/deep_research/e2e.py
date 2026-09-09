@@ -87,16 +87,21 @@ class GLMInvocationPolicy(BaseModel):
     temperature: Literal[1] = 1
     top_p: Literal[0.95] = 0.95
     thinking_type: Literal["enabled"] = "enabled"
-    reasoning_effort: Literal["max"] = "max"
-    max_input_tokens: int = Field(default=1024, ge=512, le=1024)
-    max_output_tokens: int = Field(default=1024, ge=256, le=1024)
-    planner_max_output_tokens: Literal[1024] = 1024
-    writer_max_output_tokens: Literal[1024] = 1024
-    operation_timeout_seconds: Literal[30] = 30
+    reasoning_effort: Literal["low", "high", "max"] = "max"
+    planner_reasoning_effort: Literal["low", "high", "max"] = "low"
+    writer_reasoning_effort: Literal["low", "high", "max"] = "high"
+    max_input_tokens: int = Field(default=1024, ge=512, le=4096)
+    max_output_tokens: int = Field(default=1024, ge=256, le=4096)
+    planner_max_input_tokens: Literal[2048] = 2048
+    writer_max_input_tokens: Literal[4096] = 4096
+    planner_max_output_tokens: Literal[4096] = 4096
+    writer_max_output_tokens: Literal[4096] = 4096
+    operation_timeout_seconds: int = Field(default=60, ge=30, le=60)
+    run_timeout_seconds: int = Field(default=180, ge=90, le=180)
     max_retries: Literal[0] = 0
     input_price_per_million_micros: Literal[400000] = 400000
     output_price_per_million_micros: Literal[1400000] = 1400000
-    monetary_budget_limit_micros: Literal[10000] = 10000
+    monetary_budget_limit_micros: int = Field(default=10000, ge=10000, le=20000)
     tools_enabled: Literal[False] = False
     vision_enabled: Literal[False] = False
     video_enabled: Literal[False] = False
@@ -106,8 +111,9 @@ class GLMInvocationPolicy(BaseModel):
     fallback_enabled: Literal[False] = False
 
     def reservation(self, operation: str = "planner") -> TokenUsage:
+        input_tokens = self.planner_max_input_tokens if operation == "planner" else self.writer_max_input_tokens
         output_tokens = self.planner_max_output_tokens if operation == "planner" else self.writer_max_output_tokens
-        return self.usage(self.max_input_tokens, output_tokens)
+        return self.usage(input_tokens, output_tokens)
 
     def usage(self, input_tokens: int, output_tokens: int) -> TokenUsage:
         cost = (
@@ -218,7 +224,7 @@ class GLME2EPilotPlan(BaseModel):
     tasks: list[GLME2EPilotTask]
 
     def budget_spec(self) -> BudgetSpec:
-        return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=2048, max_output_tokens=2048, max_total_tokens=4096, max_retries=0, max_replans=1, max_cost_micros=Decimal(self.policy.monetary_budget_limit_micros), run_timeout_s=90, operation_timeout_s=30)
+        return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=self.policy.planner_max_input_tokens + self.policy.writer_max_input_tokens, max_output_tokens=self.policy.planner_max_output_tokens + self.policy.writer_max_output_tokens, max_total_tokens=self.policy.planner_max_input_tokens + self.policy.writer_max_input_tokens + self.policy.planner_max_output_tokens + self.policy.writer_max_output_tokens, max_retries=0, max_replans=1, max_cost_micros=Decimal(self.policy.monetary_budget_limit_micros), run_timeout_s=self.policy.run_timeout_seconds, operation_timeout_s=self.policy.operation_timeout_seconds)
 
 
 class GLME2EPilotAttemptPlan(GLME2EPilotPlan):
@@ -304,8 +310,10 @@ class GLMStructuredAdapter:
     async def complete(self, *, prompt: str, operation_name: str) -> GLMStructuredReply:
         """This method is reachable only from an explicit future execute path."""
         credential = self.require_credential_for_execute()
-        output_limit = self._policy.planner_max_output_tokens if operation_name == "glm_structured_planner" else self._policy.writer_max_output_tokens
-        body = canonical_json_bytes({"model": self._policy.model_id, "messages": [{"role": "user", "content": prompt}], "temperature": self._policy.temperature, "top_p": self._policy.top_p, "max_tokens": output_limit, "thinking": {"type": self._policy.thinking_type}, "reasoning_effort": self._policy.reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
+        planner_stage = operation_name == "glm_structured_planner"
+        output_limit = self._policy.planner_max_output_tokens if planner_stage else self._policy.writer_max_output_tokens
+        reasoning_effort = self._policy.planner_reasoning_effort if planner_stage else self._policy.writer_reasoning_effort
+        body = canonical_json_bytes({"model": self._policy.model_id, "messages": [{"role": "user", "content": prompt}], "temperature": self._policy.temperature, "top_p": self._policy.top_p, "max_tokens": output_limit, "thinking": {"type": self._policy.thinking_type}, "reasoning_effort": reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
         try:
             status, headers, raw = await self._transport(url=self._policy.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=body, timeout_s=float(self._policy.operation_timeout_seconds))
         except (TimeoutError, socket.timeout, ConnectionError, ConnectionResetError, urllib.error.URLError) as error:
