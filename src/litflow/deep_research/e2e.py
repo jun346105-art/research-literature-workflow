@@ -236,6 +236,12 @@ class GLME2EPilotAttemptTask(GLME2EPilotTask):
         return self.attempt_id
 
 
+class GLME2ESinglePaperAttemptTask(GLME2EPilotAttemptTask):
+    """Single-paper v1.2 task with an isolated artifact namespace."""
+
+    artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
+
+
 class GLME2EPilotPlan(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -256,7 +262,20 @@ class GLME2EPilotAttemptPlan(GLME2EPilotPlan):
     tasks: list[GLME2EPilotAttemptTask]
 
 
-E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan
+class GLME2ESinglePaperAttemptPlan(GLME2EPilotPlan):
+    """One-task v1.2 plan for the complete single-paper E2E path."""
+
+    schema_version: Literal["dr-glm-e2e-pilot-v1.2"] = "dr-glm-e2e-pilot-v1.2"
+    tasks: list[GLME2ESinglePaperAttemptTask]
+
+    @model_validator(mode="after")
+    def require_single_paper(self) -> "GLME2ESinglePaperAttemptPlan":
+        if len(self.tasks) != 1 or self.tasks[0].task_key != "single_paper":
+            raise ValueError("v1.2 plan must contain exactly one single_paper task")
+        return self
+
+
+E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan | GLME2ESinglePaperAttemptPlan
 
 
 def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
@@ -264,6 +283,8 @@ def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
         return GLME2EPilotPlan.model_validate(data)
     if data.get("schema_version") == "dr-glm-e2e-pilot-v1.1":
         return GLME2EPilotAttemptPlan.model_validate(data)
+    if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2":
+        return GLME2ESinglePaperAttemptPlan.model_validate(data)
     raise E2EConfigurationError("unsupported GLM E2E pilot schema version")
 
 
@@ -657,6 +678,19 @@ def write_e2e_pilot_attempt_schema(output_dir: Path) -> Path:
     return path
 
 
+def render_e2e_single_paper_schema() -> str:
+    schema = GLME2ESinglePaperAttemptPlan.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    return json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
+def write_e2e_single_paper_schema(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "glm_e2e_pilot.schema.json"
+    path.write_text(render_e2e_single_paper_schema(), encoding="utf-8", newline="\n")
+    return path
+
+
 def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path | None = None) -> tuple[GLME2EPilotTask, ...]:
     """Read-only plan/artifact/corpus verification; it never reads a credential or transports."""
     hashes = prompt_hashes()
@@ -665,7 +699,11 @@ def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path |
         head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=git_root, check=True, capture_output=True, text=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError) as error:
         raise E2EConfigurationError("cannot resolve E2E implementation Git identity") from error
-    if len(plan.tasks) != 3 or {item.task_key for item in plan.tasks} != {"single_paper", "cross_paper_comparison", "insufficient_evidence"}:
+    single_paper_plan = isinstance(plan, GLME2ESinglePaperAttemptPlan)
+    if single_paper_plan:
+        if len(plan.tasks) != 1 or plan.tasks[0].task_key != "single_paper":
+            raise E2EConfigurationError("v1.2 plan must freeze exactly one single_paper task")
+    elif len(plan.tasks) != 3 or {item.task_key for item in plan.tasks} != {"single_paper", "cross_paper_comparison", "insufficient_evidence"}:
         raise E2EConfigurationError("pilot must freeze exactly the three authorized task categories")
     ids = [item.run_id for item in plan.tasks]
     if len(ids) != len(set(ids)):

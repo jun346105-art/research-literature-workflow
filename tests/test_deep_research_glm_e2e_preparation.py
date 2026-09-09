@@ -18,6 +18,8 @@ from litflow.deep_research.e2e import (
     E2ETerminalError,
     GLMAdapterError,
     GLME2EPilotPlan,
+    GLME2ESinglePaperAttemptPlan,
+    GLME2ESinglePaperAttemptTask,
     GLMInvocationPolicy,
     GLMSingleWriter,
     GLMStructuredAdapter,
@@ -29,6 +31,7 @@ from litflow.deep_research.e2e import (
     runtime_source_sha256,
     write_e2e_pilot_schema,
     write_e2e_pilot_attempt_schema,
+    write_e2e_single_paper_schema,
 )
 from litflow.deep_research.executor import LocalResearchExecutor, ReadOnlyToolRegistry
 from litflow.deep_research.gap_replan import AssessmentContext, assess_evidence_graph
@@ -331,6 +334,16 @@ def test_writer_calibration_schema_export_is_byte_stable(tmp_path: Path):
     first = write_writer_calibration_schema(tmp_path / "one").read_bytes()
     second = write_writer_calibration_schema(tmp_path / "two").read_bytes()
     assert first == second == committed
+
+
+def test_single_paper_attempt_008_plan_preflight_and_schema_are_deterministic(tmp_path: Path):
+    raw = json.loads(Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-007.json").read_text(encoding="utf-8"))
+    item = dict(raw["tasks"][0])
+    item.update({"attempt_id": "glm-5.3-flash-deepresearch-e2e-008", "implementation_commit_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), "runtime_source_sha256": runtime_source_sha256(), "planner_prompt_sha256": prompt_hashes()["planner"], "writer_prompt_sha256": prompt_hashes()["writer"], "run_id": "dr-run-8b30915e93a6e6b5ee8137c5", "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5"})
+    plan = GLME2ESinglePaperAttemptPlan.model_validate({"schema_version": "dr-glm-e2e-pilot-v1.2", "provider": raw["provider"], "channel": raw["channel"], "policy": raw["policy"], "tasks": [item]})
+    assert len(preflight_e2e_pilot(plan, repo_root=Path.cwd())) == 1
+    committed = Path("docs/deep_research/e2e/v1.2/glm_e2e_pilot.schema.json").read_bytes()
+    assert write_e2e_single_paper_schema(tmp_path).read_bytes() == committed
 
 
 def test_planner_scope_and_dependency_failures_remain_separate_codes(tmp_path: Path):
