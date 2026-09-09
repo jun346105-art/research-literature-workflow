@@ -50,6 +50,15 @@
           "minLength": 1,
           "title": "Rationale",
           "type": "string"
+        },
+        "research_action": {
+          "default": "search_and_read_local_evidence",
+          "enum": [
+            "search_and_read_local_evidence",
+            "verify_local_evidence"
+          ],
+          "title": "Research Action",
+          "type": "string"
         }
       },
       "required": [

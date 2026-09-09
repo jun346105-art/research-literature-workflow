@@ -278,6 +278,33 @@ def test_planner_inherits_approved_scope_and_rejects_explicit_unauthorized_tools
     assert error.value.code == "planner_scope_invalid" and getattr(error.value, "diagnostics", {}).get("field_location") == "subtasks[find].tool_intent"
 
 
+def test_planner_rejects_writer_action_as_a_scope_contract_violation():
+    task, brief, _ = _inputs()
+    response = _planner_response(task, brief)
+    response["subtasks"][0]["research_action"] = "compose_report"
+    with pytest.raises(PlannerError) as error:
+        asyncio.run(GLMStructuredPlanner(FakeStructuredClient([response])).create_draft(task=task, brief=brief))
+    assert error.value.code == "planner_scope_invalid"
+    assert error.value.diagnostics["field_location"] == "subtasks[find].research_action"
+
+
+def test_writer_allows_fenced_json_and_explicit_abstention():
+    payload = {"schema_version": "dr-report-draft-v1", "task_id": "task", "brief_id": "brief", "plan_id": "plan", "run_id": "run", "abstention_reason": "No grounded evidence", "sections": [{"heading": "Insufficient evidence", "claims": []}]}
+    writer = GLMSingleWriter(RawStructuredClient("```json\n" + json.dumps(payload) + "\n```"))
+    draft = asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
+    assert draft["abstention_reason"] == "No grounded evidence"
+
+
+def test_writer_schema_failure_has_bounded_diagnostics():
+    writer = GLMSingleWriter(RawStructuredClient(json.dumps({"schema_version": "dr-report-draft-v1", "sections": []})))
+    with pytest.raises(WriterError) as error:
+        asyncio.run(writer.create_draft(graph=type("Graph", (), {"model_dump": lambda _self, **_kwargs: {}})(), assessment=type("Assessment", (), {"model_dump": lambda _self, **_kwargs: {}})()))
+    assert error.value.code == "writer_schema_invalid"
+    assert error.value.diagnostics["failure_stage"] == "writer_schema"
+    assert "pydantic_error_location" in error.value.diagnostics
+    assert "raw_response" not in error.value.diagnostics and "authorization" not in error.value.diagnostics
+
+
 def test_planner_known_failure_reconciles_actual_usage_and_elapsed(tmp_path: Path):
     task, brief, approval = _inputs()
     observed = TokenUsage(input_tokens=64, output_tokens=128, cost_micros=Decimal("204.8"))
@@ -439,10 +466,10 @@ def test_pilot_preflight_is_offline_fails_closed_and_schema_is_stable(tmp_path: 
 
 
 def test_committed_pilot_cli_preflight_is_network_denied(monkeypatch):
-    from litflow.deep_research.e2e_cli import main
+    from litflow.deep_research.writer_calibration_cli import main
 
     monkeypatch.setattr("litflow.deep_research.canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
-    assert main(["--plan", "docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-007.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-f0357940cdcc28c42a2ed283", "--dry-run"]) == 0
+    assert main(["--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730", "--dry-run"]) == 0
 
 
 @pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))
@@ -502,9 +529,8 @@ def test_execute_cli_invalid_configuration_remains_known_failure(monkeypatch):
 
 def test_committed_pilot_freezes_three_distinct_tasks_and_schema(tmp_path: Path):
     plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-007.json").read_text(encoding="utf-8")))
-    tasks = preflight_e2e_pilot(plan, repo_root=Path.cwd())
-    assert {item.task_key for item in tasks} == {"single_paper", "cross_paper_comparison", "insufficient_evidence"}
-    assert len({item.run_id for item in tasks}) == len({item.artifact_dir for item in tasks}) == 3
+    assert {item.task_key for item in plan.tasks} == {"single_paper", "cross_paper_comparison", "insufficient_evidence"}
+    assert len({item.run_id for item in plan.tasks}) == len({item.artifact_dir for item in plan.tasks}) == 3
     assert plan.budget_spec().max_provider_calls == 2 and plan.budget_spec().max_cost_micros == 20000
     assert write_e2e_pilot_schema(tmp_path).read_bytes() == Path("docs/deep_research/e2e/v1/glm_e2e_pilot.schema.json").read_bytes()
     assert write_e2e_pilot_attempt_schema(tmp_path / "v1.1").read_bytes() == Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot.schema.json").read_bytes()

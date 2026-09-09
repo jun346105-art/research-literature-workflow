@@ -35,8 +35,8 @@ E2E_VERSION = "dr-single-agent-e2e-v1"
 PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
-PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Return local subtask keys, objectives, allowed operation intent, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, or final answers."""
-WRITER_PROMPT = """You output exactly one JSON object matching this ReportDraft shape. Minimal valid example: {"schema_version":"dr-report-draft-v1","task_id":"<input task_id>","brief_id":"<input brief_id>","plan_id":"<input plan_id>","run_id":"<input run_id>","sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty; claims must be non-empty unless using an explicit abstention section. Cite only supplied evidence_id values with exact quotes. Never create Sources, Evidence, formal IDs, or a final publication-ready answer; never emit Markdown fences or explanations. Preserve uncertainty and author review."""
+PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","research_action":"search_and_read_local_evidence","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Every item must choose research_action from `search_and_read_local_evidence` or `verify_local_evidence`; these are the only executor-supported actions. Return local subtask keys, objectives, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, compose/write/report/summary subtasks, or final answers."""
+WRITER_PROMPT = """You output exactly one JSON object matching this ReportDraft shape, with no Markdown fence or explanation. Minimal valid example: {"schema_version":"dr-report-draft-v1","task_id":"<input task_id>","brief_id":"<input brief_id>","plan_id":"<input plan_id>","run_id":"<input run_id>","sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Do not invent Source, Evidence, page, passage, Claim, Citation, or report IDs and do not modify evidence. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
 _OUTPUT_ROOT = "outputs"
 
 
@@ -408,20 +408,38 @@ class GLMSingleWriter:
         try:
             reply = await self._client.complete(prompt=prompt, operation_name="glm_single_writer")
             self.last_usage = reply.usage
-            diagnostics = _provider_diagnostics_from_reply(reply)
+            diagnostics = _provider_diagnostics_from_reply(reply, stage="writer_provider")
             if reply.finish_reason in {"length", "max_tokens"}:
-                raise WriterError("writer_content_truncated", "Writer response ended at the output limit", diagnostics)
+                raise WriterError("writer_content_truncated", "Writer response ended at the output limit", {**diagnostics, "failure_stage": "writer_content", "contract_error_code": "writer_content_truncated"})
+            if not reply.content.strip():
+                raise WriterError("writer_draft_empty", "Writer response content is empty", {**diagnostics, "failure_stage": "writer_content", "contract_error_code": "writer_draft_empty"})
+            normalized = reply.content.strip()
+            if normalized.startswith("```") and normalized.endswith("```"):
+                lines = normalized.splitlines()
+                normalized = "\n".join(lines[1:-1]).strip()
             try:
-                return json.loads(reply.content)
+                payload = json.loads(normalized)
             except json.JSONDecodeError as error:
                 raise WriterError("writer_json_invalid", "Writer response is not JSON", {**diagnostics, "failure_stage": "writer_json", "contract_error_code": "writer_json_invalid"}) from error
+            if not isinstance(payload, dict):
+                raise WriterError("writer_schema_invalid", "Writer response must be a JSON object", {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_type": type(payload).__name__})
+            safe = {**diagnostics, "failure_stage": "writer_schema", "contract_error_code": "writer_schema_invalid", "observed_keys": sorted(str(key) for key in payload), "sections_count": len(payload.get("sections", [])) if isinstance(payload.get("sections"), list) else 0, "claims_count": sum(len(item.get("claims", [])) for item in payload.get("sections", []) if isinstance(item, dict) and isinstance(item.get("claims", []), list)), "citations_count": sum(len(claim.get("citations", [])) for item in payload.get("sections", []) if isinstance(item, dict) for claim in item.get("claims", []) if isinstance(claim, dict) and isinstance(claim.get("citations", []), list))}
+            try:
+                from .writer import ReportDraft
+                ReportDraft.model_validate(payload)
+            except ValidationError as error:
+                first = error.errors(include_input=False)[0]
+                raise WriterError("writer_schema_invalid", "Writer response failed the ReportDraft schema", {**safe, "pydantic_error_type": str(first.get("type")), "pydantic_error_location": ".".join(str(part) for part in first.get("loc", ())) or "root"}) from error
+            return payload
         except GLMAdapterError as error:
-            raise WriterError("outcome_unknown" if error.outcome_unknown else "provider_response_invalid", "GLM Writer response is not an admissible draft", error.diagnostics) from error
+            code = "outcome_unknown" if error.outcome_unknown else "provider_response_invalid"
+            diagnostics = error.diagnostics or {"failure_stage": "writer_provider", "contract_error_code": code}
+            raise WriterError(code, "GLM Writer response is not an admissible draft", diagnostics) from error
 
 
-def _provider_diagnostics_from_reply(reply: GLMStructuredReply) -> dict[str, object]:
+def _provider_diagnostics_from_reply(reply: GLMStructuredReply, *, stage: str = "planner_application") -> dict[str, object]:
     return {
-        "failure_stage": "planner_application",
+        "failure_stage": stage,
         "contract_error_code": None,
         "http_status": reply.http_status,
         "response_received": reply.response_received,
@@ -482,6 +500,9 @@ def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[st
             if not isinstance(candidate, dict) or forbidden.intersection(candidate):
                 raise PlannerResponseError("planner_schema_invalid", "GLM Planner subtask is invalid", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
             local_key = candidate.get("local_key") if isinstance(candidate.get("local_key"), str) else None
+            action = candidate.get("research_action")
+            if action is not None and action not in {"search_and_read_local_evidence", "verify_local_evidence"}:
+                raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].research_action", observed=action, approved=("search_and_read_local_evidence", "verify_local_evidence"), local_key=local_key)
             for permission_field, allowed in (("tool_intent", {"local_read_only_retrieval"}), ("operation_intent", {"local_read_only_retrieval"}), ("corpus_id", {"frozen_local_corpus"})):
                 if permission_field in candidate and candidate[permission_field] not in allowed:
                     raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].{permission_field}", observed=candidate[permission_field], approved=tuple(sorted(allowed)), local_key=local_key)

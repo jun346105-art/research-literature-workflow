@@ -39,6 +39,7 @@ class PlannerSubtaskDraft(ContractModel):
     dependencies: tuple[str, ...] = ()
     expected_evidence: tuple[str, ...] = ()
     completion_criteria: tuple[str, ...] = ()
+    research_action: Literal["search_and_read_local_evidence", "verify_local_evidence"] = "search_and_read_local_evidence"
 
     @field_validator("local_key")
     @classmethod

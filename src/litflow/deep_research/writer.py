@@ -124,6 +124,7 @@ class ReportDraft(_DraftModel):
     plan_id: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     sections: list[ReportSectionDraft] = Field(min_length=1)
+    abstention_reason: str | None = Field(default=None, min_length=1)
     conflict_disclosures: list[ConflictDisclosureDraft] = Field(default_factory=list)
 
     @model_validator(mode="before")
@@ -226,7 +227,7 @@ def _issue(code: str, severity: Literal["blocking", "warning"], *, section_headi
 def _writer_validation_error_code(result: ReportValidationResult) -> str | None:
     if result.report is not None and result.report.claims:
         return None
-    mapping = {"citation_evidence_unknown": "writer_evidence_reference_invalid", "citation_provenance_invalid": "writer_citation_invalid", "citation_quote_not_grounded": "writer_quote_invalid", "claim_without_valid_citation": "writer_claim_invalid"}
+    mapping = {"citation_evidence_unknown": "writer_evidence_reference_invalid", "citation_provenance_invalid": "writer_citation_invalid", "citation_quote_not_grounded": "writer_quote_invalid", "claim_without_valid_citation": "writer_claim_invalid", "required_section_missing": "writer_draft_empty"}
     for issue in result.issues:
         if issue.code in mapping:
             return mapping[issue.code]
@@ -326,7 +327,7 @@ def validate_report_draft(
         ValidatedReportSection(section_id=make_stable_id("section", {"plan_id": plan.plan_id, "heading": heading, "claim_ids": sorted(claim_ids)}), heading=heading, claim_ids=tuple(sorted(claim_ids)))
         for heading, claim_ids in sorted(section_claims.items())
     )
-    if not sections:
+    if not sections and not draft.abstention_reason:
         issues.append(_issue("required_section_missing", "blocking"))
     if outcome_unknown:
         status = ReportStatus.manual_review_required
@@ -339,6 +340,11 @@ def validate_report_draft(
         status = ReportStatus.partial
     else:
         status = ReportStatus.complete
+    if draft.abstention_reason and not ordered_claims:
+        sections = tuple(
+            ValidatedReportSection(section_id=make_stable_id("section", {"plan_id": plan.plan_id, "heading": section.heading, "claim_ids": sorted(section_claims.get(section.heading, set()))}), heading=section.heading, claim_ids=tuple(sorted(section_claims.get(section.heading, set()))))
+            for section in draft.sections
+        )
     report = ValidatedReport(
         report_id=make_stable_id("report", {"task_id": task.task_id, "plan_id": plan.plan_id, "run_id": graph.run_id, "graph_sha256": graph_hash, "claim_ids": [item.claim_id for item in ordered_claims], "citation_ids": [item.citation_id for item in ordered_citations], "status": status.value}),
         task_id=task.task_id,
@@ -450,7 +456,10 @@ class SingleWriterRunner:
             validation = validate_report_draft(task, brief, approval, plan, graph, assessment, draft)
             writer_error_code = _writer_validation_error_code(validation)
             if writer_error_code is not None:
-                raise WriterError(writer_error_code, "Writer draft has no displayable grounded Claim", {"failure_stage": "writer_validation", "contract_error_code": writer_error_code, "validation_issue_count": len(validation.issues), "accepted_claim_count": len(validation.report.claims) if validation.report else 0})
+                proposal_claims = sum(len(section.claims) for section in draft.sections)
+                proposal_citations = sum(len(claim.citations) for section in draft.sections for claim in section.claims)
+                accepted_citations = len(validation.report.citations) if validation.report else 0
+                raise WriterError(writer_error_code, "Writer draft has no displayable grounded Claim", {"failure_stage": "writer_validation", "contract_error_code": writer_error_code, "validation_issue_codes": sorted({issue.code for issue in validation.issues}), "sections_count": len(draft.sections), "claims_count": proposal_claims, "citations_count": proposal_citations, "evidence_total_count": len(graph.evidence_units), "evidence_valid_count": accepted_citations, "evidence_invalid_count": max(0, proposal_citations - accepted_citations), "normalization_input_count": proposal_claims, "normalization_accepted_count": len(validation.report.claims) if validation.report else 0, "rejected_item_count": max(0, proposal_claims - (len(validation.report.claims) if validation.report else 0))})
         except TimeoutError as error:
             self._append(store, events, RuntimeEventType.operation_unknown, {"operation_name": "single_writer", "error_code": "unknown_outcome", "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
@@ -482,7 +491,8 @@ class SingleWriterRunner:
             raise
         except (ValidationError, ValueError) as error:
             code = "writer_draft_invalid"
-            self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json"), "diagnostics": self._validation_error_diagnostics(error) if isinstance(error, ValidationError) else {"failure_stage": "writer_application", "contract_error_code": code}}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            diagnostics = self._validation_error_diagnostics(error) if isinstance(error, ValidationError) else {"failure_stage": "writer_application", "contract_error_code": "writer_schema_invalid"}
+            self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json"), "diagnostics": diagnostics}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
             state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))

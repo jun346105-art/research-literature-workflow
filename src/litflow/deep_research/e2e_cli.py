@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .e2e import DeepResearchRunner, E2ETerminalError, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, parse_e2e_pilot_plan, preflight_e2e_pilot
 from .executor import LocalResearchExecutor, ReadOnlyToolRegistry
+from .writer import WriterError
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
     except E2ETerminalError as error:
         print(json.dumps({"terminal": "outcome_unknown" if error.outcome_unknown else "failed", "error_code": error.error_code}, ensure_ascii=False))
         return 3 if error.outcome_unknown else 2
+    except WriterError as error:
+        print(json.dumps({"terminal": "failed", "error_code": error.code, "diagnostics": error.diagnostics}, ensure_ascii=False))
+        return 2
     except (ValueError, OSError) as error:
         print(json.dumps({"terminal": "failed", "error_code": type(error).__name__}, ensure_ascii=False))
         return 2

@@ -132,6 +132,19 @@
   },
   "description": "Candidate prose plus existing evidence references; it owns no formal identity.",
   "properties": {
+    "abstention_reason": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Abstention Reason"
+    },
     "brief_id": {
       "minLength": 1,
       "title": "Brief Id",
