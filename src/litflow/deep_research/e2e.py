@@ -7,6 +7,7 @@ import json
 import os
 import socket
 import subprocess
+import time
 import urllib.error
 from datetime import datetime
 from decimal import Decimal
@@ -64,14 +65,14 @@ class E2ETerminalError(ValueError):
 class PlannerResponseError(PlannerError):
     """Planner contract error carrying only redacted structural diagnostics."""
 
-    def __init__(self, code: str, message: str, diagnostics: dict[str, object] | None = None):
-        self.diagnostics = diagnostics or {}
+    def __init__(self, code: str, message: str, diagnostics: dict[str, object] | None = None, usage: TokenUsage | None = None):
+        self.diagnostics, self.usage = diagnostics or {}, usage
         super().__init__(code, message)
 
 
 class GLMAdapterError(ValueError):
-    def __init__(self, code: str, *, outcome_unknown: bool = False, diagnostics: dict[str, object] | None = None):
-        self.code, self.outcome_unknown, self.diagnostics = code, outcome_unknown, diagnostics or {}
+    def __init__(self, code: str, *, outcome_unknown: bool = False, diagnostics: dict[str, object] | None = None, usage: TokenUsage | None = None):
+        self.code, self.outcome_unknown, self.diagnostics, self.usage = code, outcome_unknown, diagnostics or {}, usage
         super().__init__(code)
 
 
@@ -87,8 +88,10 @@ class GLMInvocationPolicy(BaseModel):
     top_p: Literal[0.95] = 0.95
     thinking_type: Literal["enabled"] = "enabled"
     reasoning_effort: Literal["max"] = "max"
-    max_input_tokens: int = Field(default=512, ge=1, le=512)
-    max_output_tokens: int = Field(default=256, ge=1, le=256)
+    max_input_tokens: int = Field(default=1024, ge=512, le=1024)
+    max_output_tokens: int = Field(default=1024, ge=256, le=1024)
+    planner_max_output_tokens: Literal[1024] = 1024
+    writer_max_output_tokens: Literal[1024] = 1024
     operation_timeout_seconds: Literal[30] = 30
     max_retries: Literal[0] = 0
     input_price_per_million_micros: Literal[400000] = 400000
@@ -102,8 +105,9 @@ class GLMInvocationPolicy(BaseModel):
     parallel_enabled: Literal[False] = False
     fallback_enabled: Literal[False] = False
 
-    def reservation(self) -> TokenUsage:
-        return self.usage(self.max_input_tokens, self.max_output_tokens)
+    def reservation(self, operation: str = "planner") -> TokenUsage:
+        output_tokens = self.planner_max_output_tokens if operation == "planner" else self.writer_max_output_tokens
+        return self.usage(self.max_input_tokens, output_tokens)
 
     def usage(self, input_tokens: int, output_tokens: int) -> TokenUsage:
         cost = (
@@ -214,7 +218,7 @@ class GLME2EPilotPlan(BaseModel):
     tasks: list[GLME2EPilotTask]
 
     def budget_spec(self) -> BudgetSpec:
-        return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=1024, max_output_tokens=512, max_total_tokens=1536, max_retries=0, max_replans=1, max_cost_micros=Decimal(self.policy.monetary_budget_limit_micros), run_timeout_s=90, operation_timeout_s=30)
+        return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=2048, max_output_tokens=2048, max_total_tokens=4096, max_retries=0, max_replans=1, max_cost_micros=Decimal(self.policy.monetary_budget_limit_micros), run_timeout_s=90, operation_timeout_s=30)
 
 
 class GLME2EPilotAttemptPlan(GLME2EPilotPlan):
@@ -300,7 +304,8 @@ class GLMStructuredAdapter:
     async def complete(self, *, prompt: str, operation_name: str) -> GLMStructuredReply:
         """This method is reachable only from an explicit future execute path."""
         credential = self.require_credential_for_execute()
-        body = canonical_json_bytes({"model": self._policy.model_id, "messages": [{"role": "user", "content": prompt}], "temperature": self._policy.temperature, "top_p": self._policy.top_p, "max_tokens": self._policy.max_output_tokens, "thinking": {"type": self._policy.thinking_type}, "reasoning_effort": self._policy.reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
+        output_limit = self._policy.planner_max_output_tokens if operation_name == "glm_structured_planner" else self._policy.writer_max_output_tokens
+        body = canonical_json_bytes({"model": self._policy.model_id, "messages": [{"role": "user", "content": prompt}], "temperature": self._policy.temperature, "top_p": self._policy.top_p, "max_tokens": output_limit, "thinking": {"type": self._policy.thinking_type}, "reasoning_effort": self._policy.reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
         try:
             status, headers, raw = await self._transport(url=self._policy.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=body, timeout_s=float(self._policy.operation_timeout_seconds))
         except (TimeoutError, socket.timeout, ConnectionError, ConnectionResetError, urllib.error.URLError) as error:
@@ -325,14 +330,14 @@ class GLMStructuredAdapter:
         finish_reason = choices[0].get("finish_reason") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
         if finish_reason is not None and not isinstance(finish_reason, str):
             finish_reason = None
-        if payload.get("model") != self._policy.model_id:
-            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason))
         usage = payload.get("usage")
         if not isinstance(usage, dict) or not all(isinstance(usage.get(field), int) for field in ("prompt_tokens", "completion_tokens", "total_tokens")):
             raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason, model_identity_verified=True))
         token_usage = self._policy.usage(usage["prompt_tokens"], usage["completion_tokens"])
         if token_usage.total_tokens != usage["total_tokens"]:
             raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason, model_identity_verified=True))
+        if payload.get("model") != self._policy.model_id:
+            raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason), usage=token_usage)
         observed_type, observed_keys = _provider_shape(payload)
         return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=finish_reason, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type=observed_type, observed_keys=observed_keys)
 
@@ -350,10 +355,14 @@ class GLMStructuredPlanner:
             self.last_usage = reply.usage
             diagnostics = _provider_diagnostics_from_reply(reply)
             if reply.finish_reason in {"length", "max_tokens"}:
-                raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics)
-            return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics)
+                raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics, usage=reply.usage)
+            try:
+                return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics)
+            except PlannerResponseError as error:
+                error.usage = reply.usage
+                raise
         except GLMAdapterError as error:
-            raise PlannerResponseError(error.code, "GLM Planner provider response was not admissible", error.diagnostics) from error
+            raise PlannerResponseError(error.code, "GLM Planner provider response was not admissible", error.diagnostics, usage=error.usage) from error
 
 
 class GLMSingleWriter:
@@ -503,18 +512,22 @@ class DeepResearchRunner:
         reserved = self._append(store, events, RuntimeEventType.operation_reserved, {"operation_kind": OperationKind.provider.value, "operation_name": "structured_planner", "attempt_number": 1, "idempotent": False, "side_effecting": True, "usage": reserved_usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=events[-1].event_id)
         reduce_runtime_events(initial, events, self._budget)
         dispatched = self._append(store, events, RuntimeEventType.operation_dispatched, {"operation_kind": OperationKind.provider.value, "operation_name": "structured_planner", "attempt_number": 1, "effective_timeout_s": self._budget.operation_timeout_s}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=reserved.event_id)
+        planner_started = time.monotonic()
         try:
             plan = await plan_approved_brief(task, brief, approval, self._planner)
         except PlannerError as error:
             code = self._planner_error_code(error.code)
             kind = RuntimeEventType.operation_unknown if error.code == "outcome_unknown" else RuntimeEventType.operation_failed
             diagnostics = getattr(error, "diagnostics", {})
-            self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": code, "attempt_number": 1, "usage": TokenUsage().model_dump(mode="json"), "diagnostics": diagnostics}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            actual_usage = getattr(error, "usage", None) or getattr(self._planner, "last_usage", TokenUsage())
+            self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": code, "attempt_number": 1, "usage": actual_usage.model_dump(mode="json"), "diagnostics": diagnostics}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
             state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise E2ETerminalError(code, outcome_unknown=error.code == "outcome_unknown") from error
         usage = getattr(self._planner, "last_usage", TokenUsage())
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+        self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
         execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id)
         assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))

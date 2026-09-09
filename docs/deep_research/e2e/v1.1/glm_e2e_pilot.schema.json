@@ -248,16 +248,16 @@
           "type": "integer"
         },
         "max_input_tokens": {
-          "default": 512,
-          "maximum": 512,
-          "minimum": 1,
+          "default": 1024,
+          "maximum": 1024,
+          "minimum": 512,
           "title": "Max Input Tokens",
           "type": "integer"
         },
         "max_output_tokens": {
-          "default": 256,
-          "maximum": 256,
-          "minimum": 1,
+          "default": 1024,
+          "maximum": 1024,
+          "minimum": 256,
           "title": "Max Output Tokens",
           "type": "integer"
         },
@@ -296,6 +296,12 @@
           "default": false,
           "title": "Parallel Enabled",
           "type": "boolean"
+        },
+        "planner_max_output_tokens": {
+          "const": 1024,
+          "default": 1024,
+          "title": "Planner Max Output Tokens",
+          "type": "integer"
         },
         "reasoning_effort": {
           "const": "max",
@@ -344,6 +350,12 @@
           "default": false,
           "title": "Web Enabled",
           "type": "boolean"
+        },
+        "writer_max_output_tokens": {
+          "const": 1024,
+          "default": 1024,
+          "title": "Writer Max Output Tokens",
+          "type": "integer"
         }
       },
       "title": "GLMInvocationPolicy",
@@ -368,14 +380,15 @@
         "fallback_enabled": false,
         "files_enabled": false,
         "input_price_per_million_micros": 400000,
-        "max_input_tokens": 512,
-        "max_output_tokens": 256,
+        "max_input_tokens": 1024,
+        "max_output_tokens": 1024,
         "max_retries": 0,
         "model_id": "glm-5.3-flash",
         "monetary_budget_limit_micros": 10000,
         "operation_timeout_seconds": 30,
         "output_price_per_million_micros": 1400000,
         "parallel_enabled": false,
+        "planner_max_output_tokens": 1024,
         "reasoning_effort": "max",
         "temperature": 1,
         "thinking_type": "enabled",
@@ -383,7 +396,8 @@
         "top_p": 0.95,
         "video_enabled": false,
         "vision_enabled": false,
-        "web_enabled": false
+        "web_enabled": false,
+        "writer_max_output_tokens": 1024
       }
     },
     "provider": {

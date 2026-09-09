@@ -34,9 +34,9 @@ def main(argv: list[str] | None = None) -> int:
         adapter = GLMStructuredAdapter(plan.policy)
         adapter.require_credential_for_execute()
         runner = DeepResearchRunner(
-            GLMStructuredPlanner(adapter, reservation_usage=plan.policy.reservation()),
+            GLMStructuredPlanner(adapter, reservation_usage=plan.policy.reservation("planner")),
             LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=plan.budget_spec()),
-            GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation()),
+            GLMSingleWriter(adapter, reservation_usage=plan.policy.reservation("writer")),
             budget=plan.budget_spec(),
         )
         result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=getattr(task, "attempt_id", None)))

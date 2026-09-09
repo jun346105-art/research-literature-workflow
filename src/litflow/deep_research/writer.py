@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Protocol, runtime_checkable
@@ -421,38 +422,50 @@ class SingleWriterRunner:
         except ValueError as error:
             raise WriterError("budget_exhausted", "writer reservation failed before durable dispatch") from error
         dispatched = self._append(store, events, RuntimeEventType.operation_dispatched, {"operation_kind": OperationKind.provider.value, "operation_name": "single_writer", "attempt_number": 1, "effective_timeout_s": self._budget.operation_timeout_s}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=reserved.event_id)
+        writer_started = time.monotonic()
         try:
             raw = await asyncio.wait_for(self._writer.create_draft(task=task, brief=brief, plan=plan, graph=graph, assessment=assessment), timeout=self._budget.operation_timeout_s)
+            usage = TokenUsage.model_validate(getattr(self._writer, "last_usage", usage).model_dump(mode="json") if isinstance(getattr(self._writer, "last_usage", usage), TokenUsage) else usage.model_dump(mode="json"))
             draft = ReportDraft.model_validate(raw)
             validation = validate_report_draft(task, brief, approval, plan, graph, assessment, draft)
-            usage = TokenUsage.model_validate(getattr(self._writer, "last_usage", usage).model_dump(mode="json") if isinstance(getattr(self._writer, "last_usage", usage), TokenUsage) else usage.model_dump(mode="json"))
         except TimeoutError as error:
             self._append(store, events, RuntimeEventType.operation_unknown, {"operation_name": "single_writer", "error_code": "unknown_outcome", "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
             validation = ReportValidationResult(status=ReportStatus.manual_review_required, issues=(_issue("outcome_unknown", "blocking"),))
             state = self._lifecycle(store, events, state, RunStatus.failed, "unknown_outcome")
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             return OfflineWriterResult(run_id=graph.run_id, validation=validation, events=tuple(events), ledger=replay_runtime_events(initial, events, self._budget).ledger)
         except WriterError as error:
             if error.code == "outcome_unknown":
+                observed = getattr(self._writer, "last_usage", None)
+                if isinstance(observed, TokenUsage):
+                    usage = observed
                 self._append(store, events, RuntimeEventType.operation_unknown, {"operation_name": "single_writer", "error_code": error.code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+                self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
                 validation = ReportValidationResult(status=ReportStatus.manual_review_required, issues=(_issue("outcome_unknown", "blocking"),))
                 state = self._lifecycle(store, events, state, RunStatus.failed, "unknown_outcome")
                 replayed = replay_runtime_events(initial, events, self._budget)
                 write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replayed))
                 return OfflineWriterResult(run_id=graph.run_id, validation=validation, events=tuple(events), ledger=replayed.ledger)
             code = error.code
+            observed = getattr(self._writer, "last_usage", None)
+            if isinstance(observed, TokenUsage):
+                usage = observed
             self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
             state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise
         except (ValidationError, ValueError) as error:
             code = "writer_draft_invalid"
             self._append(store, events, RuntimeEventType.operation_failed, {"operation_name": "single_writer", "error_code": code, "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+            self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
             state = self._lifecycle(store, events, state, RunStatus.failed, code)
             write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
             raise WriterError(code, "untrusted writer draft failed before report display") from error
         result_hash = sha256_hex(canonical_json_bytes(validation.model_dump(mode="json")))
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "single_writer", "attempt_number": 1, "status": "success", "usage": usage.model_dump(mode="json"), "result_sha256": result_hash, "validation": validation.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+        self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - writer_started)}, causal_parent_id=events[-1].event_id)
         state = self._lifecycle(store, events, state, RunStatus.validating)
         state = self._lifecycle(store, events, state, RunStatus.insufficient_evidence if validation.status is ReportStatus.insufficient_evidence else RunStatus.complete)
         replayed = replay_runtime_events(initial, events, self._budget)
