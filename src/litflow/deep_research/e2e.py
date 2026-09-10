@@ -277,6 +277,26 @@ class GLME2ESinglePaperAttemptPlan(GLME2EPilotPlan):
         return self
 
 
+class GLME2EInsufficientEvidenceAttemptTask(GLME2EPilotAttemptTask):
+    """v1.2 task whose acceptance is safe abstention or structurally partial output."""
+
+    artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
+    expected_terminal: Literal["partial", "insufficient_evidence"] = "insufficient_evidence"
+
+
+class GLME2EInsufficientEvidenceAttemptPlan(GLME2EPilotPlan):
+    """One-task v1.2 plan for corpus-bounded insufficient-evidence handling."""
+
+    schema_version: Literal["dr-glm-e2e-pilot-v1.2-insufficient-evidence"] = "dr-glm-e2e-pilot-v1.2-insufficient-evidence"
+    tasks: list[GLME2EInsufficientEvidenceAttemptTask]
+
+    @model_validator(mode="after")
+    def require_insufficient_evidence_task(self) -> "GLME2EInsufficientEvidenceAttemptPlan":
+        if len(self.tasks) != 1 or self.tasks[0].task_key != "insufficient_evidence":
+            raise ValueError("insufficient-evidence plan must contain exactly one insufficient_evidence task")
+        return self
+
+
 class GLME2ECrossPaperAttemptTask(GLME2EPilotAttemptTask):
     """Cross-paper v1.2 task with explicit corpus source selection."""
 
@@ -313,7 +333,7 @@ class GLME2ECrossPaperAttemptPlan(GLME2EPilotPlan):
         return self
 
 
-E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan | GLME2ESinglePaperAttemptPlan | GLME2ECrossPaperAttemptPlan
+E2EPilotPlan = GLME2EPilotPlan | GLME2EPilotAttemptPlan | GLME2ESinglePaperAttemptPlan | GLME2EInsufficientEvidenceAttemptPlan | GLME2ECrossPaperAttemptPlan
 
 
 def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
@@ -323,6 +343,8 @@ def parse_e2e_pilot_plan(data: dict[str, object]) -> E2EPilotPlan:
         return GLME2EPilotAttemptPlan.model_validate(data)
     if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2":
         return GLME2ESinglePaperAttemptPlan.model_validate(data)
+    if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2-insufficient-evidence":
+        return GLME2EInsufficientEvidenceAttemptPlan.model_validate(data)
     if data.get("schema_version") == "dr-glm-e2e-pilot-v1.2-cross-paper":
         return GLME2ECrossPaperAttemptPlan.model_validate(data)
     raise E2EConfigurationError("unsupported GLM E2E pilot schema version")
@@ -805,6 +827,19 @@ def write_e2e_single_paper_schema(output_dir: Path) -> Path:
     return path
 
 
+def render_e2e_insufficient_evidence_schema() -> str:
+    schema = GLME2EInsufficientEvidenceAttemptPlan.model_json_schema()
+    schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+    return json.dumps(schema, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+
+
+def write_e2e_insufficient_evidence_schema(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "glm_e2e_insufficient_evidence.schema.json"
+    path.write_text(render_e2e_insufficient_evidence_schema(), encoding="utf-8", newline="\n")
+    return path
+
+
 def render_e2e_cross_paper_schema() -> str:
     schema = GLME2ECrossPaperAttemptPlan.model_json_schema()
     schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
@@ -827,6 +862,7 @@ def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path |
     except (OSError, subprocess.CalledProcessError) as error:
         raise E2EConfigurationError("cannot resolve E2E implementation Git identity") from error
     single_paper_plan = isinstance(plan, GLME2ESinglePaperAttemptPlan)
+    insufficient_evidence_plan = isinstance(plan, GLME2EInsufficientEvidenceAttemptPlan)
     cross_paper_plan = isinstance(plan, GLME2ECrossPaperAttemptPlan)
     if single_paper_plan:
         if len(plan.tasks) != 1 or plan.tasks[0].task_key != "single_paper":
@@ -834,6 +870,9 @@ def preflight_e2e_pilot(plan: E2EPilotPlan, *, repo_root: Path, git_root: Path |
     elif cross_paper_plan:
         if len(plan.tasks) != 1 or plan.tasks[0].task_key != "cross_paper_comparison":
             raise E2EConfigurationError("cross-paper plan must freeze exactly one comparison task")
+    elif insufficient_evidence_plan:
+        if len(plan.tasks) != 1 or plan.tasks[0].task_key != "insufficient_evidence":
+            raise E2EConfigurationError("insufficient-evidence plan must freeze exactly one task")
     elif len(plan.tasks) != 3 or {item.task_key for item in plan.tasks} != {"single_paper", "cross_paper_comparison", "insufficient_evidence"}:
         raise E2EConfigurationError("pilot must freeze exactly the three authorized task categories")
     ids = [item.run_id for item in plan.tasks]
