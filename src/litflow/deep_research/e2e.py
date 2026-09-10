@@ -81,8 +81,8 @@ class E2EConfigurationError(ValueError):
 class E2ETerminalError(ValueError):
     """Structured E2E terminal outcome for the CLI boundary; never match text."""
 
-    def __init__(self, error_code: str, *, outcome_unknown: bool = False):
-        self.error_code, self.outcome_unknown = error_code, outcome_unknown
+    def __init__(self, error_code: str, *, outcome_unknown: bool = False, diagnostics: dict[str, object] | None = None):
+        self.error_code, self.outcome_unknown, self.diagnostics = error_code, outcome_unknown, diagnostics or {}
         super().__init__(error_code)
 
 
@@ -641,6 +641,15 @@ class DeepResearchRunner:
         self._append(store, events, RuntimeEventType.lifecycle_transition, lifecycle.model_dump(mode="json"), causal_parent_id=events[-1].event_id)
         return state
 
+    def _terminalize_stage_failure(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], initial: RunState, *, checkpoint_path: Path, code: str, diagnostics: dict[str, object], started: float) -> E2ETerminalError:
+        events[:] = store.read_all()
+        current = reduce_runtime_events(initial, events, self._budget).run_state
+        if current.status not in {RunStatus.failed, RunStatus.complete, RunStatus.insufficient_evidence}:
+            self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - started), "stage_failure": diagnostics}, causal_parent_id=events[-1].event_id if events else None)
+            self._lifecycle(store, events, current, RunStatus.failed, code)
+        write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, store.read_all(), self._budget)))
+        return E2ETerminalError(code, outcome_unknown=code in {"outcome_unknown", "unknown_outcome"}, diagnostics=diagnostics)
+
     @staticmethod
     def _planner_error_code(code: str) -> str:
         return {
@@ -675,7 +684,10 @@ class DeepResearchRunner:
             graph = _read_hashed_json(artifact_dir / "evidence_graph.json", str(artifact_refs.get("evidence_graph_sha256")), EvidenceGraph)
             assessment = _read_hashed_json(artifact_dir / "assessment.json", str(artifact_refs.get("assessment_sha256")), GapConflictAssessment)
             if self._allowed_source_keys or self._allowed_passage_ids:
-                _validate_cross_paper_allowlist(graph, self._allowed_source_keys, self._allowed_passage_ids)
+                try:
+                    _validate_cross_paper_allowlist(graph, self._allowed_source_keys, self._allowed_passage_ids)
+                except ExecutorError as error:
+                    raise self._terminalize_stage_failure(store, events, initial, checkpoint_path=checkpoint_path, code=error.code, diagnostics=error.diagnostics or {"failure_stage": "executor_source_validation", "contract_error_code": error.code}, started=time.monotonic()) from error
             writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs, validation_guard=require_cross_paper_comparison if self._comparison_required else None)
             return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation, resumed=True)
         if events:
@@ -698,7 +710,7 @@ class DeepResearchRunner:
         except PlannerError as error:
             code = self._planner_error_code(error.code)
             kind = RuntimeEventType.operation_unknown if error.code == "outcome_unknown" else RuntimeEventType.operation_failed
-            diagnostics = getattr(error, "diagnostics", {})
+            diagnostics = getattr(error, "diagnostics", {}) or {"failure_stage": "planner", "contract_error_code": code}
             actual_usage = getattr(error, "usage", None) or getattr(self._planner, "last_usage", TokenUsage())
             self._append(store, events, kind, {"operation_name": "structured_planner", "error_code": code, "attempt_number": 1, "usage": actual_usage.model_dump(mode="json"), "diagnostics": diagnostics}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
@@ -710,10 +722,18 @@ class DeepResearchRunner:
         self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "plan_artifact_sha256": plan_artifact_sha256, "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
-        execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id, allowed_source_keys=self._allowed_source_keys or None, allowed_passage_ids=self._allowed_passage_ids or None)
-        if self._allowed_source_keys or self._allowed_passage_ids:
-            _validate_cross_paper_allowlist(execution.evidence_graph, self._allowed_source_keys, self._allowed_passage_ids)
-        assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))
+        stage_started = time.monotonic()
+        try:
+            execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id, allowed_source_keys=self._allowed_source_keys or None, allowed_passage_ids=self._allowed_passage_ids or None)
+            if self._allowed_source_keys or self._allowed_passage_ids:
+                _validate_cross_paper_allowlist(execution.evidence_graph, self._allowed_source_keys, self._allowed_passage_ids)
+            assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))
+        except ExecutorError as error:
+            diagnostics = error.diagnostics or {"failure_stage": "executor", "contract_error_code": error.code}
+            raise self._terminalize_stage_failure(store, events, initial, checkpoint_path=checkpoint_path, code=error.code, diagnostics=diagnostics, started=stage_started) from error
+        except ValueError as error:
+            diagnostics = {"failure_stage": "assessment", "contract_error_code": "assessment_invalid"}
+            raise self._terminalize_stage_failure(store, events, initial, checkpoint_path=checkpoint_path, code="assessment_invalid", diagnostics=diagnostics, started=stage_started) from error
         events = store.read_all()
         artifact_refs = {"plan_sha256": plan_artifact_sha256, "evidence_graph_sha256": _write_json_artifact(event_path.parent / "evidence_graph.json", execution.evidence_graph.model_dump(mode="json")), "assessment_sha256": _write_json_artifact(event_path.parent / "assessment.json", assessment.model_dump(mode="json"))}
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": 0.000001, "artifact_refs": artifact_refs}, causal_parent_id=events[-1].event_id)

@@ -11,8 +11,8 @@ import pytest
 
 from litflow.deep_research.budgets import BudgetSpec
 from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, ResearchBrief, ResearchTask
-from litflow.deep_research.e2e import GLME2ECrossPaperAttemptPlan, GLMSingleWriter, DeepResearchRunner, _validate_cross_paper_allowlist, parse_e2e_pilot_plan, preflight_e2e_pilot, require_cross_paper_comparison, runtime_source_sha256
-from litflow.deep_research.executor import EvidenceCandidate, ExecutorError, LocalResearchExecutor, ReadOnlyToolRegistry
+from litflow.deep_research.e2e import E2ETerminalError, GLME2ECrossPaperAttemptPlan, GLMSingleWriter, DeepResearchRunner, _validate_cross_paper_allowlist, parse_e2e_pilot_plan, preflight_e2e_pilot, require_cross_paper_comparison, runtime_source_sha256
+from litflow.deep_research.executor import EvidenceCandidate, ExecutorError, LocalResearchExecutor, LocalSearchRequest, ReadOnlyToolRegistry, ToolName
 from litflow.deep_research.gap_replan import AssessmentContext, assess_evidence_graph
 from litflow.deep_research.planner import FakePlanner, PlannerDraft, PlannerSubtaskDraft, plan_approved_brief
 from litflow.deep_research.runtime_v2 import RuntimeEventType, UnifiedEventStore
@@ -106,11 +106,64 @@ def test_executor_rejects_unselected_candidate_before_evidence_graph(tmp_path: P
         asyncio.run(LocalResearchExecutor(registry, budget=spec).execute(task, brief, approval, plan, event_path=tmp_path / "bad.jsonl", checkpoint_path=tmp_path / "bad.checkpoint.json", candidates=bad, run_id="dr-run-cross-bad", allowed_source_keys=("L4DLHQUZ", "3NLKTSIP"), allowed_passage_ids=allowed_passages))
 
 
+def test_source_scope_is_applied_before_bm25_ranking():
+    full = _full_corpus()
+    registry = ReadOnlyToolRegistry(full, allowed_source_keys=("L4DLHQUZ",), allowed_passage_ids=("L4DLHQUZ:L4DLHQUZ_chunk_0007",))
+    hits = asyncio.run(registry.invoke(ToolName.search_local_corpus, LocalSearchRequest(query="retrieve explicitly grounded method descriptions from local source L4DLHQUZ")))
+    assert hits and hits[0].passage_id == "L4DLHQUZ:L4DLHQUZ_chunk_0007"
+    assert registry.last_search_stats == {"pre_filter_candidate_count": len(full), "source_scoped_candidate_count": 1, "source_scoped_result_count": 1, "bounded_top_k": 1}
+
+
 def test_cross_allowlist_reports_missing_selected_source(tmp_path: Path):
     _, _, _, _, graph, _, _, _ = _inputs(tmp_path)
     one_source = graph.model_copy(update={"sources": (graph.sources[0],), "evidence_units": tuple(unit for unit in graph.evidence_units if unit.source_id == graph.sources[0].source_id), "edges": tuple(edge for edge in graph.edges if edge.from_id in {graph.sources[0].source_id, graph.evidence_units[0].evidence_id} or edge.to_id in {graph.sources[0].source_id, graph.evidence_units[0].evidence_id})})
     with pytest.raises(ExecutorError, match="cross_paper_source_selection_mismatch"):
         _validate_cross_paper_allowlist(one_source, ("L4DLHQUZ", "3NLKTSIP"), ("L4DLHQUZ:L4DLHQUZ_chunk_0007", "3NLKTSIP:3NLKTSIP_chunk_0005"))
+
+
+def test_executor_known_failure_is_terminalized_by_e2e_runner(tmp_path: Path):
+    task = ResearchTask.create("How do selected local papers describe their approaches to multi-scale feature handling?", "en", ("local-only", "cross-paper"), "grounded_report", NOW)
+    brief = ResearchBrief.create(task.task_id, "Compare only explicitly grounded method descriptions from selected local papers.", ("method comparison",), (), "grounded report", ("one comparison grounded claim",), task.constraints, BriefApprovalStatus.approved)
+    approval = BriefApproval.create(brief.brief_id, task.task_id, BriefApprovalStatus.approved, "human", NOW)
+    draft = PlannerDraft(task_id=task.task_id, brief_id=brief.brief_id, locale="en", constraints=brief.constraints, scope_inclusions=brief.scope_inclusions, scope_exclusions=brief.scope_exclusions, subtasks=(PlannerSubtaskDraft(local_key="paper_a", question="retrieve explicitly grounded method descriptions from local source 3NLKTSIP", rationale="collect source A", expected_evidence=("quote",), completion_criteria=("one",)),))
+    spec = BudgetSpec(max_provider_calls=1, max_provider_attempts=1, max_tool_calls=8, max_tool_attempts=8, max_retries=0, max_replans=0, run_timeout_s=90, operation_timeout_s=30)
+    registry = ReadOnlyToolRegistry(_full_corpus())
+    writer = FakeWriter({})
+    runner = DeepResearchRunner(FakePlanner(draft), LocalResearchExecutor(registry, budget=spec), writer, budget=spec, comparison_required=True, allowed_source_keys=("L4DLHQUZ", "3NLKTSIP"), allowed_passage_ids=("L4DLHQUZ:L4DLHQUZ_chunk_0007", "3NLKTSIP:3NLKTSIP_chunk_0005"))
+    with pytest.raises(Exception) as failure:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
+    assert getattr(failure.value, "error_code", None) == "selected_source_evidence_missing"
+    events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=DeepResearchRunner.run_id(task, brief)).read_all()
+    checkpoint = json.loads((tmp_path / "checkpoint.json").read_text(encoding="utf-8"))
+    assert events[-1].event_type is RuntimeEventType.lifecycle_transition and events[-1].payload["to_status"] == "failed" and events[-1].payload["terminal_reason"] == "selected_source_evidence_missing"
+    assert checkpoint["run_state"]["status"] == "failed" and checkpoint["stream_head"] == events[-1].event_hash
+    failed = next(event for event in events if event.event_type is RuntimeEventType.elapsed_recorded and event.payload.get("stage_failure"))
+    assert failed.payload["stage_failure"]["contract_error_code"] == "selected_source_evidence_missing"
+    assert writer.calls == 0 and registry.calls == [ToolName.search_local_corpus]
+
+
+def test_executor_unknown_failure_is_terminalized_without_writer(tmp_path: Path):
+    task = ResearchTask.create("local unknown probe", "en", ("local-only",), "grounded_report", NOW)
+    brief = ResearchBrief.create(task.task_id, "Probe local evidence.", ("local",), (), "grounded report", ("one quote",), task.constraints, BriefApprovalStatus.approved)
+    approval = BriefApproval.create(brief.brief_id, task.task_id, BriefApprovalStatus.approved, "human", NOW)
+    draft = PlannerDraft(task_id=task.task_id, brief_id=brief.brief_id, locale="en", constraints=brief.constraints, scope_inclusions=brief.scope_inclusions, scope_exclusions=brief.scope_exclusions, subtasks=(PlannerSubtaskDraft(local_key="probe", question="probe", rationale="probe", expected_evidence=("quote",), completion_criteria=("one",)),))
+    spec = BudgetSpec(max_provider_calls=1, max_provider_attempts=1, max_tool_calls=8, max_tool_attempts=8, max_retries=0, max_replans=0, run_timeout_s=90, operation_timeout_s=30)
+    class UnknownRegistry:
+        calls = []
+        async def invoke(self, name, request):
+            self.calls.append(name)
+            raise TimeoutError()
+    registry = UnknownRegistry()
+    writer = FakeWriter({})
+    runner = DeepResearchRunner(FakePlanner(draft), LocalResearchExecutor(registry, budget=spec), writer, budget=spec)
+    with pytest.raises(E2ETerminalError) as failure:
+        asyncio.run(runner.run(task, brief, approval, event_path=tmp_path / "runtime.jsonl", checkpoint_path=tmp_path / "checkpoint.json"))
+    assert failure.value.error_code == "unknown_outcome" and failure.value.outcome_unknown
+    events = UnifiedEventStore(tmp_path / "runtime.jsonl", run_id=DeepResearchRunner.run_id(task, brief)).read_all()
+    checkpoint = json.loads((tmp_path / "checkpoint.json").read_text(encoding="utf-8"))
+    assert any(event.event_type is RuntimeEventType.operation_unknown for event in events)
+    assert checkpoint["run_state"]["status"] == "failed" and checkpoint["run_state"]["terminal_reason"] == "unknown_outcome"
+    assert checkpoint["stream_head"] == events[-1].event_hash and writer.calls == 0
 
 
 def test_cross_plan_preflight_binds_selected_sources_and_task_input():

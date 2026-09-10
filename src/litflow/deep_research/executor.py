@@ -56,8 +56,8 @@ EVIDENCE_GRAPH_VERSION = "dr-evidence-graph-v1"
 class ExecutorError(ValueError):
     """Code-bearing, fail-closed B05 error without a provider fallback."""
 
-    def __init__(self, code: str, message: str):
-        self.code = code
+    def __init__(self, code: str, message: str, diagnostics: dict[str, object] | None = None):
+        self.code, self.diagnostics = code, diagnostics or {}
         super().__init__(f"{code}: {message}")
 
 
@@ -180,6 +180,7 @@ class _LocalCorpus:
         self._passages = {str(item["passage_id"]): dict(item) for item in passages}
         self._sources = {passage_id: self._source(row) for passage_id, row in self._passages.items()}
         self._index = BM25Index([self._passages[key] for key in sorted(self._passages)])
+        self.size = len(self._passages)
 
     @staticmethod
     def _source(row: dict[str, Any]) -> Source:
@@ -221,12 +222,21 @@ class _LocalCorpus:
 class ReadOnlyToolRegistry:
     """The only B05 tool entry point; capabilities are fixed at construction."""
 
-    def __init__(self, passages: list[dict[str, Any]], *, allowed: tuple[ToolName, ...] = (ToolName.search_local_corpus, ToolName.read_passage)) -> None:
+    def __init__(self, passages: list[dict[str, Any]], *, allowed: tuple[ToolName, ...] = (ToolName.search_local_corpus, ToolName.read_passage), allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = ()) -> None:
         if set(allowed) - {ToolName.search_local_corpus, ToolName.read_passage}:
             raise ExecutorError("tool_not_allowed", "B05 allows local corpus search and passage read only")
-        self._corpus = _LocalCorpus(passages)
+        source_scope = frozenset(allowed_source_keys)
+        passage_scope = frozenset(allowed_passage_ids)
+        pre_filter_count = len(passages)
+        scoped = [row for row in passages if (not source_scope or str(row.get("paper_key")) in source_scope) and (not passage_scope or str(row.get("passage_id")) in passage_scope)]
+        if source_scope and not scoped:
+            raise ExecutorError("selected_source_evidence_missing", "source-scoped corpus contains no allowed passage", {"failure_stage": "executor_source_prefilter", "contract_error_code": "selected_source_evidence_missing", "allowed_source_count": len(source_scope), "pre_filter_candidate_count": len(passages), "source_scoped_result_count": 0, "bounded_top_k": 1, "target_qrel_rank": None, "validation_rule": "source_metadata_prefilter_before_bm25"})
+        self._corpus = _LocalCorpus(scoped)
         self._allowed = frozenset(allowed)
         self.calls: list[ToolName] = []
+        self.allowed_source_keys, self.allowed_passage_ids = source_scope, passage_scope
+        self._pre_filter_count = pre_filter_count
+        self.last_search_stats: dict[str, object] = {}
 
     async def invoke(self, name: ToolName, request: ContractModel) -> object:
         if name not in self._allowed:
@@ -235,7 +245,9 @@ class ReadOnlyToolRegistry:
         if name is ToolName.search_local_corpus:
             if not isinstance(request, LocalSearchRequest):
                 raise ExecutorError("tool_contract_invalid", "search request contract is invalid")
-            return await self._corpus.search(request)
+            hits = await self._corpus.search(request)
+            self.last_search_stats = {"pre_filter_candidate_count": self._pre_filter_count, "source_scoped_candidate_count": self._corpus.size, "source_scoped_result_count": len(hits), "bounded_top_k": request.top_k}
+            return hits
         if name is ToolName.read_passage:
             if not isinstance(request, ReadPassageRequest):
                 raise ExecutorError("tool_contract_invalid", "passage read request contract is invalid")
@@ -313,7 +325,8 @@ class LocalResearchExecutor:
             if allowed_passages:
                 selected_hits = tuple(hit for hit in hits if hit.passage_id in allowed_passages)
                 if not selected_hits:
-                    raise ExecutorError("selected_source_evidence_missing", "retrieval returned no passage from the immutable cross-paper allowlist")
+                    stats = getattr(self._registry, "last_search_stats", {})
+                    raise ExecutorError("selected_source_evidence_missing", "retrieval returned no passage from the immutable cross-paper allowlist", {"failure_stage": "executor_source_retrieval", "contract_error_code": "selected_source_evidence_missing", "allowed_source_count": len(allowed_sources), "pre_filter_candidate_count": stats.get("pre_filter_candidate_count"), "source_scoped_candidate_count": stats.get("source_scoped_candidate_count"), "source_scoped_result_count": 0, "bounded_top_k": stats.get("bounded_top_k", 1), "target_qrel_rank": None, "validation_rule": "source_metadata_prefilter_before_bm25"})
                 hits = selected_hits
             selected = candidates.get(subtask.subtask_id) if candidates else None
             evidence_ids: list[str] = []
