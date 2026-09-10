@@ -12,7 +12,7 @@ The repository’s canonical task key is `cross_paper_comparison` (the user-faci
 - Executable plan: [glm_e2e_cross_paper_plan.attempt-001.json](glm_e2e_cross_paper_plan.attempt-001.json), schema `dr-glm-e2e-pilot-v1.2-cross-paper`
 - Task/Brief: `dr-task-ee0fc936d6efdaf45c2d6566` / `dr-brief-0784ae0da15d3261fc5ca8f6`
 - Deterministic run: `dr-run-8e3c2028b68e14c88fc7b17e`
-- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e` (must be absent before any future execution)
+- Artifact: `outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e` (retained `failed_known / cross_paper_comparison_invalid`; not modified)
 - Frozen task input SHA-256: `4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e`.
 - Selected corpus Sources: `dr-source-76a2766b4e0d53670687ff4e` (L4DLHQUZ / TPMN) and `dr-source-c82227e5b40e464045457dd3` (3NLKTSIP / Modified YOLO), with passages `L4DLHQUZ:L4DLHQUZ_chunk_0007` and `3NLKTSIP:3NLKTSIP_chunk_0005`.
 - Gate: at least two independent Sources; every comparison Claim must retain source-specific Evidence and Citation/Quote/span grounding. A conflict or replan is not forced when the corpus does not support one.
@@ -24,7 +24,7 @@ Attempt-001 audit found two real Sources but no Claim whose citations covered bo
 - Executable plan: [glm_e2e_cross_paper_plan.attempt-002.json](glm_e2e_cross_paper_plan.attempt-002.json)
 - Attempt: `glm-5.3-flash-deepresearch-cross-paper-002`
 - Deterministic run: `dr-run-b966de61dabf031cbfa96d3e`
-- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-b966de61dabf031cbfa96d3e` (absent)
+- Artifact: `outputs/deep_research/e2e/v1.2/dr-run-b966de61dabf031cbfa96d3e` (retained `failed_known / selected_source_evidence_missing`; not modified)
 - Implementation commit/source SHA-256: `265470ce7ec7bdc70f41df29037e55c896b1c65a` / `b133c7ddd00ff9d53ced077ace11300e7f51e04649b35417061a011d4a9ff23a`
 - Planner/Writer prompt SHA-256: `67f3c0b64867238b028ba210daa27affdbd11d2af945e2dd0967136e71cb4ae7` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`
 - Selected Sources: `dr-source-76a2766b4e0d53670687ff4e` and `dr-source-c82227e5b40e464045457dd3`; selected passages are `L4DLHQUZ:L4DLHQUZ_chunk_0007` and `3NLKTSIP:3NLKTSIP_chunk_0005`.

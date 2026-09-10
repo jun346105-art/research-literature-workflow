@@ -114,7 +114,7 @@
 
 ### B08E2E-R9 evidence
 
-- Executable plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json), run `dr-run-8e3c2028b68e14c88fc7b17e`, artifact target absent.
+- Executable plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json), run `dr-run-8e3c2028b68e14c88fc7b17e`, artifact retained as `failed_known / cross_paper_comparison_invalid` (runtime SHA-256 `FC34EE6F305173A2B29552D809B6DEB9FC8F44554D9621D555CE827273407DC9`, checkpoint SHA-256 `7F6EBFA8CC949903C58728AB0CAA4EA413315BA1E8B8986E5CF7E72CB1626050`).
 - Corpus audit selected two independent Sources: `dr-source-76a2766b4e0d53670687ff4e` (L4DLHQUZ / TPMN) and `dr-source-c82227e5b40e464045457dd3` (3NLKTSIP / Modified YOLO), each with a real method passage and stable locator.
 - The plan binds implementation `d286ca0c3a187d7237e399d766a2370f5683812b`, runtime source SHA-256 `76b894d0b596c16d804ba1fedd893a64e4e717a28de11a866e2ae673e65db2d3`, task input SHA-256 `4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e`, and frozen Planner/Writer/corpus hashes. Only offline plan validation and Mock cross-source gate tests ran.
 

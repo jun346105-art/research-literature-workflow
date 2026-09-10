@@ -18,7 +18,7 @@ Each passage is present in the frozen corpus, belongs to its selected paper, and
 - attempt: `glm-5.3-flash-deepresearch-cross-paper-001`
 - task/brief: `dr-task-ee0fc936d6efdaf45c2d6566` / `dr-brief-0784ae0da15d3261fc5ca8f6`
 - run: `dr-run-8e3c2028b68e14c88fc7b17e`
-- artifact target: `outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e` (absent)
+- artifact: `outputs/deep_research/e2e/v1.2/dr-run-8e3c2028b68e14c88fc7b17e` (retained after its one failed_known execution; not modified)
 - implementation commit: `d286ca0c3a187d7237e399d766a2370f5683812b`
 - runtime source SHA-256: `76b894d0b596c16d804ba1fedd893a64e4e717a28de11a866e2ae673e65db2d3`
 - task input SHA-256: `4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e`
