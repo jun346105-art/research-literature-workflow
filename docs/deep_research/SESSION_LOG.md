@@ -41,6 +41,7 @@
 | B08E2E-R8 | Close successful writer-calibration-003 and freeze single-paper E2E Attempt-008 | completed; calibration-003 `pass_writer_contract_and_deterministic_grounding`; Attempt-008 `real_single_paper_e2e_pass`; cross-paper and insufficient-evidence follow-ups design-only |
 | B08E2E-R9 | Cross-paper comparison corpus audit and immutable Pilot plan freeze | completed; two independent local Sources verified; dry-run/preflight passed; no real Pilot call |
 | B08E2E-R10 | Cross-paper source-scoped retrieval and terminalization repair; Attempt-003 freeze | completed; Attempt-001/002 failed_known retained; Attempt-003 dry-run/preflight passed; no new real Pilot call |
+| B08E2E-R11 | Close Cross-paper Attempt-003 and freeze insufficient-evidence Pilot | completed; Cross-paper result closed under frozen corpus; insufficient-evidence plan dry-run/preflight passed; no new real Pilot call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -125,3 +126,9 @@
 - Stabilization implementation commit: `0b78a9375133c4ce9350c528ea208416f66fbafd`; runtime source SHA-256 `45ec8551698385ee218eac2a9adf74fa624b41a0efa7d2b7e8cbfa45a7da3287`; cross Planner/Writer prompt hashes `ed51df7a0c3223abbe20d1b0386c6bba5665437f7cb1490977e5f4e3704ca5f9` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`.
 - Source-scoped BM25 is applied before ranking: the 185-passage corpus yields 16 L4DLHQUZ candidates (qrel rank 11) and 18 3NLKTSIP candidates (qrel rank 12); bounded `retrieval_top_k=12` covers both qrels. Runtime preserves successful Tool events and terminalizes deterministic business validation failures with a final failed lifecycle/checkpoint; replay remains zero-call.
 - Attempt-003 plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json), attempt `glm-5.3-flash-deepresearch-cross-paper-003`, run `dr-run-02a0613ba863c12bf851a58e`, artifact target absent; dry-run/preflight passed. No Key, HTTP, Provider, or Attempt-003 call was executed.
+
+### B08E2E-R11 evidence
+
+- Cross-paper Attempt-003 closure: [result](CROSS_PAPER_COMPARISON_RESULT_V1.md) and [manifest](e2e/v1.2/cross_paper_result_manifest.attempt-003.json). The retained artifact has six files with verified SHA-256; terminal, RunState and replay all agree on `complete`. Two selected Sources produced two EvidenceUnits, six Claims and eight Citations; one Claim cites both Source IDs. `retrieval_top_k=12`, qrel ranks 11/12, and semantic correctness remains unverified.
+- Cross-paper closure did not modify Attempt-001, Attempt-002 or Attempt-008 artifacts. No Key was read and no Provider/API/HTTP call was made during closure.
+- Insufficient-evidence plan: [`e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json`](e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json), attempt `glm-5.3-flash-deepresearch-insufficient-evidence-002`, run `dr-run-97bad8fbd966fcc8c1f049f3`, artifact target absent. The frozen question asks for Mars Reconnaissance Orbiter orbital inclination and propellant mass; the 185-passage corpus contains no `mars`, `orbital`, `propellant` or `orbiter` terms. Dry-run/preflight passed; real execution is not authorized in this batch.

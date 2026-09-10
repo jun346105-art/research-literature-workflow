@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from litflow.deep_research.contracts import BriefApproval, BriefApprovalStatus, EvidenceLocator, EvidenceModality, EvidenceUnit, ResearchBrief, ResearchTask, Source, SourceKind
-from litflow.deep_research.e2e import GLME2EInsufficientEvidenceAttemptPlan, write_e2e_insufficient_evidence_schema
+from litflow.deep_research.e2e import GLME2EInsufficientEvidenceAttemptPlan, parse_e2e_pilot_plan, preflight_e2e_pilot, write_e2e_insufficient_evidence_schema
 from litflow.deep_research.executor import EvidenceGraph, EvidenceGraphEdge
 from litflow.deep_research.gap_replan import AssessmentContext, SubtaskEvidenceRequirement, assess_evidence_graph
 from litflow.deep_research.identity import sha256_hex
@@ -45,6 +45,14 @@ def test_insufficient_schema_is_canonical_and_byte_stable(tmp_path: Path):
     second = write_e2e_insufficient_evidence_schema(tmp_path / "two").read_bytes()
     assert first == second and b"\r\n" not in first
     assert json.loads(first)["$schema"] == "https://json-schema.org/draft/2020-12/schema"
+
+
+def test_insufficient_attempt_plan_passes_offline_preflight():
+    plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json").read_text(encoding="utf-8")))
+    assert isinstance(plan, GLME2EInsufficientEvidenceAttemptPlan)
+    assert plan.tasks[0].attempt_id == "glm-5.3-flash-deepresearch-insufficient-evidence-002"
+    assert plan.tasks[0].expected_terminal == "insufficient_evidence"
+    assert len(preflight_e2e_pilot(plan, repo_root=Path.cwd())) == 1
 
 
 def test_empty_evidence_requires_structured_abstention():

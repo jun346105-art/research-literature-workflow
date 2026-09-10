@@ -1,6 +1,6 @@
 # Follow-up Pilot Designs after Attempt-008
 
-These are controlled follow-up designs. Attempt-001 was executed once and is permanently retained as `failed_known / cross_paper_comparison_invalid`; Attempt-002 was subsequently executed once and is permanently retained as `failed_known / selected_source_evidence_missing`. Attempt-003 below is a new dry-run/preflight-only plan. No additional Provider, Web, Tool or real E2E call is authorized by the stabilization batch.
+These are controlled follow-up designs. Attempt-001 and Attempt-002 were each executed once and remain immutable known failures. Cross-paper Attempt-003 was then executed once and closed as `real_cross_paper_comparison_e2e_pass_under_frozen_source_scoped_corpus`. The insufficient-evidence plan below is a new dry-run/preflight-only plan; no additional Provider, Web, Tool or real E2E call is authorized by the current batch.
 
 The original design records preserve their pre-repair identity. Attempt-003 binds the stabilization implementation commit `0b78a9375133c4ce9350c528ea208416f66fbafd` (runtime source SHA-256 `45ec8551698385ee218eac2a9adf74fa624b41a0efa7d2b7e8cbfa45a7da3287`), cross Planner prompt SHA-256 `ed51df7a0c3223abbe20d1b0386c6bba5665437f7cb1490977e5f4e3704ca5f9`, Writer prompt SHA-256 `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`, and corpus SHA-256 `d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6`. It keeps GLM-5.3-Flash, Planner low / Writer high reasoning, 2048/4096 Planner and 4096/4096 Writer ceilings, two Provider calls, zero retries, one bounded replan, 60/180 second timeouts, 0.02 CNY hard limit, source-scoped retrieval `top_k=12`, and no Web, vision, files, parallelism or fallback.
 
@@ -31,22 +31,24 @@ Attempt-001 audit found two real Sources but no Claim whose citations covered bo
 
 Attempt-002 enforces source/passage allowlists before EvidenceGraph admission and requires a structurally cross-source Claim before Writer success. It was executed once, failed at source/evidence business validation after a successful search operation, and remains immutable.
 
-## Repaired cross-paper Attempt-003
+## Cross-paper Attempt-003 closure
 
 - Executable plan: [glm_e2e_cross_paper_plan.attempt-003.json](glm_e2e_cross_paper_plan.attempt-003.json)
 - Attempt: `glm-5.3-flash-deepresearch-cross-paper-003`
 - Deterministic run: `dr-run-02a0613ba863c12bf851a58e`
-- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-02a0613ba863c12bf851a58e` (absent)
+- Artifact: `outputs/deep_research/e2e/v1.2/dr-run-02a0613ba863c12bf851a58e` (retained; closure manifest: [cross_paper_result_manifest.attempt-003.json](cross_paper_result_manifest.attempt-003.json))
 - Selected Sources/passages: L4DLHQUZ → `L4DLHQUZ:L4DLHQUZ_chunk_0007`; 3NLKTSIP → `3NLKTSIP:3NLKTSIP_chunk_0005`.
 - Source-scoped BM25 is bounded at `top_k=12`; offline qrel ranks are 11/16 and 12/18 within the respective source candidates. The runtime preserves successful Tool operations and terminalizes known business validation failures with a final failed lifecycle/checkpoint.
-- This plan has passed offline preflight only. Attempt-003 requires separate manual authorization and a fresh artifact audit; no Provider/API/HTTP call has been made.
+- Result: `real_cross_paper_comparison_e2e_pass_under_frozen_source_scoped_corpus`. Semantic correctness remains unverified; `author_review_required=true` and `publication_ready=false`.
 
 ## Insufficient evidence
 
-- Attempt: `glm-5.3-flash-deepresearch-insufficient-evidence-001`
-- Task/Brief: `dr-task-4e78911df9ce081d08aacf6a` / `dr-brief-84aad028176f94da6be6aef7`
-- Deterministic run: `dr-run-def2aef07b645306d3be21d1`
-- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-def2aef07b645306d3be21d1` (must be absent before any future execution)
+- Attempt: `glm-5.3-flash-deepresearch-insufficient-evidence-002`
+- Executable plan: [glm_e2e_insufficient_evidence_plan.attempt-002.json](glm_e2e_insufficient_evidence_plan.attempt-002.json)
+- Task/Brief: `dr-task-8868fb9d04f57c97a2c552f7` / `dr-brief-f2a931da15c97591a9de5482`
+- Deterministic run: `dr-run-97bad8fbd966fcc8c1f049f3`
+- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3` (absent)
+- Corpus audit: the frozen 185-passage packaging/vision corpus contains no direct `mars`, `orbital`, `propellant` or `orbiter` terms for the selected mission-parameter question.
 - Gate: no unsupported Claim or fabricated Citation; a structured abstention reason is required; `insufficient_evidence` or safe `partial` is acceptable and is not a system failure.
 
-The machine-readable design is [followup_pilot_designs.json](followup_pilot_designs.json). Each pilot requires separate manual authorization and a fresh artifact audit; neither is part of Attempt-008 closure.
+The original machine-readable design remains [followup_pilot_designs.json](followup_pilot_designs.json). Insufficient-evidence execution requires separate manual authorization and a fresh artifact audit; it was not executed in this batch.
