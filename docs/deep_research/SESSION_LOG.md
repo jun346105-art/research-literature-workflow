@@ -40,7 +40,7 @@
 | B08E2E-R7 | Writer identity ownership and content-draft finalization; calibration-003 freeze | completed; implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`; calibration-003 preflight passed; no real calibration call |
 | B08E2E-R8 | Close successful writer-calibration-003 and freeze single-paper E2E Attempt-008 | completed; calibration-003 `pass_writer_contract_and_deterministic_grounding`; Attempt-008 `real_single_paper_e2e_pass`; cross-paper and insufficient-evidence follow-ups design-only |
 | B08E2E-R9 | Cross-paper comparison corpus audit and immutable Pilot plan freeze | completed; two independent local Sources verified; dry-run/preflight passed; no real Pilot call |
-| B08E2E-R10 | Cross-paper Attempt-001 source allowlist and comparison Claim repair; Attempt-002 freeze | completed; Attempt-001 failed_known retained; Attempt-002 dry-run/preflight passed; no new real Pilot call |
+| B08E2E-R10 | Cross-paper source-scoped retrieval and terminalization repair; Attempt-003 freeze | completed; Attempt-001/002 failed_known retained; Attempt-003 dry-run/preflight passed; no new real Pilot call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -121,6 +121,7 @@
 ### B08E2E-R10 evidence
 
 - Attempt-001 remains immutable and is recorded `failed_known / cross_paper_comparison_invalid`; its runtime SHA-256 is `FC34EE6F305173A2B29552D809B6DEB9FC8F44554D9621D555CE827273407DC9` and checkpoint SHA-256 is `7F6EBFA8CC949903C58728AB0CAA4EA413315BA1E8B8986E5CF7E72CB1626050`.
-- Attempt-002 plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json), run `dr-run-b966de61dabf031cbfa96d3e`, artifact target absent.
-- Implementation `265470ce7ec7bdc70f41df29037e55c896b1c65a`; runtime source SHA-256 `b133c7ddd00ff9d53ced077ace11300e7f51e04649b35417061a011d4a9ff23a`; cross Planner/Writer prompt hashes `67f3c0b64867238b028ba210daa27affdbd11d2af945e2dd0967136e71cb4ae7` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`.
-- Source/passage allowlist admission and cross-source Claim gate are covered by offline tests. Attempt-002 was not executed.
+- Attempt-002 plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json), run `dr-run-b966de61dabf031cbfa96d3e`, artifact retained as `failed_known / selected_source_evidence_missing`; its three artifact hashes remain unchanged (`checkpoint` `1FE661CA34C98DB6C34748F3E6A1AD2792118A1792BA5C5F90A9C6E50DD761CD`, `runtime` `8B7FB66E587F2969A9217FA892E126FC8621F8D579301C3CEB1BF7B1CFC72D81`, `validated_plan` `53B1681FB85F41BBEE3C5A046C5B9C146CFE255640F99485EA51DDF0DE915890`).
+- Stabilization implementation commit: `0b78a9375133c4ce9350c528ea208416f66fbafd`; runtime source SHA-256 `45ec8551698385ee218eac2a9adf74fa624b41a0efa7d2b7e8cbfa45a7da3287`; cross Planner/Writer prompt hashes `ed51df7a0c3223abbe20d1b0386c6bba5665437f7cb1490977e5f4e3704ca5f9` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`.
+- Source-scoped BM25 is applied before ranking: the 185-passage corpus yields 16 L4DLHQUZ candidates (qrel rank 11) and 18 3NLKTSIP candidates (qrel rank 12); bounded `retrieval_top_k=12` covers both qrels. Runtime preserves successful Tool events and terminalizes deterministic business validation failures with a final failed lifecycle/checkpoint; replay remains zero-call.
+- Attempt-003 plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json), attempt `glm-5.3-flash-deepresearch-cross-paper-003`, run `dr-run-02a0613ba863c12bf851a58e`, artifact target absent; dry-run/preflight passed. No Key, HTTP, Provider, or Attempt-003 call was executed.
