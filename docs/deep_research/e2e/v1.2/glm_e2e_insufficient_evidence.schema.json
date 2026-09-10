@@ -170,6 +170,11 @@
           "title": "Task Id",
           "type": "string"
         },
+        "task_input_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Task Input Sha256",
+          "type": "string"
+        },
         "task_key": {
           "enum": [
             "single_paper",
@@ -207,7 +212,8 @@
         "writer_prompt_sha256",
         "artifact_dir",
         "run_id",
-        "attempt_id"
+        "attempt_id",
+        "task_input_sha256"
       ],
       "title": "GLME2EInsufficientEvidenceAttemptTask",
       "type": "object"

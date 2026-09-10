@@ -282,6 +282,7 @@ class GLME2EInsufficientEvidenceAttemptTask(GLME2EPilotAttemptTask):
 
     artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
     expected_terminal: Literal["partial", "insufficient_evidence"] = "insufficient_evidence"
+    task_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class GLME2EInsufficientEvidenceAttemptPlan(GLME2EPilotPlan):
