@@ -222,21 +222,24 @@ class _LocalCorpus:
 class ReadOnlyToolRegistry:
     """The only B05 tool entry point; capabilities are fixed at construction."""
 
-    def __init__(self, passages: list[dict[str, Any]], *, allowed: tuple[ToolName, ...] = (ToolName.search_local_corpus, ToolName.read_passage), allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = ()) -> None:
+    def __init__(self, passages: list[dict[str, Any]], *, allowed: tuple[ToolName, ...] = (ToolName.search_local_corpus, ToolName.read_passage), allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = (), _shared_calls: list[ToolName] | None = None, _pre_filter_count: int | None = None) -> None:
         if set(allowed) - {ToolName.search_local_corpus, ToolName.read_passage}:
             raise ExecutorError("tool_not_allowed", "B05 allows local corpus search and passage read only")
         source_scope = frozenset(allowed_source_keys)
         passage_scope = frozenset(allowed_passage_ids)
-        pre_filter_count = len(passages)
-        scoped = [row for row in passages if (not source_scope or str(row.get("paper_key")) in source_scope) and (not passage_scope or str(row.get("passage_id")) in passage_scope)]
+        pre_filter_count = len(passages) if _pre_filter_count is None else _pre_filter_count
+        scoped = [row for row in passages if not source_scope or str(row.get("paper_key")) in source_scope]
         if source_scope and not scoped:
             raise ExecutorError("selected_source_evidence_missing", "source-scoped corpus contains no allowed passage", {"failure_stage": "executor_source_prefilter", "contract_error_code": "selected_source_evidence_missing", "allowed_source_count": len(source_scope), "pre_filter_candidate_count": len(passages), "source_scoped_result_count": 0, "bounded_top_k": 1, "target_qrel_rank": None, "validation_rule": "source_metadata_prefilter_before_bm25"})
         self._corpus = _LocalCorpus(scoped)
         self._allowed = frozenset(allowed)
-        self.calls: list[ToolName] = []
+        self.calls: list[ToolName] = _shared_calls if _shared_calls is not None else []
         self.allowed_source_keys, self.allowed_passage_ids = source_scope, passage_scope
         self._pre_filter_count = pre_filter_count
         self.last_search_stats: dict[str, object] = {}
+
+    def scoped(self, source_keys: tuple[str, ...]) -> "ReadOnlyToolRegistry":
+        return ReadOnlyToolRegistry(list(self._corpus._passages.values()), allowed=tuple(self._allowed), allowed_source_keys=source_keys, _shared_calls=self.calls, _pre_filter_count=self._pre_filter_count)
 
     async def invoke(self, name: ToolName, request: ContractModel) -> object:
         if name not in self._allowed:
@@ -292,6 +295,8 @@ class LocalResearchExecutor:
         run_id: str | None = None,
         allowed_source_keys: tuple[str, ...] | None = None,
         allowed_passage_ids: tuple[str, ...] | None = None,
+        allowed_source_keys_by_subtask: dict[str, tuple[str, ...]] | None = None,
+        retrieval_top_k: int = 1,
     ) -> LocalExecutorResult:
         self._validate_plan(task, brief, approval, plan)
         run_id = run_id or make_stable_id("run", {"runtime": EXECUTOR_VERSION, "plan_id": plan.plan_id})
@@ -319,27 +324,28 @@ class LocalResearchExecutor:
                 raise ExecutorError("cancelled", "execution was cancelled before the next subtask")
             if any(item not in complete for item in subtask.dependency_ids):
                 raise ExecutorError("subtask_dependency_unsatisfied", "subtask dependencies must complete before execution")
-            hits = await self._tool(store, events, initial_state, subtask, ToolName.search_local_corpus, LocalSearchRequest(query=subtask.question))
+            scoped_registry = self._registry.scoped(allowed_source_keys_by_subtask[subtask.subtask_id]) if allowed_source_keys_by_subtask and subtask.subtask_id in allowed_source_keys_by_subtask else self._registry
+            hits = await self._tool(store, events, initial_state, subtask, ToolName.search_local_corpus, LocalSearchRequest(query=subtask.question, top_k=retrieval_top_k), registry=scoped_registry)
             if not hits:
                 raise ExecutorError("source_not_found", "local corpus search returned no passage")
             if allowed_passages:
                 selected_hits = tuple(hit for hit in hits if hit.passage_id in allowed_passages)
                 if not selected_hits:
-                    stats = getattr(self._registry, "last_search_stats", {})
+                    stats = getattr(scoped_registry, "last_search_stats", {})
                     raise ExecutorError("selected_source_evidence_missing", "retrieval returned no passage from the immutable cross-paper allowlist", {"failure_stage": "executor_source_retrieval", "contract_error_code": "selected_source_evidence_missing", "allowed_source_count": len(allowed_sources), "pre_filter_candidate_count": stats.get("pre_filter_candidate_count"), "source_scoped_candidate_count": stats.get("source_scoped_candidate_count"), "source_scoped_result_count": 0, "bounded_top_k": stats.get("bounded_top_k", 1), "target_qrel_rank": None, "validation_rule": "source_metadata_prefilter_before_bm25"})
                 hits = selected_hits
             selected = candidates.get(subtask.subtask_id) if candidates else None
             evidence_ids: list[str] = []
             candidate_items: list[tuple[EvidenceCandidate, LocalPassage]] = []
             if selected is None:
-                passage = await self._tool(store, events, initial_state, subtask, ToolName.read_passage, ReadPassageRequest(passage_id=hits[0].passage_id))
+                passage = await self._tool(store, events, initial_state, subtask, ToolName.read_passage, ReadPassageRequest(passage_id=hits[0].passage_id), registry=scoped_registry)
                 assert isinstance(passage, LocalPassage)
                 candidate_items.append((EvidenceCandidate(passage_id=passage.passage_id, quote_hint=passage.text), passage))
             else:
                 for candidate in selected:
                     if allowed_passages and candidate.passage_id not in allowed_passages:
                         raise ExecutorError("cross_paper_source_selection_mismatch", "candidate passage is outside the immutable cross-paper allowlist")
-                    passage = await self._tool(store, events, initial_state, subtask, ToolName.read_passage, ReadPassageRequest(passage_id=candidate.passage_id))
+                    passage = await self._tool(store, events, initial_state, subtask, ToolName.read_passage, ReadPassageRequest(passage_id=candidate.passage_id), registry=scoped_registry)
                     assert isinstance(passage, LocalPassage)
                 candidate_items.append((candidate, passage))
             for candidate, passage in candidate_items:
@@ -391,7 +397,7 @@ class LocalResearchExecutor:
         self._append(store, events, RuntimeEventType.lifecycle_transition, lifecycle.model_dump(mode="json"), causal_parent_id=events[-1].event_id)
         return next_state
 
-    async def _tool(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], initial_state: RunState, subtask: ResearchSubtask, name: ToolName, request: ContractModel) -> object:
+    async def _tool(self, store: UnifiedEventStore, events: list[RuntimeEventEnvelope], initial_state: RunState, subtask: ResearchSubtask, name: ToolName, request: ContractModel, *, registry: ReadOnlyToolRegistry | None = None) -> object:
         if self._token.cancelled:
             raise ExecutorError("cancelled", "execution was cancelled before tool dispatch")
         operation_id = make_stable_id("operation", {"run_id": initial_state.run_id, "subtask_id": subtask.subtask_id, "tool": name.value, "request": request.model_dump(mode="json")})
@@ -404,7 +410,7 @@ class LocalResearchExecutor:
             raise ExecutorError("budget_exhausted", "budget reservation failed before tool dispatch") from error
         dispatched = self._append(store, events, RuntimeEventType.operation_dispatched, {"operation_kind": OperationKind.tool.value, "operation_name": name.value, "attempt_number": 1, "effective_timeout_s": self._budget.operation_timeout_s}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=reserved.event_id)
         try:
-            result = await asyncio.wait_for(self._registry.invoke(name, request), timeout=self._budget.operation_timeout_s)
+            result = await asyncio.wait_for((registry or self._registry).invoke(name, request), timeout=self._budget.operation_timeout_s)
         except TimeoutError as error:
             self._append(store, events, RuntimeEventType.operation_unknown, {"error_code": "unknown_outcome", "attempt_number": 1, "usage": usage.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
             raise ExecutorError("unknown_outcome", "tool timeout after durable dispatch requires manual review") from error

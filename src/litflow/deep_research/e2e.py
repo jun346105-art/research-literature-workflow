@@ -36,7 +36,7 @@ PLANNER_PROMPT_VERSION = "dr-glm-planner-prompt-v1"
 WRITER_PROMPT_VERSION = "dr-glm-writer-prompt-v1"
 
 PLANNER_PROMPT = """You propose exactly one JSON object matching this PlannerDraft shape. `subtasks` MUST be a non-empty array (1-8 items), never null or empty: {"schema_version":"dr-planner-draft-v1","subtasks":[{"local_key":"retrieve_1","question":"retrieve the local evidence","rationale":"answer the approved brief","research_action":"search_and_read_local_evidence","dependencies":[],"expected_evidence":["quote"],"completion_criteria":["one grounded result"]}]}. Every item must choose research_action from `search_and_read_local_evidence` or `verify_local_evidence`; these are the only executor-supported actions. Return local subtask keys, objectives, evidence requirements and local dependencies only. Do not create formal IDs or choose scope, corpus identity, permissions, or external tools; the program inherits those from the approved Brief and frozen local corpus. For a single_paper task, include at least one local retrieval/read subtask. Output JSON only: never create evidence, claims, citations, compose/write/report/summary subtasks, or final answers."""
-CROSS_PLANNER_PROMPT_SUFFIX = """ This is a cross-paper comparison: retrieve evidence from each listed selected source key, keep each source's evidence separate, and plan a later comparison Claim without inventing or substituting a source."""
+CROSS_PLANNER_PROMPT_SUFFIX = """ This is a cross-paper comparison: output exactly one retrieval Subtask per listed selected source key (no synthesis, verification, compose, write, report or summary Subtask). Every Subtask must include a `source_ref` chosen exactly from the listed selected source keys; keep each source's evidence separate and do not invent or substitute a source."""
 WRITER_PROMPT = """You output exactly one JSON object containing only Writer content, with no Markdown fence or explanation. Minimal valid example: {"sections":[{"heading":"Findings","claims":[{"text":"<grounded claim>","language":"en","citations":[{"evidence_id":"<input Evidence ID>","quote":"<verbatim Evidence text>","relation":"support"}]}]}]}. `sections` must be non-empty. Each claim must have at least one citation to an Evidence ID listed in the supplied Evidence View, and every quote must be verbatim from that evidence. Never output schema_version, task_id, brief_id, plan_id, run_id, report_id, claim_id, citation_id, Source, Evidence, page, passage, Claim, Citation, or report IDs; those identities belong to the program. If the evidence is insufficient, return a non-empty `abstention_reason` and an `Insufficient evidence` section with an empty claims array. Otherwise claims must be non-empty. Preserve uncertainty and author review."""
 CROSS_WRITER_PROMPT_SUFFIX = """ This is a cross-paper comparison, not separate summaries: include at least one comparison Claim whose Citation suggestions cover Evidence from two different Source IDs. Keep source-specific Claims separate and never merge unrelated claims."""
 _OUTPUT_ROOT = "outputs"
@@ -283,6 +283,7 @@ class GLME2ECrossPaperAttemptTask(GLME2EPilotAttemptTask):
     artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/e2e/v1\.2/dr-run-[0-9a-f]{{24}}$")
     selected_source_keys: list[str] = Field(min_length=2, max_length=8)
     selected_passage_ids: list[str] = Field(min_length=2, max_length=16)
+    retrieval_top_k: int = Field(default=12, ge=1, le=20)
     task_input_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
@@ -295,7 +296,7 @@ class GLME2ECrossPaperAttemptTask(GLME2EPilotAttemptTask):
 def task_input_sha256(task: GLME2EPilotTask) -> str:
     value = {"task_key": task.task_key, "original_question": task.original_question, "brief_objective": task.brief_objective, "constraints": list(task.constraints), "scope_inclusions": list(task.scope_inclusions), "scope_exclusions": list(task.scope_exclusions), "corpus_path": task.corpus_path, "corpus_sha256": task.corpus_sha256}
     if isinstance(task, GLME2ECrossPaperAttemptTask):
-        value.update({"selected_source_keys": list(task.selected_source_keys), "selected_passage_ids": list(task.selected_passage_ids)})
+        value.update({"selected_source_keys": list(task.selected_source_keys), "selected_passage_ids": list(task.selected_passage_ids), "retrieval_top_k": task.retrieval_top_k})
     return sha256_hex(canonical_json_bytes(value))
 
 
@@ -436,7 +437,7 @@ class GLMStructuredPlanner:
     """Real-provider-capable Planner adapter; formal Plan IDs remain program-owned."""
 
     def __init__(self, client: StructuredGLMClient, *, reservation_usage: TokenUsage | None = None, selected_source_keys: tuple[str, ...] = ()) -> None:
-        self._client, self.last_usage, self.reservation_usage, self.last_draft, self._selected_source_keys = client, TokenUsage(), reservation_usage or TokenUsage(), None, selected_source_keys
+        self._client, self.last_usage, self.reservation_usage, self.last_draft, self._selected_source_keys, self.last_source_refs = client, TokenUsage(), reservation_usage or TokenUsage(), None, selected_source_keys, {}
 
     async def create_draft(self, *, task: ResearchTask, brief: ResearchBrief) -> object:
         source_instruction = f"\nSelected source keys (program-owned allowlist): {json.dumps(list(self._selected_source_keys), ensure_ascii=False)}" if self._selected_source_keys else ""
@@ -448,7 +449,10 @@ class GLMStructuredPlanner:
             if reply.finish_reason in {"length", "max_tokens"}:
                 raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics, usage=reply.usage)
             try:
-                return _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics, task=task, brief=brief)
+                source_refs: dict[tuple[str, str], str] = {}
+                parsed = _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics, task=task, brief=brief, allowed_source_keys=self._selected_source_keys, source_refs=source_refs)
+                self.last_source_refs = source_refs
+                return parsed
             except PlannerResponseError as error:
                 error.usage = reply.usage
                 raise
@@ -532,7 +536,7 @@ def _planner_empty_error(diagnostics: dict[str, object], *, payload: dict[str, o
     return PlannerResponseError("planner_empty", "PlannerDraft must contain at least one subtask", safe)
 
 
-def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object], task: ResearchTask, brief: ResearchBrief) -> dict[str, object]:
+def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[str, object], task: ResearchTask, brief: ResearchBrief, allowed_source_keys: tuple[str, ...] = (), source_refs: dict[tuple[str, str], str] | None = None) -> dict[str, object]:
     """Ignore one harmless JSON fence but reject program-controlled identities."""
     normalized = content.strip()
     if normalized.startswith("```") and normalized.endswith("```"):
@@ -562,6 +566,12 @@ def _parse_planner_object_with_diagnostics(content: str, *, diagnostics: dict[st
             if not isinstance(candidate, dict) or forbidden.intersection(candidate):
                 raise PlannerResponseError("planner_schema_invalid", "GLM Planner subtask is invalid", {**diagnostics, "failure_stage": "planner_schema", "contract_error_code": "planner_schema_invalid"})
             local_key = candidate.get("local_key") if isinstance(candidate.get("local_key"), str) else None
+            source_ref = candidate.get("source_ref")
+            if allowed_source_keys:
+                if not isinstance(source_ref, str) or source_ref not in allowed_source_keys:
+                    raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].source_ref", observed=source_ref, approved=allowed_source_keys, local_key=local_key)
+                if source_refs is not None:
+                    source_refs[(str(candidate.get("question", "")), str(candidate.get("rationale", "")))] = source_ref
             action = candidate.get("research_action")
             if action is not None and action not in {"search_and_read_local_evidence", "verify_local_evidence"}:
                 raise _planner_scope_error(diagnostics, field=f"subtasks[{local_key or '?'}].research_action", observed=action, approved=("search_and_read_local_evidence", "verify_local_evidence"), local_key=local_key)
@@ -621,8 +631,8 @@ def _validate_cross_paper_allowlist(graph: EvidenceGraph, allowed_source_keys: t
 class DeepResearchRunner:
     """One injected single-agent composition; it creates no new runtime or Event Store."""
 
-    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = (), comparison_required: bool = False, allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = ()) -> None:
-        self._planner, self._executor, self._writer, self._budget, self._requirements, self._comparison_required, self._allowed_source_keys, self._allowed_passage_ids = planner, executor, writer, budget, requirements, comparison_required, allowed_source_keys, allowed_passage_ids
+    def __init__(self, planner: Planner, executor: LocalResearchExecutor, writer: Writer, *, budget: BudgetSpec, requirements: tuple[SubtaskEvidenceRequirement, ...] = (), comparison_required: bool = False, allowed_source_keys: tuple[str, ...] = (), allowed_passage_ids: tuple[str, ...] = (), retrieval_top_k: int = 1) -> None:
+        self._planner, self._executor, self._writer, self._budget, self._requirements, self._comparison_required, self._allowed_source_keys, self._allowed_passage_ids, self._retrieval_top_k = planner, executor, writer, budget, requirements, comparison_required, allowed_source_keys, allowed_passage_ids, retrieval_top_k
 
     @staticmethod
     def run_id(task: ResearchTask, brief: ResearchBrief, *, attempt_id: str | None = None) -> str:
@@ -661,6 +671,10 @@ class DeepResearchRunner:
             "model_identity_unverified": "provider_response_invalid",
             "usage_missing": "provider_response_invalid",
         }.get(code, code)
+
+    def _source_routing(self, plan: ValidatedResearchPlan) -> dict[str, tuple[str, ...]]:
+        refs = getattr(self._planner, "last_source_refs", {})
+        return {subtask.subtask_id: (refs[(subtask.question, subtask.rationale)],) for subtask in plan.subtasks if (subtask.question, subtask.rationale) in refs}
 
     async def run(self, task: ResearchTask, brief: ResearchBrief, approval: BriefApproval, *, event_path: Path, checkpoint_path: Path, attempt_id: str | None = None) -> DeepResearchE2EResult:
         if brief.approval_status is not BriefApprovalStatus.approved:
@@ -719,12 +733,17 @@ class DeepResearchRunner:
             raise E2ETerminalError(code, outcome_unknown=error.code == "outcome_unknown") from error
         usage = getattr(self._planner, "last_usage", TokenUsage())
         plan_artifact_sha256 = _write_json_artifact(event_path.parent / "validated_plan.json", plan.model_dump(mode="json"))
-        self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "plan_artifact_sha256": plan_artifact_sha256, "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
+        source_routing = self._source_routing(plan) if self._allowed_source_keys else {}
+        if self._allowed_source_keys and len(source_routing) != len(plan.subtasks):
+            diagnostics = {"failure_stage": "planner_source_routing", "contract_error_code": "cross_paper_source_selection_mismatch", "allowed_source_count": len(self._allowed_source_keys), "routed_subtask_count": len(source_routing), "validation_rule": "cross_paper_subtask_source_ref_required"}
+            raise self._terminalize_stage_failure(store, events, initial, checkpoint_path=checkpoint_path, code="cross_paper_source_selection_mismatch", diagnostics=diagnostics, started=planner_started) from E2ETerminalError("cross_paper_source_selection_mismatch")
+        source_routing_sha256 = _write_json_artifact(event_path.parent / "source_routing.json", source_routing) if source_routing else None
+        self._append(store, events, RuntimeEventType.operation_succeeded, {"operation_name": "structured_planner", "attempt_number": 1, "usage": usage.model_dump(mode="json"), "result_sha256": sha256_hex(canonical_json_bytes(plan.model_dump(mode="json"))), "plan_artifact_sha256": plan_artifact_sha256, "source_routing_sha256": source_routing_sha256, "validated_plan": plan.model_dump(mode="json")}, operation_id=operation_id, attempt_id=attempt_id, causal_parent_id=dispatched.event_id)
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": max(0.000001, time.monotonic() - planner_started)}, causal_parent_id=events[-1].event_id)
         write_coordinated_checkpoint(checkpoint_path, CoordinatedCheckpointV2.from_result(replay_runtime_events(initial, events, self._budget)))
         stage_started = time.monotonic()
         try:
-            execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id, allowed_source_keys=self._allowed_source_keys or None, allowed_passage_ids=self._allowed_passage_ids or None)
+            execution = await self._executor.execute(task, brief, approval, plan, event_path=event_path, checkpoint_path=checkpoint_path, run_id=run_id, allowed_source_keys=self._allowed_source_keys or None, allowed_passage_ids=self._allowed_passage_ids or None, allowed_source_keys_by_subtask=source_routing, retrieval_top_k=self._retrieval_top_k)
             if self._allowed_source_keys or self._allowed_passage_ids:
                 _validate_cross_paper_allowlist(execution.evidence_graph, self._allowed_source_keys, self._allowed_passage_ids)
             assessment = await assess_evidence_graph(execution.evidence_graph, self._requirements, AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in plan.subtasks)))
@@ -736,6 +755,8 @@ class DeepResearchRunner:
             raise self._terminalize_stage_failure(store, events, initial, checkpoint_path=checkpoint_path, code="assessment_invalid", diagnostics=diagnostics, started=stage_started) from error
         events = store.read_all()
         artifact_refs = {"plan_sha256": plan_artifact_sha256, "evidence_graph_sha256": _write_json_artifact(event_path.parent / "evidence_graph.json", execution.evidence_graph.model_dump(mode="json")), "assessment_sha256": _write_json_artifact(event_path.parent / "assessment.json", assessment.model_dump(mode="json"))}
+        if source_routing_sha256:
+            artifact_refs["source_routing_sha256"] = source_routing_sha256
         self._append(store, events, RuntimeEventType.elapsed_recorded, {"elapsed_s": 0.000001, "artifact_refs": artifact_refs}, causal_parent_id=events[-1].event_id)
         writer_result = await SingleWriterRunner(self._writer, budget=self._budget, reservation_usage=getattr(self._writer, "reservation_usage", TokenUsage())).run(task, brief, approval, plan, execution.evidence_graph, assessment, event_path=event_path, checkpoint_path=checkpoint_path, artifact_refs=artifact_refs, validation_guard=require_cross_paper_comparison if self._comparison_required else None)
         return DeepResearchE2EResult(run_id=run_id, terminal=writer_result.validation.status.value, plan=plan, validation=writer_result.validation)
