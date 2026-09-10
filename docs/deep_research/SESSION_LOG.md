@@ -40,6 +40,7 @@
 | B08E2E-R7 | Writer identity ownership and content-draft finalization; calibration-003 freeze | completed; implementation `90262da09c4b23857ca7ad6aa3b87d0a0f3be199`; calibration-003 preflight passed; no real calibration call |
 | B08E2E-R8 | Close successful writer-calibration-003 and freeze single-paper E2E Attempt-008 | completed; calibration-003 `pass_writer_contract_and_deterministic_grounding`; Attempt-008 `real_single_paper_e2e_pass`; cross-paper and insufficient-evidence follow-ups design-only |
 | B08E2E-R9 | Cross-paper comparison corpus audit and immutable Pilot plan freeze | completed; two independent local Sources verified; dry-run/preflight passed; no real Pilot call |
+| B08E2E-R10 | Cross-paper Attempt-001 source allowlist and comparison Claim repair; Attempt-002 freeze | completed; Attempt-001 failed_known retained; Attempt-002 dry-run/preflight passed; no new real Pilot call |
 | S21 | 定义 Search / Fetch provider 抽象 | not_started |
 | S22 | 实现抓取、净化、缓存和内容哈希 | not_started |
 | S23 | 建立来源质量与安全策略 | not_started |
@@ -116,3 +117,10 @@
 - Executable plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json), run `dr-run-8e3c2028b68e14c88fc7b17e`, artifact target absent.
 - Corpus audit selected two independent Sources: `dr-source-76a2766b4e0d53670687ff4e` (L4DLHQUZ / TPMN) and `dr-source-c82227e5b40e464045457dd3` (3NLKTSIP / Modified YOLO), each with a real method passage and stable locator.
 - The plan binds implementation `d286ca0c3a187d7237e399d766a2370f5683812b`, runtime source SHA-256 `76b894d0b596c16d804ba1fedd893a64e4e717a28de11a866e2ae673e65db2d3`, task input SHA-256 `4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e`, and frozen Planner/Writer/corpus hashes. Only offline plan validation and Mock cross-source gate tests ran.
+
+### B08E2E-R10 evidence
+
+- Attempt-001 remains immutable and is recorded `failed_known / cross_paper_comparison_invalid`; its runtime SHA-256 is `FC34EE6F305173A2B29552D809B6DEB9FC8F44554D9621D555CE827273407DC9` and checkpoint SHA-256 is `7F6EBFA8CC949903C58728AB0CAA4EA413315BA1E8B8986E5CF7E72CB1626050`.
+- Attempt-002 plan: [`e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json`](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json), run `dr-run-b966de61dabf031cbfa96d3e`, artifact target absent.
+- Implementation `265470ce7ec7bdc70f41df29037e55c896b1c65a`; runtime source SHA-256 `b133c7ddd00ff9d53ced077ace11300e7f51e04649b35417061a011d4a9ff23a`; cross Planner/Writer prompt hashes `67f3c0b64867238b028ba210daa27affdbd11d2af945e2dd0967136e71cb4ae7` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`.
+- Source/passage allowlist admission and cross-source Claim gate are covered by offline tests. Attempt-002 was not executed.

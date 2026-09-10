@@ -1,8 +1,8 @@
 # Follow-up Pilot Designs after Attempt-008
 
-These are design-only, unexecuted follow-ups. No Provider, Web, Tool or real E2E call is authorized by the closure batch.
+These are controlled follow-up designs. Attempt-001 was executed once and is permanently retained as `failed_known / cross_paper_comparison_invalid`; the repaired Attempt-002 below is dry-run/preflight-only. No additional Provider, Web, Tool or real E2E call is authorized by the repair batch.
 
-Both designs bind to the cross-paper implementation commit `d286ca0c3a187d7237e399d766a2370f5683812b` (runtime source SHA-256 `76b894d0b596c16d804ba1fedd893a64e4e717a28de11a866e2ae673e65db2d3`), Planner prompt SHA-256 `cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b`, Writer prompt SHA-256 `a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1`, and corpus SHA-256 `d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6`. They use GLM-5.3-Flash, Planner low / Writer high reasoning, 2048/4096 Planner and 4096/4096 Writer token ceilings, two Provider calls, zero retries, one bounded replan, 60/180 second timeouts, 0.02 CNY hard limit, and no Web, vision, files, parallelism or fallback.
+The original design records preserve their pre-repair identity. The repaired cross-paper Attempt-002 plan binds implementation commit `265470ce7ec7bdc70f41df29037e55c896b1c65a` (runtime source SHA-256 `b133c7ddd00ff9d53ced077ace11300e7f51e04649b35417061a011d4a9ff23a`), cross Planner prompt SHA-256 `67f3c0b64867238b028ba210daa27affdbd11d2af945e2dd0967136e71cb4ae7`, Writer prompt SHA-256 `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`, and corpus SHA-256 `d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6`. It keeps GLM-5.3-Flash, Planner low / Writer high reasoning, 2048/4096 Planner and 4096/4096 Writer ceilings, two Provider calls, zero retries, one bounded replan, 60/180 second timeouts, 0.02 CNY hard limit, and no Web, vision, files, parallelism or fallback.
 
 ## Cross-paper comparison
 
@@ -16,6 +16,20 @@ The repository’s canonical task key is `cross_paper_comparison` (the user-faci
 - Frozen task input SHA-256: `4315f8de67e0cfd65c1e9ce4a296bb6fb6a08cf0652483627417df2a537bfe0e`.
 - Selected corpus Sources: `dr-source-76a2766b4e0d53670687ff4e` (L4DLHQUZ / TPMN) and `dr-source-c82227e5b40e464045457dd3` (3NLKTSIP / Modified YOLO), with passages `L4DLHQUZ:L4DLHQUZ_chunk_0007` and `3NLKTSIP:3NLKTSIP_chunk_0005`.
 - Gate: at least two independent Sources; every comparison Claim must retain source-specific Evidence and Citation/Quote/span grounding. A conflict or replan is not forced when the corpus does not support one.
+
+Attempt-001 audit found two real Sources but no Claim whose citations covered both Sources, and the runtime graph used Q55RU9N6 instead of the plan-selected L4DLHQUZ. The original artifact and plan remain unchanged.
+
+## Repaired cross-paper Attempt-002
+
+- Executable plan: [glm_e2e_cross_paper_plan.attempt-002.json](glm_e2e_cross_paper_plan.attempt-002.json)
+- Attempt: `glm-5.3-flash-deepresearch-cross-paper-002`
+- Deterministic run: `dr-run-b966de61dabf031cbfa96d3e`
+- Artifact target: `outputs/deep_research/e2e/v1.2/dr-run-b966de61dabf031cbfa96d3e` (absent)
+- Implementation commit/source SHA-256: `265470ce7ec7bdc70f41df29037e55c896b1c65a` / `b133c7ddd00ff9d53ced077ace11300e7f51e04649b35417061a011d4a9ff23a`
+- Planner/Writer prompt SHA-256: `67f3c0b64867238b028ba210daa27affdbd11d2af945e2dd0967136e71cb4ae7` / `caa0cffb9495863b95ae1e6e9e0945797b5776c727830093d7568fe6cf957445`
+- Selected Sources: `dr-source-76a2766b4e0d53670687ff4e` and `dr-source-c82227e5b40e464045457dd3`; selected passages are `L4DLHQUZ:L4DLHQUZ_chunk_0007` and `3NLKTSIP:3NLKTSIP_chunk_0005`.
+
+Attempt-002 enforces source/passage allowlists before EvidenceGraph admission and requires a structurally cross-source Claim before Writer success. It remains unexecuted and requires separate manual authorization.
 
 ## Insufficient evidence
 
