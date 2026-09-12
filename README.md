@@ -115,4 +115,4 @@ $env:PYTHONPATH = "src"
 python -m pytest -q -p no:cacheprovider
 ```
 
-Current suite: `238 passed`.
+Most recently recorded full validation at commit `1a47f8bc3c6b5534154d291a844f81b0721e01eb`: `508 passed, 1 warning`. This documentation-only status synchronization does not rerun the suite.

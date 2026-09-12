@@ -3,7 +3,8 @@
 ## Current Milestone
 
 - Last pushed/tagged release: `v1.0.0-mvp`
-- Current state: `MVP_COMPLETE`. LitFlow is a local-first evidence-grounded bilingual research writing Copilot with frozen retrieval/QA contracts, Evidence Matrix, author-editable writing drafts, a localhost-only FastAPI/UI workbench, and verified Docker packaging.
+- Released MVP state: `MVP_COMPLETE`. LitFlow is a local-first evidence-grounded bilingual research writing Copilot with frozen retrieval/QA contracts, Evidence Matrix, author-editable writing drafts, a localhost-only FastAPI/UI workbench, and verified Docker packaging.
+- Current milestone-branch state: `real_insufficient_evidence_abstention_pass_on_obvious_out_of_domain_query`; resume status `ready_with_scope_limitations`. The DeepResearch path has passed a real GLM single-paper E2E, a frozen source-scoped cross-paper comparison, and an obvious out-of-domain abstention pilot. These are bounded local-corpus results, not broad semantic-correctness or retrieval-quality guarantees.
 - Latest additions after `v0.1.1`: reproducible evaluation, strict QA contracts, entity binding, safe partial answers, and author-reviewed Chinese-to-English retrieval translation.
 
 ## Completed
@@ -28,6 +29,8 @@
 - M5 Minimal FastAPI + Simple UI MVP: versioned read-only corpus, retrieval, passage, Evidence Matrix, and writing-draft endpoints plus file-backed job status and SSE events are available on localhost. Offline demo mode and an online Q01 Flash UI job are verified, including cached Chinese-to-English retrieval, entity binding, citation membership, strict quote grounding, and citation drawer rendering. Q05 remains a historical safe failure because its ambiguous quote also matched another passage; no validator was relaxed and no retry was attempted.
 - M6 Runtime Container Smoke Closure: verified a non-root, read-only-root-filesystem Docker image with localhost-only default port, read-only demo inputs, persisted job recovery, explicit Online QA fail-closed behavior, and named online job-volume restart persistence. No cloud deployment or image publication was performed.
 - M8 Experimental Agent Extension Closure: M8A controlled single-agent scaffold, M8B.1A durable event/replay kernel, and M8B.1B progress-aware control-plane Fake E2E passed. The real AG01 Flash planning/tool chain completed, but the final grounded answer failed strict quote grounding (`evidence_anchor_not_found`); AG07/AG11 real canaries and the 12-task pilot were not run due to the frozen gate. Overall status: `experimental_partial_pass`, not a validated end-to-end grounded Agent product.
+- DeepResearch B01-B08: implemented program-owned domain identities, approval-gated structured planning, durable reserve/dispatch/terminal events, atomic checkpoints and replay, local read-only execution, EvidenceGraph construction, bounded gap/conflict assessment, a single evidence-grounded Writer, and deterministic report validation.
+- Real DeepResearch pilots: the single-paper E2E passed; the cross-paper E2E passed under a frozen source-scoped corpus; and the obvious out-of-domain query ended in safe `insufficient_evidence` with zero displayed Claims/Citations. All remain author-review gated and `publication_ready=false`; retrieval quality and semantic correctness are not evaluated at scale.
 
 For detailed acceptance metrics, see:
 
@@ -54,6 +57,7 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - author-reviewed evidence-grounded bilingual draft rendering;
 - Obsidian preview/apply safety boundaries;
 - pytest coverage for the core trust boundaries.
+- a controlled DeepResearch single-Planner/local-Executor/single-Writer path with immutable plans, budgeted GLM calls, deterministic grounding, and zero-call replay within the tested local-corpus scope.
 
 ## Known Limitations
 
@@ -75,9 +79,12 @@ The project is a working local-first MVP, not a hosted SaaS product. It demonstr
 - M2B uses one Chinese source that is retrieval-smoke eligible but remains `needs_manual_check` for LLM use because Chinese section headings are unknown to the existing section detector. The smoke does not establish broad mixed-language retrieval quality.
 - Evidence Matrix is a vertical slice from the current reviewed QA pilot, not a complete literature review. Sparse cells must not be filled with model knowledge.
 - M8 Agent is an experimental extension. Its planning/tool-control chain and durable replay kernel are verified, but end-to-end grounded Agent completion is not validated because AG01 stopped at strict quote grounding. Do not present an Agent completion rate, production Agent availability, a passed 12-task benchmark, MCP completion, or multi-Agent capability.
+- DeepResearch real E2E evidence is limited to one single-paper task, one frozen source-scoped cross-paper comparison, and one obvious out-of-domain easy negative. Semantic correctness, hard-negative abstention, retrieval quality at scale, long-run stability, open-domain/Web research, multimodal evidence, Multi-Agent execution, and production deployment remain unverified.
+- The insufficient-evidence pilot exposed a BM25 false positive; safe abstention occurred in the Writer/Validator path, not in a reliable retrieval relevance or no-answer gate.
 
 ## Recommended Next Steps
 
 1. MVP technical development is frozen at `v1.0.0-mvp`.
 2. Preserve retrieval, QA, evidence, writing, UI, and Docker contracts unless a separately approved post-MVP milestone is defined.
 3. Keep publication-oriented writing, cloud deployment, and feature expansion out of the MVP release scope.
+4. Treat any retrieval-quality, relevance-gate, Dense/Reranker, provider, Web, multimodal, or Multi-Agent work as a separately approved batch; none is implemented by this status synchronization.

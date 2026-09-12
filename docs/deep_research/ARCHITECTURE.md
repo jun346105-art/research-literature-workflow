@@ -2,14 +2,14 @@
 
 ## Status and isolation
 
-This is a planned architecture, not an implemented runtime. Future code belongs in `src/litflow/deep_research/`; future artifacts belong in `outputs/deep_research_v1/`. Neither namespace is created by this batch. Frozen MVP/M8 code and historical outputs remain unchanged and are reached only through adapters or wrappers.
+This document began as the S03/S04 target-architecture freeze. The bounded B01-B08 path is now implemented in `src/litflow/deep_research/`, with retained artifacts under `outputs/deep_research/`. The verified scope covers deterministic contracts and runtime, local read-only retrieval, one structured Planner, one structured Writer, grounding validation, and limited real GLM text-only pilots. LangGraph orchestration, Web, VLM, Multi-Agent, and production service integration remain unimplemented. Frozen MVP/M8 code and historical outputs remain isolated and unchanged.
 
-| Layer | Planned responsibility | Existing reuse evidence | Explicit non-ownership |
+| Layer | Current responsibility | Implementation evidence | Explicit non-ownership |
 | --- | --- | --- | --- |
-| Domain Contracts | versioned task, brief, source, evidence, claim, citation, state and result contracts | existing Pydantic/dataclass/TypedDict assets A02–A16 | no provider calls, retrieval, display or schema invention in this batch |
-| Deterministic Kernel | IDs, hashes, budget, transition guards, grounding, coverage, terminal safe failure | BM25/qrels checks, QA validation, span mapper, durable-event projection | no model planning or graph scheduling |
-| Orchestration Adapter | LangGraph node scheduling, checkpoint integration and conditional routing | M8 `ResearchAgent` StateGraph and fake durable tests | no source/evidence identity, validator authority or final display authority |
-| Provider/Tool Adapters | local retrieval, future LLM/Web/VLM transport behind replaceable seams | existing BM25, translation, QA and tool contracts | no policy bypass or direct report publication |
+| Domain Contracts | versioned task, brief, approval, subtask, source, evidence, claim, citation, state and result contracts | B01/B04 Pydantic contracts and byte-stable schemas | no provider calls, retrieval, or final display authority |
+| Deterministic Kernel | IDs, hashes, budget, transition guards, grounding, coverage, terminal safe failure and replay | B02/B03R/B03R2 runtime, B05 EvidenceGraph, B06 assessment and B07 validator | no model-owned identity or semantic-correctness claim |
+| Orchestration | controlled single-Planner -> local Executor -> single-Writer flow | B04-B08 controlled runners and immutable pilot plans | no LangGraph dependency in the DeepResearch path; no Multi-Agent scheduling |
+| Provider/Tool Adapters | GLM text-only Planner/Writer transport and local read-only BM25 passage tools | Gate A and bounded single-paper/cross-paper/abstention pilots | no Web/VLM transport, policy bypass, or direct report publication |
 
 ## Default Single-Agent control flow
 
@@ -32,17 +32,17 @@ The logical terminal outcomes are `complete`, `insufficient_evidence`, `failed`,
 
 The program creates and owns Source, Evidence, Claim and Citation identity; it also owns provenance, original spans/regions, validation and final display authority. Models can return candidate plans, queries, claims, relations and repair suggestions only.
 
-**Evidence Store** is the durable, complete provenance record. **Model Context View** is a budgeted, selected view derived from the Store for one model call. It is never a source of truth and cannot replace evidence identity. Text, future Web and future page+bbox evidence share this upper ownership rule; exact S05/S06 fields are deliberately deferred.
+**Evidence Store** is the durable, complete provenance record. **Model Context View** is a budgeted, selected view derived from the Store for one model call. It is never a source of truth and cannot replace evidence identity. B01/B05 implement the current text Source/Evidence contracts; future Web and page+bbox evidence remain deferred and must preserve the same ownership rule.
 
 ## Artifact and persistence contract
 
-Initial persistence is versioned JSON/JSONL with atomic writes and append-only events. SQLite is deferred to S39 unless evidence shows file contracts cannot meet recovery/concurrency needs.
+Current persistence uses versioned JSON/JSONL, atomic checkpoints, append-only events and hash-verified replay. SQLite remains deferred to S39 unless evidence shows file contracts cannot meet recovery/concurrency needs.
 
 ```text
-outputs/deep_research_v1/runs/<run_id>/
-  run_manifest.json, brief.json, plan.json, events.jsonl, checkpoints/
-  sources.jsonl, evidence.jsonl, claims.jsonl, report.json, metrics.json
-  failure.json  # failure only
+outputs/deep_research/<pilot-family>/<version>/<run_id>/
+  runtime.jsonl, checkpoint.json
+  validated_plan.json, evidence_graph.json, assessment.json
+  validation_result.json
 ```
 
-Each artifact path is planned. No output is created by this batch. Existing M8 durable events are a wrapper candidate: v2 fake replay passed, while the real AG01 chain ended with `quote_grounding_failed / evidence_anchor_not_found` and therefore does not validate grounded completion.
+The repository retains immutable bounded-pilot artifacts for Gate A, single-paper E2E, source-scoped cross-paper comparison, and obvious out-of-domain abstention. These results validate only their frozen local-corpus scopes; they do not establish semantic correctness at scale, open-domain retrieval, Web, multimodal, Multi-Agent, or remote exactly-once behavior. M8 durable events remain a separate experimental lineage and do not validate the DeepResearch runtime.
