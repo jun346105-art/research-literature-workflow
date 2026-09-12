@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "litflow://retrieval-quality-r1/dataset-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "dataset_id",
+    "tracked_text_hash_mode",
+    "corpus",
+    "development_reviewed",
+    "pending_candidates",
+    "splits",
+    "retriever_modes",
+    "tuning_policy",
+    "formal_evaluation"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "dataset_id": {
+      "const": "retrieval-quality-r1-v1"
+    },
+    "tracked_text_hash_mode": {
+      "const": "json=sorted-compact-utf8; csv=lf-utf8-no-bom"
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "manifest_path",
+        "corpus_sha256",
+        "manifest_sha256",
+        "passage_hashes_path",
+        "passage_hashes_sha256",
+        "paper_count",
+        "passage_count"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "corpus_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "passage_hashes_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "passage_hashes_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "paper_count": {
+          "const": 10
+        },
+        "passage_count": {
+          "const": 185
+        }
+      }
+    },
+    "development_reviewed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "source_path",
+        "source_sha256",
+        "count",
+        "review_status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "count": {
+          "const": 20
+        },
+        "review_status": {
+          "const": "reviewed"
+        }
+      }
+    },
+    "pending_candidates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "review_csv",
+        "review_csv_sha256",
+        "sha256",
+        "count",
+        "review_status"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_csv": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_csv_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "count": {
+          "const": 28
+        },
+        "review_status": {
+          "const": "pending_review"
+        }
+      }
+    },
+    "splits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "development",
+        "dev_hard_negative",
+        "held_out",
+        "held_out_composition"
+      ],
+      "properties": {
+        "development": {
+          "const": 20
+        },
+        "dev_hard_negative": {
+          "const": 12
+        },
+        "held_out": {
+          "const": 16
+        },
+        "held_out_composition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "single_paper_answerable",
+            "cross_paper_answerable",
+            "in_domain_no_answer",
+            "near_miss_hard_negative"
+          ],
+          "properties": {
+            "single_paper_answerable": {
+              "const": 8
+            },
+            "cross_paper_answerable": {
+              "const": 4
+            },
+            "in_domain_no_answer": {
+              "const": 2
+            },
+            "near_miss_hard_negative": {
+              "const": 2
+            }
+          }
+        }
+      }
+    },
+    "retriever_modes": {
+      "const": [
+        "bm25_zh_raw",
+        "bm25_en",
+        "dense_zh_windowed",
+        "hybrid_zh_windowed"
+      ]
+    },
+    "tuning_policy": {
+      "const": "development_only; held_out_is_never_a_tuning_input"
+    },
+    "formal_evaluation": {
+      "const": "blocked_until_all_records_are_reviewed"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "litflow://retrieval-quality-r1/result-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query_id",
+    "results"
+  ],
+  "properties": {
+    "query_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "passage_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "passage_id": {
+            "type": "string",
+            "pattern": "^[^:]+:[^:]+$"
+          },
+          "rank": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "score": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

@@ -1,0 +1,460 @@
+{
+  "metadata": {
+    "dataset_id": "retrieval-quality-r1-v1",
+    "migration": "historical review statuses map to reviewed; source_review_status preserves provenance",
+    "query_count": 20,
+    "record_role": "canonical_reviewed_development",
+    "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+    "source_sha256": "bd11e7c156eea4930fc8449dc196c97b3693583f6b207421758a7bb42671ac6e"
+  },
+  "queries": [
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "WT-C3k2 combines C3k2 and WTConv.",
+      "query_en": "What does the WT-C3k2 module combine?",
+      "query_id": "Q01",
+      "query_type": "method",
+      "query_zh": "WT-C3k2\u6a21\u5757\u7ed3\u5408\u4e86\u54ea\u4e9b\u7ed3\u6784\u6216\u6280\u672f\uff1f",
+      "relevance_grades": {
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0008": 1
+      },
+      "relevant_paper_keys": [
+        "DZ6TYBIQ"
+      ],
+      "relevant_passage_ids": [
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0008"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "b806838e4d689f82e817faad96ea26cb220f6ef229440fadab40615fa834c52d",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "QA uses learnable quadrilateral transformations.",
+      "query_en": "How does the QA Block change attention windows?",
+      "query_id": "Q02",
+      "query_type": "method",
+      "query_zh": "QA Block\u5982\u4f55\u6539\u53d8\u6ce8\u610f\u529b\u7a97\u53e3\uff1f",
+      "relevance_grades": {
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0009": 1
+      },
+      "relevant_paper_keys": [
+        "DZ6TYBIQ"
+      ],
+      "relevant_passage_ids": [
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0009"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "14580e1792b93ce5425d20716569385940e5e5a89f164c6860b67fa92c105de2",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "DySample adaptively upsamples by feature complexity.",
+      "query_en": "How does DySample support multi-scale features?",
+      "query_id": "Q03",
+      "query_type": "method",
+      "query_zh": "DySample\u5982\u4f55\u652f\u6301\u591a\u5c3a\u5ea6\u7279\u5f81\uff1f",
+      "relevance_grades": {
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0010": 1
+      },
+      "relevant_paper_keys": [
+        "DZ6TYBIQ"
+      ],
+      "relevant_passage_ids": [
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0010"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "22bf7e7e83652b305d1821152234893ca19488da715afa821cc1484d48d60091",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "TPMN uses prior attention and multi-level feature fusion.",
+      "query_en": "How does TPMN preserve low-level texture information for corrugated boxes?",
+      "query_id": "Q04",
+      "query_type": "method",
+      "query_zh": "TPMN\u5982\u4f55\u4fdd\u7559\u74e6\u695e\u7eb8\u7bb1\u7684\u4f4e\u5c42\u7eb9\u7406\u4fe1\u606f\uff1f",
+      "relevance_grades": {
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003": 1
+      },
+      "relevant_paper_keys": [
+        "L4DLHQUZ"
+      ],
+      "relevant_passage_ids": [
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "f52bf22df9768da666958530528520c3f1c368104cbcff6a8f91330e2e572b9a",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "It derives an error model and uses radial residuals.",
+      "query_en": "How does modified RANSAC handle RGB-D plane fitting errors?",
+      "query_id": "Q05",
+      "query_type": "method",
+      "query_zh": "\u6539\u8fdb\u7684RANSAC\u5982\u4f55\u5904\u7406RGB-D\u5e73\u9762\u62df\u5408\u8bef\u5dee\uff1f",
+      "relevance_grades": {
+        "7VU5R3RT:7VU5R3RT_chunk_0004": 1,
+        "7VU5R3RT:7VU5R3RT_chunk_0008": 1
+      },
+      "relevant_paper_keys": [
+        "7VU5R3RT"
+      ],
+      "relevant_passage_ids": [
+        "7VU5R3RT:7VU5R3RT_chunk_0004",
+        "7VU5R3RT:7VU5R3RT_chunk_0008"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "0416f504e87a2395de250007e70a84b0a0d92d0ecd3b1dd85291f73e75103d2a",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Reported Precision is 95.8% with a 2.1 point improvement.",
+      "query_en": "What Precision result does Merge-YOLO report versus YOLO11?",
+      "query_id": "Q06",
+      "query_type": "experiment",
+      "query_zh": "\u4e0eYOLO11\u76f8\u6bd4\uff0cMerge-YOLO\u62a5\u544a\u7684Precision\u662f\u591a\u5c11\uff1f",
+      "relevance_grades": {
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0012": 1
+      },
+      "relevant_paper_keys": [
+        "DZ6TYBIQ"
+      ],
+      "relevant_passage_ids": [
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0012"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "427fa8424ac9b33ebe0b9336b52e5ff0ba83079d1c0bbaa419106a31ea60e215",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "QZU-DET contains 5095 images and three conditions.",
+      "query_en": "How many images and categories are in QZU-DET?",
+      "query_id": "Q07",
+      "query_type": "experiment",
+      "query_zh": "QZU-DET\u5305\u542b\u591a\u5c11\u5f20\u56fe\u50cf\u548c\u591a\u5c11\u4e2a\u7c7b\u522b\uff1f",
+      "relevance_grades": {
+        "3NLKTSIP:3NLKTSIP_chunk_0011": 1
+      },
+      "relevant_paper_keys": [
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0011"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "a421357b4807b0a95d01cd91ebddd58bd63dd8eaa4f54ae2961815b9dc415dfe",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "The proposed method reports 121 FPS.",
+      "query_en": "What inference speed is reported for tape-sealing defect detection?",
+      "query_id": "Q08",
+      "query_type": "experiment",
+      "query_zh": "\u80f6\u5e26\u5c01\u53e3\u7f3a\u9677\u68c0\u6d4b\u62a5\u544a\u7684\u63a8\u7406\u901f\u5ea6\u662f\u591a\u5c11\uff1f",
+      "relevance_grades": {
+        "3NLKTSIP:3NLKTSIP_chunk_0005": 1
+      },
+      "relevant_paper_keys": [
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0005"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "fe27cdc7583e5dd98c613ef2ab6613bb4436c15a80ae69bfa2b246a6e40bdf32",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Weighted radial distance results are reported.",
+      "query_en": "How is plane fitting angle error reduced to 0.5 degrees?",
+      "query_id": "Q09",
+      "query_type": "experiment",
+      "query_zh": "\u5e73\u9762\u62df\u5408\u7684\u89d2\u5ea6\u8bef\u5dee\u5982\u4f55\u964d\u4f4e\u52300.5\u00b0\uff1f",
+      "relevance_grades": {
+        "7VU5R3RT:7VU5R3RT_chunk_0017": 1
+      },
+      "relevant_paper_keys": [
+        "7VU5R3RT"
+      ],
+      "relevant_passage_ids": [
+        "7VU5R3RT:7VU5R3RT_chunk_0017"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "8bf3d0c53343863c59fbce9c271c917d99dff067785d7b223d9a0ba6f8c8b775",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Texture variation, low-level features, and multi-level information loss are described.",
+      "query_en": "What texture challenges affect corrugated courier box defect detection?",
+      "query_id": "Q10",
+      "query_type": "background_limitation",
+      "query_zh": "\u54ea\u4e9b\u7eb9\u7406\u6311\u6218\u4f1a\u5f71\u54cd\u74e6\u695e\u5feb\u9012\u7bb1\u7f3a\u9677\u68c0\u6d4b\uff1f",
+      "relevance_grades": {
+        "L4DLHQUZ:L4DLHQUZ_chunk_0002": 1
+      },
+      "relevant_paper_keys": [
+        "L4DLHQUZ"
+      ],
+      "relevant_passage_ids": [
+        "L4DLHQUZ:L4DLHQUZ_chunk_0002"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "de0cbfacdc6edfc7dde490e1da865602f2f86ce2eb1f00c0b74e8d3641302598",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Results are limited to parts from one mould.",
+      "query_en": "What single-mould limitation is reported for hybrid 2D/3D inspection?",
+      "query_id": "Q11",
+      "query_type": "background_limitation",
+      "query_zh": "\u6df7\u54082D/3D\u68c0\u6d4b\u62a5\u544a\u4e86\u4ec0\u4e48\u5355\u4e00\u6a21\u5177\u5c40\u9650\uff1f",
+      "relevance_grades": {
+        "GRPLVQ8G:GRPLVQ8G_chunk_0018": 1
+      },
+      "relevant_paper_keys": [
+        "GRPLVQ8G"
+      ],
+      "relevant_passage_ids": [
+        "GRPLVQ8G:GRPLVQ8G_chunk_0018"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "d945deab925a8d7a236711919e1c01d0924aed562c5a1d4b72f2ec036761b688",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "The paper addresses carton packaging quality detection in logistics.",
+      "query_en": "What logistics carton application is addressed by the SSD packaging defect system?",
+      "query_id": "Q12",
+      "query_type": "background_limitation",
+      "query_zh": "\u57fa\u4e8eSSD\u7684\u5305\u88c5\u7f3a\u9677\u7cfb\u7edf\u89e3\u51b3\u4e86\u7269\u6d41\u7eb8\u7bb1\u7684\u4ec0\u4e48\u5e94\u7528\u95ee\u9898\uff1f",
+      "relevance_grades": {
+        "Z5HMPJQG:Z5HMPJQG_chunk_0001": 1
+      },
+      "relevant_paper_keys": [
+        "Z5HMPJQG"
+      ],
+      "relevant_passage_ids": [
+        "Z5HMPJQG:Z5HMPJQG_chunk_0001"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "47e5b970fefb7718188dedd5861d6aef7a3a97e2586f309457c87ccce135aca8",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Cross-paper comparison of YOLO-based packaging defect methods.",
+      "query_en": "Which papers improve YOLO networks for packaging defect detection?",
+      "query_id": "Q13",
+      "query_type": "cross_paper",
+      "query_zh": "\u54ea\u4e9b\u8bba\u6587\u901a\u8fc7\u6539\u8fdbYOLO\u7f51\u7edc\u6765\u68c0\u6d4b\u5305\u88c5\u7f3a\u9677\uff1f",
+      "relevance_grades": {
+        "3NLKTSIP:3NLKTSIP_chunk_0016": 1,
+        "696N7XZ8:696N7XZ8_chunk_0003": 1,
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0012": 1
+      },
+      "relevant_paper_keys": [
+        "696N7XZ8",
+        "DZ6TYBIQ",
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0016",
+        "696N7XZ8:696N7XZ8_chunk_0003",
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0012"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "505e0d65518bc7e92db610ecf4b0374e120758802aaf33def1c97fb67c601810",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Comparison of RGB-D plane fitting and hybrid 2D/3D inspection.",
+      "query_en": "Which papers address RGB-D or 2D/3D geometric vision?",
+      "query_id": "Q14",
+      "query_type": "cross_paper",
+      "query_zh": "\u54ea\u4e9b\u8bba\u6587\u7814\u7a76RGB-D\u62162D/3D\u51e0\u4f55\u89c6\u89c9\uff1f",
+      "relevance_grades": {
+        "7VU5R3RT:7VU5R3RT_chunk_0004": 1,
+        "GRPLVQ8G:GRPLVQ8G_chunk_0003": 1
+      },
+      "relevant_paper_keys": [
+        "7VU5R3RT",
+        "GRPLVQ8G"
+      ],
+      "relevant_passage_ids": [
+        "7VU5R3RT:7VU5R3RT_chunk_0004",
+        "GRPLVQ8G:GRPLVQ8G_chunk_0003"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "1df32554a4419003fa84c31eb6f73dc526a3feeb92a1ed5cb104b495ddad7e61",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Methods mention multi-level fusion, reduced misses, or small-object detection.",
+      "query_en": "How do TPMN, Merge-YOLO, and the improved YOLOv8 model evaluated on the QZU-DET dataset respectively address small-scale or multi-scale packaging defects?",
+      "query_id": "Q15",
+      "query_type": "cross_paper",
+      "query_zh": "TPMN\u3001Merge-YOLO\u4ee5\u53ca\u5728QZU-DET\u6570\u636e\u96c6\u4e0a\u8bc4\u4f30\u7684\u6539\u8fdbYOLOv8\u6a21\u578b\uff0c\u5206\u522b\u5982\u4f55\u5904\u7406\u5c0f\u5c3a\u5bf8\u6216\u591a\u5c3a\u5ea6\u5305\u88c5\u7f3a\u9677\uff1f",
+      "relevance_grades": {
+        "3NLKTSIP:3NLKTSIP_chunk_0005": 1,
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0015": 1,
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003": 1
+      },
+      "relevant_paper_keys": [
+        "L4DLHQUZ",
+        "DZ6TYBIQ",
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0005",
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0015",
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "2a83fa3237892b35275cacf39b8ec613269dfffbcece647cc93674124a660d6b",
+      "source_review_status": "human_reviewed_pilot_qrels_v1_1",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Compare attention/lightweight YOLO improvements and dynamic upsampling.",
+      "query_en": "How do YOLOv8-GSP and Merge-YOLO use attention or upsampling modules to improve defect detection?",
+      "query_id": "Q16",
+      "query_type": "cross_paper",
+      "query_zh": "YOLOv8-GSP\u4e0eMerge-YOLO\u5206\u522b\u5982\u4f55\u4f7f\u7528\u6ce8\u610f\u529b\u6216\u4e0a\u91c7\u6837\u6a21\u5757\u6539\u8fdb\u7f3a\u9677\u68c0\u6d4b\uff1f",
+      "relevance_grades": {
+        "696N7XZ8:696N7XZ8_chunk_0003": 1,
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0010": 1
+      },
+      "relevant_paper_keys": [
+        "696N7XZ8",
+        "DZ6TYBIQ"
+      ],
+      "relevant_passage_ids": [
+        "696N7XZ8:696N7XZ8_chunk_0003",
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0010"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "f0df630897d657e6ca9a9ecd050b60b57370b295455d38a51689282d900c4a20",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": true,
+      "gold_evidence_summary": "Cross-paper dataset and experiment evidence.",
+      "query_en": "How do the TPMN, Merge-YOLO, and QZU-DET papers report their datasets and experimental setups?",
+      "query_id": "Q17",
+      "query_type": "cross_paper",
+      "query_zh": "TPMN\u3001Merge-YOLO\u4e0eQZU-DET\u8bba\u6587\u5206\u522b\u5982\u4f55\u62a5\u544a\u6570\u636e\u96c6\u548c\u5b9e\u9a8c\u8bbe\u7f6e\uff1f",
+      "relevance_grades": {
+        "3NLKTSIP:3NLKTSIP_chunk_0011": 1,
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0011": 1,
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003": 1
+      },
+      "relevant_paper_keys": [
+        "L4DLHQUZ",
+        "DZ6TYBIQ",
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0011",
+        "DZ6TYBIQ:DZ6TYBIQ_chunk_0011",
+        "L4DLHQUZ:L4DLHQUZ_chunk_0003"
+      ],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "a7309faf182b9c50ad5a9aea0e4bde9325016d1df3eb127e060d33482996a6d4",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": false,
+      "gold_evidence_summary": "No selected corpus evidence expected.",
+      "query_en": "Which papers use thermal imaging for packaging defect detection?",
+      "query_id": "Q18",
+      "query_type": "no_answer",
+      "query_zh": "\u54ea\u4e9b\u8bba\u6587\u4f7f\u7528\u70ed\u6210\u50cf\u68c0\u6d4b\u5305\u88c5\u7f3a\u9677\uff1f",
+      "relevance_grades": {},
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "1867619fdf20966e4b80ec00dff722a9963a3174e85cad21a5bf67a76e6d2e3a",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": false,
+      "gold_evidence_summary": "No selected corpus evidence expected.",
+      "query_en": "Which papers use MRI for carton defect detection?",
+      "query_id": "Q19",
+      "query_type": "no_answer",
+      "query_zh": "\u54ea\u4e9b\u8bba\u6587\u4f7f\u7528MRI\u68c0\u6d4b\u7eb8\u7bb1\u7f3a\u9677\uff1f",
+      "relevance_grades": {},
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "006be0d01cd70284632a1e027c4a9a23b53b9ba4a7e7f2b79fcd52496c093594",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    },
+    {
+      "expected_answerable": false,
+      "gold_evidence_summary": "No selected corpus evidence expected.",
+      "query_en": "Which papers prove zero missed detections for all packaging defects?",
+      "query_id": "Q20",
+      "query_type": "no_answer",
+      "query_zh": "\u54ea\u4e9b\u8bba\u6587\u8bc1\u660e\u5bf9\u6240\u6709\u5305\u88c5\u7f3a\u9677\u5747\u5b9e\u73b0\u96f6\u6f0f\u68c0\uff1f",
+      "relevance_grades": {},
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "review_status": "reviewed",
+      "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+      "source_record_sha256": "f91cc1a4eb6837a2f70d60ca260c31c3e2e2a5b171d85638bc0a411268564fb5",
+      "source_review_status": "human_reviewed_pilot",
+      "split": "development"
+    }
+  ]
+}

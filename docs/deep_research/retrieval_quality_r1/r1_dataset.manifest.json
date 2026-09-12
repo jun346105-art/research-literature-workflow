@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "dataset_id": "retrieval-quality-r1-v1",
+  "tracked_text_hash_mode": "json=sorted-compact-utf8; csv=lf-utf8-no-bom",
+  "corpus": {
+    "path": "outputs/rag_bm25_v1/passages.jsonl",
+    "manifest_path": "outputs/rag_bm25_v1/corpus_manifest.json",
+    "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+    "manifest_sha256": "fa34f43dbe64f605efdda94cfe37bf76faa87c59573cfde5f9d244d5b5bc60ff",
+    "passage_hashes_path": "docs/deep_research/retrieval_quality_r1/passage_hashes.json",
+    "passage_hashes_sha256": "d535064fdfbf270057ce7d4c096f7648f7167ef06efded506038b9424d1f0bb9",
+    "paper_count": 10,
+    "passage_count": 185
+  },
+  "development_reviewed": {
+    "path": "docs/deep_research/retrieval_quality_r1/reviewed_records.json",
+    "sha256": "6370639e5cefab3ec3d4d5a8aea9b138e3b9d5094a083d84fe2785a249cb485b",
+    "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+    "source_sha256": "bd11e7c156eea4930fc8449dc196c97b3693583f6b207421758a7bb42671ac6e",
+    "count": 20,
+    "review_status": "reviewed"
+  },
+  "pending_candidates": {
+    "path": "docs/deep_research/retrieval_quality_r1/pending_candidates.json",
+    "review_csv": "docs/deep_research/retrieval_quality_r1/pending_candidates.review.csv",
+    "review_csv_sha256": "358fc9ec319635af7182f7b7cee19ad53df75fb0f39e51ac60327c083b5132ce",
+    "sha256": "301c605c51196e3e0bd95d574b54281f5af51d03c4e8f80aa9c1d0f7095e2e0c",
+    "count": 28,
+    "review_status": "pending_review"
+  },
+  "splits": {
+    "development": 20,
+    "dev_hard_negative": 12,
+    "held_out": 16,
+    "held_out_composition": {
+      "single_paper_answerable": 8,
+      "cross_paper_answerable": 4,
+      "in_domain_no_answer": 2,
+      "near_miss_hard_negative": 2
+    }
+  },
+  "retriever_modes": [
+    "bm25_zh_raw",
+    "bm25_en",
+    "dense_zh_windowed",
+    "hybrid_zh_windowed"
+  ],
+  "tuning_policy": "development_only; held_out_is_never_a_tuning_input",
+  "formal_evaluation": "blocked_until_all_records_are_reviewed"
+}

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "litflow://retrieval-quality-r1/query-v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "query_id",
+    "split",
+    "query_zh",
+    "query_en",
+    "query_type",
+    "expected_answerable",
+    "relevant_paper_keys",
+    "relevant_passage_ids",
+    "gold_evidence_summary",
+    "review_status"
+  ],
+  "properties": {
+    "query_id": {
+      "type": "string",
+      "pattern": "^(Q[0-9]{2}|D[0-9]{3}|H[0-9]{3})$"
+    },
+    "split": {
+      "enum": [
+        "development",
+        "dev_hard_negative",
+        "held_out"
+      ]
+    },
+    "query_zh": {
+      "type": "string",
+      "minLength": 1
+    },
+    "query_en": {
+      "type": "string",
+      "minLength": 1
+    },
+    "query_type": {
+      "enum": [
+        "method",
+        "experiment",
+        "background_limitation",
+        "no_answer",
+        "hard_negative",
+        "single_paper",
+        "cross_paper",
+        "in_domain_no_answer",
+        "near_miss_hard_negative"
+      ]
+    },
+    "expected_answerable": {
+      "type": "boolean"
+    },
+    "relevant_paper_keys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "relevant_passage_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^:]+:[^:]+$"
+      },
+      "uniqueItems": true
+    },
+    "gold_evidence_summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "review_status": {
+      "enum": [
+        "reviewed",
+        "pending_review"
+      ]
+    },
+    "source_review_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_record_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "relevance_grades": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[^:]+:[^:]+$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "expected_answerable": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "relevant_paper_keys": {
+            "maxItems": 0
+          },
+          "relevant_passage_ids": {
+            "maxItems": 0
+          },
+          "relevance_grades": {
+            "maxProperties": 0
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "relevant_paper_keys": {
+            "minItems": 1
+          },
+          "relevant_passage_ids": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_status": {
+            "const": "reviewed"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "source_review_status",
+          "source_path",
+          "source_record_sha256"
+        ]
+      }
+    }
+  ]
+}
