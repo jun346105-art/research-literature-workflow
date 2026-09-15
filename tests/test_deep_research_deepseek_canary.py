@@ -173,7 +173,7 @@ def test_plan_commit_can_be_older_than_current_head_and_fingerprint_covers_runti
     relative = ("src/litflow/deep_research/deepseek_canary.py", "src/litflow/deep_research/deepseek_cli.py", "src/litflow/deep_research/canary.py", "src/litflow/deep_research/runtime_v2.py", "src/litflow/deep_research/budgets.py", "src/litflow/deep_research/operations.py")
     expected = sha256_hex(canonical_json_bytes({name: sha256_hex((root / name).read_bytes()) for name in relative}))
     plan = DeepSeekCanaryPlan.model_validate(_plan())
-    assert plan.implementation_commit_sha == "9735df13b30d79ff1affdb4252451bce5bebf018"
+    assert plan.implementation_commit_sha == "b5e93f548a52e1bc0580bcfb5742be4358136a62"
     assert plan.runtime_source_sha256 == expected == _runtime_source_sha256()
 
 
