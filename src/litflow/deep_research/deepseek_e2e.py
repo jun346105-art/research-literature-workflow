@@ -87,7 +87,7 @@ class DeepSeekStructuredAdapter:
     """Transport-only adapter; Planner/Writer and durable state remain shared."""
 
     def __init__(self, policy: DeepSeekInvocationPolicy, *, transport: _AsyncTransport = _urllib_transport, credential: str | None = None) -> None:
-        self._policy, self._transport, self._credential_override = policy, transport, credential
+        self._policy, self._transport, self._credential_override, self.replies = policy, transport, credential, []
 
     def require_credential_for_execute(self) -> str:
         credential = self._credential_override or os.environ.get(self._policy.credential_environment_variable)
@@ -125,7 +125,9 @@ class DeepSeekStructuredAdapter:
         token_usage = TokenUsage(input_tokens=usage["prompt_tokens"], output_tokens=usage["completion_tokens"], cost_micros=cost * Decimal("1000000"))
         if payload.get("model") != self._policy.model_id:
             raise GLMAdapterError("provider_response_invalid", diagnostics={"failure_stage": "provider_response", "contract_error_code": "model_identity_unverified", "usage_reported": True, "client_observed_elapsed_s": elapsed}, usage=token_usage)
-        return DeepSeekStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type="object", observed_keys=tuple(sorted(key for key in payload if key in {"choices", "error", "id", "model", "request_id", "usage"})), prompt_cache_hit_tokens=usage["prompt_cache_hit_tokens"], prompt_cache_miss_tokens=usage["prompt_cache_miss_tokens"], client_observed_elapsed_s=elapsed)
+        reply = DeepSeekStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type="object", observed_keys=tuple(sorted(key for key in payload if key in {"choices", "error", "id", "model", "request_id", "usage"})), prompt_cache_hit_tokens=usage["prompt_cache_hit_tokens"], prompt_cache_miss_tokens=usage["prompt_cache_miss_tokens"], client_observed_elapsed_s=elapsed)
+        self.replies.append(reply)
+        return reply
 
 
 class DeepSeekStructuredPlanner(GLMStructuredPlanner):
