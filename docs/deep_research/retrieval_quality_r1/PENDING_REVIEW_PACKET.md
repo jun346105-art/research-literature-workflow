@@ -1,6 +1,6 @@
 # Retrieval Quality R1 — Pending Evidence Review Packet (Revision 2)
 
-> Status: evidence-assisted candidate packet. All 28 records remain `pending_review`; `recommend_keep` is an audit recommendation, not user approval or ground truth.
+> Status: historical evidence-assisted candidate packet. The source records retain `pending_review` for provenance; the project owner subsequently approved and froze all 28 records in `reviewed_candidates.json`.
 
 ## Revision outcome
 
@@ -708,4 +708,4 @@ Corpus-wide lexical probe (existing BM25-EN, Top-3):
 
 ## Human decision target
 
-Use `pending_candidates.review.csv`. Complete `answerable_correct`, `relevant_passages_correct`, `review_decision`, `reviewer`, `reviewed_at`, and `reviewer_notes`. Nothing becomes reviewed until a later, separately authorized freeze.
+The completed decision fields remain in `pending_candidates.review.csv`; the immutable reviewed projection is `reviewed_candidates.json`. H012 was frozen without the non-evidentiary `JRIUZQ58_chunk_0029` passage.

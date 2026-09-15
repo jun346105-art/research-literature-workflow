@@ -10,6 +10,7 @@
     "corpus",
     "development_reviewed",
     "pending_candidates",
+    "reviewed_candidates",
     "splits",
     "retriever_modes",
     "tuning_policy",
@@ -136,6 +137,30 @@
         }
       }
     },
+    "reviewed_candidates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "source_path",
+        "source_sha256",
+        "count",
+        "review_status",
+        "reviewer",
+        "reviewed_at"
+      ],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "source_path": {"type": "string", "minLength": 1},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "count": {"const": 28},
+        "review_status": {"const": "reviewed"},
+        "reviewer": {"const": "project_owner"},
+        "reviewed_at": {"type": "string", "format": "date-time"}
+      }
+    },
     "splits": {
       "type": "object",
       "additionalProperties": false,
@@ -193,7 +218,7 @@
       "const": "development_only; held_out_is_never_a_tuning_input"
     },
     "formal_evaluation": {
-      "const": "blocked_until_all_records_are_reviewed"
+      "const": "reviewed_and_frozen"
     }
   },
   "$defs": {

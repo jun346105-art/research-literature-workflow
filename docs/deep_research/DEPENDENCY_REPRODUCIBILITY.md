@@ -10,6 +10,7 @@ This document records the packaging boundary verified in DR-S02. It changes depe
 | LangGraph | Default runtime lock completion | `1.2.11` | Already declared in project metadata and imported by the Agent modules reached from the CLI top-level import chain. Docker installs the lock before installing the project with `--no-deps`, so the lock must contain it. |
 | PyMuPDF | Test extra only | `1.28.2` as `.[test]` | Production PDF extraction imports `pypdf`, not PyMuPDF. `fitz` appears only in `tests/test_reading_context.py` to create fixture PDFs. Default CLI help, Offline Docker configuration, and the Reading Context production module do not import it. |
 | jsonschema | Test/evaluation extra only | `4.25.0` in `requirements.test.lock` and `.[test]` | Retrieval Quality R1 metrics do not require it, but formal R1 package validation explicitly uses `Draft202012Validator`. It remains outside the default runtime. |
+| PyTorch + Transformers | Retrieval-evaluation extra only | CPU `torch 2.14.0`, `transformers 4.57.6` in `requirements.retrieval-eval.lock` | Windowed Dense query encoding requires both packages. The default runtime and Docker path do not instantiate `_Encoder`. |
 
 ## Import graph and exclusion boundary
 
@@ -24,6 +25,8 @@ rag.dense._Encoder -> torch + transformers (delayed, Dense-only)
 ```
 
 Torch and Transformers remain outside the default runtime and test extra. They are imported only when Dense `_Encoder` is instantiated for a Dense cache/search path; default CLI help does not instantiate it, and S02 neither rebuilds Dense caches nor installs embedding models. A future optional Dense installation contract may define that stack separately.
+
+Retrieval Quality R1 defines that optional contract in `requirements.retrieval-eval.lock`. On Windows, the verified environment uses 64-bit Anaconda Python 3.13.9 and CPU-only PyTorch; the original standalone CPython 3.13.6 environment fails while initializing PyTorch `c10.dll` even from an ASCII path. Model files remain outside Git and `_Encoder` uses `local_files_only=True`; set `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` for formal evaluation.
 
 The distribution package name is `PyMuPDF`; the current test-side compatibility import remains `fitz`. The package ecosystem signals that `fitz` is a legacy compatibility import. S02 deliberately does not migrate production or test imports because production does not use it and import migration is outside this packaging-only scope.
 

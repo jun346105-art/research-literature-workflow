@@ -23,10 +23,20 @@
   "pending_candidates": {
     "path": "docs/deep_research/retrieval_quality_r1/pending_candidates.json",
     "review_csv": "docs/deep_research/retrieval_quality_r1/pending_candidates.review.csv",
-    "review_csv_sha256": "1bf71a7da8c2d04ae583a234aa285b66b2c245541f711cd2ded00c84344dc810",
-    "sha256": "6bbc5f5101f3912d9cf9c54427150cae5a091c534222d6a5ef94528f4b00ce0b",
+    "review_csv_sha256": "f672179ea49af110037c8dd26d624090a01fe0acf6e04c24d13ff638b135b62a",
+    "sha256": "37427f41df20a9995d1464efa42cef5d48b67f90f42bcaca4aca6986b0c7de76",
     "count": 28,
     "review_status": "pending_review"
+  },
+  "reviewed_candidates": {
+    "path": "docs/deep_research/retrieval_quality_r1/reviewed_candidates.json",
+    "sha256": "0384eee4f9a1c5f5c6335ae2c916719cd0bf855aeec8a28057166c93267be883",
+    "source_path": "docs/deep_research/retrieval_quality_r1/pending_candidates.json",
+    "source_sha256": "37427f41df20a9995d1464efa42cef5d48b67f90f42bcaca4aca6986b0c7de76",
+    "count": 28,
+    "review_status": "reviewed",
+    "reviewer": "project_owner",
+    "reviewed_at": "2026-09-15T06:56:24Z"
   },
   "splits": {
     "development": 20,
@@ -46,5 +56,5 @@
     "hybrid_zh_windowed"
   ],
   "tuning_policy": "development_only; held_out_is_never_a_tuning_input",
-  "formal_evaluation": "blocked_until_all_records_are_reviewed"
+  "formal_evaluation": "reviewed_and_frozen"
 }

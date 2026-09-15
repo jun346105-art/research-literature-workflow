@@ -47,12 +47,17 @@ def test_runtime_lock_and_ignore_rules_are_present():
     assert "numpy>=2.5" in project["dependencies"]
     assert "numpy==2.5.2" in (ROOT / "requirements.runtime.lock").read_text(encoding="utf-8")
     assert project["optional-dependencies"]["test"] == ["PyMuPDF==1.28.2", "jsonschema==4.25.0"]
+    assert project["optional-dependencies"]["retrieval-eval"] == ["torch==2.14.0+cpu", "transformers==4.57.6"]
     test_lock = (ROOT / "requirements.test.lock").read_text(encoding="utf-8").splitlines()
     assert test_lock[0] == "-r requirements.runtime.lock"
     assert "PyMuPDF==1.28.2" in test_lock
     assert "jsonschema==4.25.0" in test_lock
     assert all("==" in item for item in test_lock[1:] if item)
     assert "jsonschema" not in runtime_names
+    retrieval_lock = (ROOT / "requirements.retrieval-eval.lock").read_text(encoding="utf-8").splitlines()
+    assert retrieval_lock[:2] == ["--extra-index-url https://download.pytorch.org/whl/cpu", "-r requirements.test.lock"]
+    for package in ("torch==2.14.0+cpu", "transformers==4.57.6", "tokenizers==0.22.2", "huggingface-hub==0.36.2", "safetensors==0.8.0"):
+        assert package in retrieval_lock
     assert "pymupdf" not in lock_names
     assert "torch" not in runtime_names
     assert "transformers" not in runtime_names

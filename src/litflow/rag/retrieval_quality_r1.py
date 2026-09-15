@@ -46,6 +46,11 @@ def load_r1_manifest(path: Path) -> dict[str, Any]:
     _verify_hash(root / payload["development_reviewed"]["source_path"], payload["development_reviewed"]["source_sha256"], "historical reviewed source")
     _verify_json_hash(root / payload["pending_candidates"]["path"], payload["pending_candidates"]["sha256"], "pending candidates")
     _verify_text_hash(root / payload["pending_candidates"]["review_csv"], payload["pending_candidates"]["review_csv_sha256"], "pending review CSV")
+    reviewed = payload.get("reviewed_candidates")
+    if reviewed:
+        _verify_json_hash(root / reviewed["path"], reviewed["sha256"], "reviewed R1 candidates")
+        if canonical_sha256(reviewed["source_sha256"]) != canonical_sha256(payload["pending_candidates"]["sha256"]):
+            raise R1EvaluationError("reviewed candidate source identity mismatch")
     _validate_passage_manifest(root / corpus["path"], passage_manifest_path, corpus)
     return payload
 
@@ -55,7 +60,8 @@ def load_r1_records(manifest_path: Path, *, split: str, allow_pending: bool = Fa
     if split not in ALLOWED_SPLITS:
         raise R1EvaluationError(f"unknown split: {split}")
     root = _repository_root(manifest_path)
-    package_path = root / (manifest["development_reviewed"]["path"] if split == "development" else manifest["pending_candidates"]["path"])
+    section = manifest["development_reviewed"] if split == "development" else manifest.get("reviewed_candidates", manifest["pending_candidates"])
+    package_path = root / section["path"]
     payload = json.loads(package_path.read_text(encoding="utf-8-sig"))
     rows = payload.get("queries")
     if not isinstance(rows, list):
@@ -87,6 +93,29 @@ def assert_tuning_split(split: str) -> None:
         raise R1EvaluationError("held-out records cannot be used for tuning")
 
 
+def select_development_mode(reports: dict[str, dict[str, Any]], mode_order: list[str]) -> str:
+    """Apply the frozen R1 development-only selection rule."""
+    if set(reports) != set(mode_order) or not mode_order:
+        raise R1EvaluationError("development reports do not match the frozen mode set")
+
+    def key(mode: str) -> tuple[float, ...]:
+        report = reports[mode]
+        metrics = report["metrics"]
+        false_positive_rate = report["no_answer_false_positive_rate_at_10"]
+        latency = report["latency_ms"]["mean"]
+        return (
+            report["answerable_retrieval_success_at_10"] or 0.0,
+            metrics["recall_at_10"] or 0.0,
+            metrics["ndcg_at_10"] or 0.0,
+            metrics["mrr_at_10"] or 0.0,
+            -(false_positive_rate if false_positive_rate is not None else 1.0),
+            -(latency if latency is not None else float("inf")),
+            -mode_order.index(mode),
+        )
+
+    return max(mode_order, key=key)
+
+
 def validate_json_schema_documents(manifest_path: Path) -> None:
     """Validate committed R1 JSON with the optional standards validator.
 
@@ -109,7 +138,7 @@ def validate_json_schema_documents(manifest_path: Path) -> None:
             raise R1EvaluationError("R1 schemas must use Draft 2020-12")
         Draft202012Validator.check_schema(schema)
     _raise_schema_errors(Draft202012Validator(dataset_schema), manifest, "dataset manifest")
-    for package_key in ("development_reviewed", "pending_candidates"):
+    for package_key in ("development_reviewed", "pending_candidates", "reviewed_candidates"):
         package = json.loads((root / manifest[package_key]["path"]).read_text(encoding="utf-8-sig"))
         for record in package["queries"]:
             _raise_schema_errors(Draft202012Validator(query_schema), record, record.get("query_id", "query"))

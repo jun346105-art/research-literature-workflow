@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 from litflow.rag.bm25 import RagValidationError
-from litflow.rag.dense import DenseIndex, build_dense_cache, evaluate_retriever, rrf_fuse
+from litflow.rag.dense import DenseIndex, _Encoder, build_dense_cache, evaluate_retriever, rrf_fuse
 
 
 class FakeEncoder:
@@ -19,6 +21,30 @@ class FakeEncoder:
         for text in texts:
             rows.append([1.0, 0.0] if "alpha" in text.lower() else [0.0, 1.0])
         return np.array(rows, dtype="float32")
+
+
+def test_real_encoder_forces_local_files_only(monkeypatch):
+    calls = []
+
+    class Loader:
+        @classmethod
+        def from_pretrained(cls, *args, **kwargs):
+            calls.append((args, kwargs))
+            return cls()
+
+        def to(self, _device):
+            return self
+
+        def eval(self):
+            return self
+
+    fake_torch = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False))
+    fake_transformers = SimpleNamespace(AutoModel=Loader, AutoTokenizer=Loader)
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+    encoder = _Encoder("repo", "exact-revision")
+    assert encoder.device == "cpu"
+    assert calls == [(('repo',), {'revision': 'exact-revision', 'local_files_only': True})] * 2
 
 
 def test_dense_cache_identity_and_stable_tie_breaking(tmp_path, monkeypatch):

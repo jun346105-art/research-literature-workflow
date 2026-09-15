@@ -1,10 +1,10 @@
 # Retrieval Quality R1
 
-This is a small, review-gated 48-query retrieval quality package over the frozen `rag_bm25_v1` corpus (10 papers, 185 passages).
+This is a completed, review-frozen 48-query retrieval quality package over the frozen `rag_bm25_v1` corpus (10 papers, 185 passages).
 
 - Development: 20 canonical `reviewed` records migrated from the immutable author-reviewed qrels. The original review status, source path, and source-record hash remain attached as provenance; the historical file is unchanged.
-- Development hard negatives: 12 new candidate queries, all `pending_review`.
-- Held-out: 16 new candidate queries: 8 single-paper answerable, 4 cross-paper answerable, 2 in-domain no-answer, and 2 near-miss hard negatives. All are `pending_review`.
+- Development hard negatives: 12 project-owner-reviewed queries.
+- Held-out: 16 project-owner-reviewed queries: 8 single-paper answerable, 4 cross-paper answerable, 2 in-domain no-answer, and 2 near-miss hard negatives.
 
 The formal evaluator refuses pending records. Development hard negatives also remain unusable until reviewed. Held-out records are never accepted as tuning input for Top-K, BM25 parameters, RRF parameters, thresholds, or gates. Recall is binary over qrel passage IDs, MRR is binary, and nDCG uses optional positive integer relevance grades (default `1`). For no-answer records, any returned item in the first 10 is counted as a false positive. This batch creates the data and evaluator only; it does not run a formal R1 benchmark or call a Provider.
 
@@ -20,6 +20,10 @@ Files:
 - `schemas/dataset.schema.json`: dataset manifest contract.
 - `pending_candidates.json`: 28 candidate records for author review.
 - `pending_candidates.review.csv`: review worksheet; no row is ground truth until `answerable_correct`, `relevant_passages_correct`, `review_decision`, `reviewer`, and `reviewed_at` are completed and a separate reviewed artifact is frozen.
-- `PENDING_REVIEW_PACKET.md`: evidence-aware Revision 2 packet for the one authorized candidate revision; all recommendations remain advisory and all records remain pending.
+- `PENDING_REVIEW_PACKET.md`: evidence-aware Revision 2 packet and historical audit recommendations; the source candidate records remain pending for provenance.
+- `reviewed_candidates.json`: project-owner-reviewed freeze of the 28 Revision 2 candidates; the pending source remains unchanged in status for provenance.
+- `r1_evaluation_plan.json`: immutable development-selection and one-shot held-out policy.
+- `model_asset_manifest.json`: exact offline model identity and file hashes; weights remain outside Git.
+- `R1_RESULT.md` and `results/`: formal offline R1 report, metrics, and rankings.
 
 Formal Schema validation is a test/evaluation concern, not a core runtime dependency. Install `requirements.test.lock` (or the `test` extra) to obtain the pinned `jsonschema==4.25.0` validator.

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from litflow.rag.retrieval_quality_r1 import (
     R1EvaluationError,
@@ -15,6 +17,7 @@ from litflow.rag.retrieval_quality_r1 import (
     load_all_r1_records,
     load_r1_manifest,
     load_r1_records,
+    select_development_mode,
     validate_json_schema_documents,
 )
 
@@ -72,7 +75,7 @@ def test_pending_counts_quotas_and_ids_are_isolated():
     assert len(dev) == 12 and len(held) == 16
     assert Counter(row["query_type"] for row in dev) == {"hard_negative": 12}
     assert Counter(row["query_type"] for row in held) == {"single_paper": 8, "cross_paper": 4, "in_domain_no_answer": 2, "near_miss_hard_negative": 2}
-    assert all(row["review_status"] == "pending_review" for row in dev + held)
+    assert all(row["review_status"] == "reviewed" for row in dev + held)
     all_ids = [row["query_id"] for row in reviewed + dev + held]
     assert len(all_ids) == len(set(all_ids)) == 48
     assert len(load_all_r1_records(MANIFEST, allow_pending=True)) == 48
@@ -91,6 +94,10 @@ def test_pending_json_and_review_csv_match():
         assert review["expected_answerable"].lower() == str(record["expected_answerable"]).lower()
         assert review["answer_claim_family"] == record["answer_claim_family"]
         assert review["review_status"] == record["review_status"] == "pending_review"
+        assert review["answerable_correct"] == review["relevant_passages_correct"] == "true"
+        assert review["review_decision"] == "approved"
+        assert review["reviewer"] == "project_owner"
+        assert review["reviewed_at"] == "2026-09-15T06:56:24Z"
         if record["split"] == "held_out":
             overlap = record["development_overlap"]
             assert review["passage_overlap"] == str(overlap["passage_overlap"]).lower()
@@ -123,12 +130,77 @@ def test_held_out_passage_overlap_is_explicit_and_claim_overlap_is_false():
     assert [row["query_id"] for row in held if row["development_overlap"]["passage_overlap"]] == ["H007"]
 
 
-def test_pending_review_is_fail_closed_for_formal_evaluation():
-    with pytest.raises(R1EvaluationError, match="pending_review"):
-        load_r1_records(MANIFEST, split="held_out")
-    pending = load_r1_records(MANIFEST, split="held_out", allow_pending=True)
+def test_pending_source_remains_fail_closed_but_frozen_records_are_reviewed():
+    pending = json.loads((BASE / "pending_candidates.json").read_text(encoding="utf-8"))["queries"]
+    assert all(row["review_status"] == "pending_review" for row in pending)
     with pytest.raises(R1EvaluationError, match="reviewed records"):
         evaluate_rankings(pending, [{"query_id": row["query_id"], "results": []} for row in pending], retriever_mode="bm25_zh_raw")
+    assert all(row["review_status"] == "reviewed" for row in load_r1_records(MANIFEST, split="held_out"))
+
+
+def test_project_owner_review_conditions_are_frozen():
+    frozen = json.loads((BASE / "reviewed_candidates.json").read_text(encoding="utf-8"))["queries"]
+    assert len(frozen) == 28
+    assert all(row["reviewer"] == "project_owner" and row["review_decision"] == "approved" for row in frozen)
+    assert all(row["answerable_correct"] and row["relevant_passages_correct"] for row in frozen)
+    by_id = {row["query_id"]: row for row in frozen}
+    assert not any(passage_id.endswith("JRIUZQ58_chunk_0029") for passage_id in by_id["H012"]["relevant_passage_ids"])
+    assert by_id["H007"]["development_overlap"] == {"passage_overlap": True, "overlapping_query_ids": ["Q08", "Q15"], "answer_claim_overlap": False, "independence_note": "The passages overlap development qrels, but development asks inference speed and small/multi-scale methods, not the mAP50/F1 result."}
+    assert "must not support a claim" in by_id["H010"]["reviewer_notes"]
+
+
+def test_formal_result_reproduces_development_selection_and_one_held_out_run():
+    result = json.loads((BASE / "results" / "r1_result.json").read_text(encoding="utf-8"))
+    plan = json.loads((BASE / "r1_evaluation_plan.json").read_text(encoding="utf-8"))
+    assert select_development_mode(result["development"], plan["modes"]) == result["selected_mode"] == "bm25_en"
+    assert result["split_policy"]["held_out_execution_count"] == 1
+    assert result["split_policy"]["held_out_used_for_tuning"] is False
+    assert result["held_out"]["query_count"] == 16
+    assert result["limitations"]["h007"].startswith("query/claim-held-out only")
+
+
+def test_result_manifest_freezes_result_and_rankings_bytes():
+    manifest = json.loads((BASE / "results" / "r1_result_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["held_out_execution_count"] == 1
+    assert manifest["held_out_retry_count"] == 0
+    for item in manifest["files"]:
+        path = BASE / "results" / item["path"]
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        assert len(canonical) == item["canonical_bytes"]
+        assert hashlib.sha256(canonical).hexdigest() == item["canonical_sha256"]
+
+
+def test_formal_rankings_pass_schema_and_match_frozen_splits():
+    schema = json.loads((BASE / "schemas" / "result.schema.json").read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    rankings = json.loads((BASE / "results" / "r1_rankings.json").read_text(encoding="utf-8"))
+    plan = json.loads((BASE / "r1_evaluation_plan.json").read_text(encoding="utf-8"))
+    assert list(rankings["development"]) == plan["modes"]
+    assert list(rankings["held_out"]) == ["bm25_en"]
+    for split in rankings.values():
+        for records in split.values():
+            assert all(not list(validator.iter_errors(record)) for record in records)
+            assert all(len(record["results"]) <= 20 for record in records)
+
+
+def test_evaluation_plan_binds_dataset_and_model_manifests():
+    plan = json.loads((BASE / "r1_evaluation_plan.json").read_text(encoding="utf-8"))
+    for filename, field in (("r1_dataset.manifest.json", "dataset_manifest_sha256"), ("model_asset_manifest.json", "model_asset_manifest_sha256")):
+        payload = json.loads((BASE / filename).read_text(encoding="utf-8"))
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        assert hashlib.sha256(canonical).hexdigest() == plan[field]
+
+
+def test_model_asset_manifest_contains_only_relative_frozen_files():
+    manifest = json.loads((BASE / "model_asset_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["repository"] == "intfloat/multilingual-e5-small"
+    assert manifest["revision"] == "053834db62d809d8f124a76b687fbd948e13ef3e"
+    assert manifest["encoder_contract"]["local_files_only"] is True
+    assert manifest["encoder_contract"]["hidden_size"] == 384
+    assert len(manifest["files"]) == 6
+    assert all(not Path(item["path"]).is_absolute() and len(item["sha256"]) == 64 for item in manifest["files"])
 
 
 def test_held_out_is_never_a_tuning_split():

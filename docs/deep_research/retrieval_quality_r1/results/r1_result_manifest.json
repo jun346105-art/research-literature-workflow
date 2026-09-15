@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "result_id": "retrieval-quality-r1-formal-result-v1",
+  "status": "retrieval_quality_r1_complete",
+  "dataset_manifest_canonical_sha256": "db1c58c19339e9f46d6d5f6addf4ecd4da8df1ac21d9154b81bd982ff385770c",
+  "evaluation_plan_sha256": "50cfc16347082800035311a5d1ea42073eef0b0bcb0222497309403a5b9a28af",
+  "model_asset_manifest_canonical_sha256": "582fc7558ce61c9c9cb628d77618d52a949ba6491a209b7f947487ba049cbbbb",
+  "reviewed_candidates_canonical_sha256": "0384eee4f9a1c5f5c6335ae2c916719cd0bf855aeec8a28057166c93267be883",
+  "files": [
+    {"path": "r1_result.json", "canonical_bytes": 3768, "canonical_sha256": "1c49aace68bbeab6823e81ab287cb6a35aca6bbd3c870568e4db7eddb81d3c0e"},
+    {"path": "r1_rankings.json", "canonical_bytes": 220565, "canonical_sha256": "d49f8829d3be2e13b780e86ba302ab8d2ddd1f406280de4cc60ec6b933d2509f"}
+  ],
+  "held_out_execution_count": 1,
+  "held_out_retry_count": 0,
+  "provider_calls": 0,
+  "network_policy": "offline_only"
+}

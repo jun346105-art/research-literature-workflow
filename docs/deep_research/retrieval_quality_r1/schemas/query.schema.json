@@ -133,9 +133,30 @@
         "type": "integer",
         "minimum": 1
       }
-    }
+    },
+    "answerable_correct": {"type": "boolean"},
+    "relevant_passages_correct": {"type": "boolean"},
+    "review_decision": {"const": "approved"},
+    "reviewer": {"const": "project_owner"},
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "reviewer_notes": {"type": "string", "minLength": 1}
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "source_review_status": {"const": "pending_review"}
+        },
+        "required": ["source_review_status"]
+      },
+      "then": {
+        "required": ["answerable_correct", "relevant_passages_correct", "review_decision", "reviewer", "reviewed_at", "reviewer_notes"],
+        "properties": {
+          "answerable_correct": {"const": true},
+          "relevant_passages_correct": {"const": true}
+        }
+      }
+    },
     {
       "if": {
         "properties": {
