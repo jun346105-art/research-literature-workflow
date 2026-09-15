@@ -247,7 +247,15 @@ def write_deepseek_canary_schema(output_dir: Path) -> Path:
 
 
 def _runtime_source_sha256() -> str:
-    paths = {"src/litflow/deep_research/deepseek_canary.py": Path(__file__).resolve(), "src/litflow/deep_research/runtime_v2.py": Path(__file__).resolve().with_name("runtime_v2.py")}
+    root = Path(__file__).resolve().parents[3]
+    paths = {
+        "src/litflow/deep_research/deepseek_canary.py": root / "src/litflow/deep_research/deepseek_canary.py",
+        "src/litflow/deep_research/deepseek_cli.py": root / "src/litflow/deep_research/deepseek_cli.py",
+        "src/litflow/deep_research/canary.py": root / "src/litflow/deep_research/canary.py",
+        "src/litflow/deep_research/runtime_v2.py": root / "src/litflow/deep_research/runtime_v2.py",
+        "src/litflow/deep_research/budgets.py": root / "src/litflow/deep_research/budgets.py",
+        "src/litflow/deep_research/operations.py": root / "src/litflow/deep_research/operations.py",
+    }
     return sha256_hex(canonical_json_bytes({name: sha256_hex(path.read_bytes()) for name, path in paths.items()}))
 
 
@@ -269,9 +277,17 @@ class DeepSeekCanaryRunner:
             raise DeepSeekCanaryConfigurationError("Git HEAD is not a full commit SHA")
         if self._live_transport and subprocess.run(["git", "status", "--porcelain"], cwd=Path.cwd(), check=True, capture_output=True, text=True).stdout.strip():
             raise DeepSeekCanaryConfigurationError("Canary worktree must be clean")
-        if self.plan.implementation_commit_sha and self.plan.implementation_commit_sha != commit:
-            raise DeepSeekCanaryConfigurationError("execution plan implementation commit does not match HEAD")
-        if self.plan.runtime_source_sha256 and self.plan.runtime_source_sha256 != _runtime_source_sha256():
+        source_fingerprint = _runtime_source_sha256()
+        if self._live_transport and (not self.plan.implementation_commit_sha or not self.plan.runtime_source_sha256):
+            raise DeepSeekCanaryConfigurationError("live Canary plan must bind implementation commit and source fingerprint")
+        if self.plan.implementation_commit_sha:
+            try:
+                ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", self.plan.implementation_commit_sha, commit], cwd=Path.cwd(), check=False, capture_output=True, text=True)
+            except OSError as exc:
+                raise DeepSeekCanaryConfigurationError("cannot verify the Canary implementation ancestor") from exc
+            if ancestor.returncode != 0:
+                raise DeepSeekCanaryConfigurationError("Canary implementation commit is not an ancestor of HEAD")
+        if self.plan.runtime_source_sha256 and self.plan.runtime_source_sha256 != source_fingerprint:
             raise DeepSeekCanaryConfigurationError("Canary runtime source fingerprint does not match the immutable plan")
         return self.plan.model_copy(update={"implementation_commit_sha": commit, "runtime_source_sha256": _runtime_source_sha256()})
 
@@ -294,8 +310,8 @@ class DeepSeekCanaryRunner:
 
     def execute(self) -> CrashSafeResult:
         self._adapter.validate_pre_dispatch()
-        credential = self._adapter.require_credential()
         bound_plan = self._bind_execution_plan()
+        credential = self._adapter.require_credential()
         if self.artifact_dir.exists():
             raise DeepSeekCanaryConfigurationError("DeepSeek Canary artifact directory must not already exist")
         path, store, events = self.artifact_dir / "runtime.jsonl", UnifiedEventStore(self.artifact_dir / "runtime.jsonl", run_id=self.run_id), []

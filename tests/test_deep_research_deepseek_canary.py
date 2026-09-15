@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from decimal import Decimal
 from pathlib import Path
 
@@ -75,6 +76,64 @@ def test_preflight_is_read_only_and_does_not_need_key(tmp_path, monkeypatch):
     bound = DeepSeekCanaryRunner(plan, target, transport=lambda **_kwargs: None).preflight()
     assert bound.run_id == plan.run_id and bound.implementation_commit_sha and bound.runtime_source_sha256
     assert not target.exists()
+
+
+def test_live_preflight_rejects_null_binding_before_network_or_key(tmp_path, monkeypatch):
+    from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    calls: list[list[str]] = []
+
+    def git_run(args, **kwargs):
+        calls.append(args)
+        if args[1:3] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, "a" * 40, "")
+        if args[1:3] == ["status", "--porcelain"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        raise AssertionError("binding should fail before ancestor lookup")
+
+    monkeypatch.setattr("litflow.deep_research.deepseek_canary.subprocess.run", git_run)
+    monkeypatch.setattr("litflow.deep_research.deepseek_canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
+    runner = DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(_plan()), tmp_path / "canary")
+    with pytest.raises(ValueError, match="must bind"):
+        runner.preflight()
+    assert not (tmp_path / "canary").exists() and len(calls) == 2
+
+
+def test_non_ancestor_binding_is_rejected(tmp_path, monkeypatch):
+    from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner
+
+    data = {**_plan(), "implementation_commit_sha": "f" * 40, "runtime_source_sha256": "0" * 64}
+
+    def git_run(args, **kwargs):
+        if args[1:3] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, "a" * 40, "")
+        if args[1:3] == ["status", "--porcelain"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(args, 1, "", "")
+
+    monkeypatch.setattr("litflow.deep_research.deepseek_canary.subprocess.run", git_run)
+    with pytest.raises(ValueError, match="not an ancestor"):
+        DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(data), tmp_path / "canary").preflight()
+    assert not (tmp_path / "canary").exists()
+
+
+def test_source_drift_is_rejected(tmp_path, monkeypatch):
+    from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner
+
+    data = {**_plan(), "implementation_commit_sha": "a" * 40, "runtime_source_sha256": "f" * 64}
+
+    def git_run(args, **kwargs):
+        if args[1:3] == ["rev-parse", "HEAD"]:
+            return subprocess.CompletedProcess(args, 0, "a" * 40, "")
+        if args[1:3] == ["status", "--porcelain"]:
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr("litflow.deep_research.deepseek_canary.subprocess.run", git_run)
+    with pytest.raises(ValueError, match="fingerprint"):
+        DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(data), tmp_path / "canary").preflight()
+    assert not (tmp_path / "canary").exists()
 
 
 @pytest.mark.parametrize(("status", "expected"), ((400, "permanent_provider"), (401, "permanent_provider"), (403, "permanent_provider"), (429, "rate_limited"), (500, "transient_provider"), (503, "transient_provider")))
