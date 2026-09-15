@@ -62,16 +62,9 @@
       "type": "boolean"
     },
     "implementation_commit_sha": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Implementation Commit Sha"
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Implementation Commit Sha",
+      "type": "string"
     },
     "input_price_per_million_tokens": {
       "anyOf": [
@@ -182,16 +175,9 @@
       "type": "string"
     },
     "runtime_source_sha256": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Runtime Source Sha256"
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtime Source Sha256",
+      "type": "string"
     },
     "schema_version": {
       "const": "dr-deepseek-canary-execution-plan-v1",
@@ -277,7 +263,9 @@
     "task_id",
     "brief_id",
     "run_id",
-    "artifact_dir"
+    "artifact_dir",
+    "implementation_commit_sha",
+    "runtime_source_sha256"
   ],
   "title": "DeepSeekCanaryPlan",
   "type": "object"

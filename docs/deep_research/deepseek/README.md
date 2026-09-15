@@ -18,8 +18,15 @@
 唯一未来真实执行命令（需用户在 clean worktree、确认 Key 已由外部环境注入后手动执行）：
 
 ```powershell
-$env:DEEPSEEK_API_KEY = '<set outside Codex if authorized>'
-python -m litflow.deep_research.deepseek_cli --plan docs/deep_research/deepseek/canary_execution_plan.attempt-001.json --artifact-dir outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214 --execute
+$secureKey = Read-Host "DeepSeek API key" -AsSecureString
+$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+try {
+  $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+  python -m litflow.deep_research.deepseek_cli --plan docs/deep_research/deepseek/canary_execution_plan.attempt-001.json --artifact-dir outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214 --execute
+} finally {
+  $env:DEEPSEEK_API_KEY = $null
+  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+}
 ```
 
 上面是唯一包含 `--execute` 的合同示例；本轮不运行它。

@@ -104,8 +104,8 @@ class DeepSeekCanaryPlan(BaseModel):
     brief_id: str = Field(pattern=r"^dr-brief-[0-9a-f]{24}$")
     run_id: str = Field(pattern=r"^dr-run-[0-9a-f]{24}$")
     artifact_dir: str = Field(pattern=rf"^{_OUTPUT_ROOT}/deep_research/canary/v1/dr-run-[0-9a-f]{{24}}$")
-    implementation_commit_sha: str | None = None
-    runtime_source_sha256: str | None = None
+    implementation_commit_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    runtime_source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
     @model_validator(mode="after")
     def validate_contract(self) -> "DeepSeekCanaryPlan":
@@ -115,9 +115,9 @@ class DeepSeekCanaryPlan(BaseModel):
             raise ValueError("DeepSeek peak pricing snapshot does not match the authorized rates")
         if self.cache_hit_input_price_per_million_tokens != Decimal("0.006"):
             raise ValueError("DeepSeek cache-hit pricing snapshot does not match the authorized rate")
-        if self.implementation_commit_sha is not None and re.fullmatch(r"[0-9a-f]{40}", self.implementation_commit_sha) is None:
+        if re.fullmatch(r"[0-9a-f]{40}", self.implementation_commit_sha) is None:
             raise ValueError("implementation_commit_sha must be a lowercase Git SHA")
-        if self.runtime_source_sha256 is not None and re.fullmatch(r"[0-9a-f]{64}", self.runtime_source_sha256) is None:
+        if re.fullmatch(r"[0-9a-f]{64}", self.runtime_source_sha256) is None:
             raise ValueError("runtime_source_sha256 must be a lowercase SHA-256")
         if make_stable_id("run", self.run_identity()) != self.run_id:
             raise ValueError("DeepSeek Canary run identity mismatch")
@@ -280,14 +280,13 @@ class DeepSeekCanaryRunner:
         source_fingerprint = _runtime_source_sha256()
         if self._live_transport and (not self.plan.implementation_commit_sha or not self.plan.runtime_source_sha256):
             raise DeepSeekCanaryConfigurationError("live Canary plan must bind implementation commit and source fingerprint")
-        if self.plan.implementation_commit_sha:
-            try:
-                ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", self.plan.implementation_commit_sha, commit], cwd=Path.cwd(), check=False, capture_output=True, text=True)
-            except OSError as exc:
-                raise DeepSeekCanaryConfigurationError("cannot verify the Canary implementation ancestor") from exc
-            if ancestor.returncode != 0:
-                raise DeepSeekCanaryConfigurationError("Canary implementation commit is not an ancestor of HEAD")
-        if self.plan.runtime_source_sha256 and self.plan.runtime_source_sha256 != source_fingerprint:
+        try:
+            ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", self.plan.implementation_commit_sha, commit], cwd=Path.cwd(), check=False, capture_output=True, text=True)
+        except OSError as exc:
+            raise DeepSeekCanaryConfigurationError("cannot verify the Canary implementation ancestor") from exc
+        if ancestor.returncode != 0:
+            raise DeepSeekCanaryConfigurationError("Canary implementation commit is not an ancestor of HEAD")
+        if self.plan.runtime_source_sha256 != source_fingerprint:
             raise DeepSeekCanaryConfigurationError("Canary runtime source fingerprint does not match the immutable plan")
         return self.plan.model_copy(update={"implementation_commit_sha": commit, "runtime_source_sha256": _runtime_source_sha256()})
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -94,7 +95,8 @@ def test_live_preflight_rejects_null_binding_before_network_or_key(tmp_path, mon
 
     monkeypatch.setattr("litflow.deep_research.deepseek_canary.subprocess.run", git_run)
     monkeypatch.setattr("litflow.deep_research.deepseek_canary.urllib.request.urlopen", lambda *_args, **_kwargs: pytest.fail("network attempted"))
-    runner = DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(_plan()), tmp_path / "canary")
+    plan = DeepSeekCanaryPlan.model_validate(_plan()).model_copy(update={"implementation_commit_sha": None, "runtime_source_sha256": None})
+    runner = DeepSeekCanaryRunner(plan, tmp_path / "canary")
     with pytest.raises(ValueError, match="must bind"):
         runner.preflight()
     assert not (tmp_path / "canary").exists() and len(calls) == 2
@@ -134,6 +136,28 @@ def test_source_drift_is_rejected(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="fingerprint"):
         DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(data), tmp_path / "canary").preflight()
     assert not (tmp_path / "canary").exists()
+
+
+def test_plan_commit_can_be_older_than_current_head_and_fingerprint_covers_runtime_sources():
+    from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, _runtime_source_sha256
+    from litflow.deep_research.identity import canonical_json_bytes, sha256_hex
+
+    root = Path.cwd()
+    relative = ("src/litflow/deep_research/deepseek_canary.py", "src/litflow/deep_research/deepseek_cli.py", "src/litflow/deep_research/canary.py", "src/litflow/deep_research/runtime_v2.py", "src/litflow/deep_research/budgets.py", "src/litflow/deep_research/operations.py")
+    expected = sha256_hex(canonical_json_bytes({name: sha256_hex((root / name).read_bytes()) for name in relative}))
+    plan = DeepSeekCanaryPlan.model_validate(_plan())
+    assert plan.implementation_commit_sha == "9735df13b30d79ff1affdb4252451bce5bebf018"
+    assert plan.runtime_source_sha256 == expected == _runtime_source_sha256()
+
+
+def test_cli_subprocess_preflight_is_zero_network_zero_key_and_artifact_absent(tmp_path):
+    environment = dict(os.environ)
+    environment.pop("DEEPSEEK_API_KEY", None)
+    environment["PYTHONPATH"] = "src"
+    artifact = tmp_path / "must-not-exist"
+    result = subprocess.run([sys.executable, "-m", "litflow.deep_research.deepseek_cli", "--plan", str(PLAN_PATH), "--artifact-dir", str(artifact), "--preflight"], cwd=Path.cwd(), env=environment, capture_output=True, text=True, check=False)
+    assert result.returncode == 0 and '"preflight": "passed"' in result.stdout
+    assert not artifact.exists()
 
 
 @pytest.mark.parametrize(("status", "expected"), ((400, "permanent_provider"), (401, "permanent_provider"), (403, "permanent_provider"), (429, "rate_limited"), (500, "transient_provider"), (503, "transient_provider")))
