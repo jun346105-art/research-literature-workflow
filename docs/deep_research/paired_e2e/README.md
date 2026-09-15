@@ -7,7 +7,7 @@
 - 两者均 text-only、thinking enabled、Planner `low`、Writer `high`、2 calls、2 attempts、0 retries、1 replan、60s operation、180s run；
 - 每一方先单独执行一次，terminal、grounding、claims/citations、replay zero calls、tokens、provider-native actual cost、client elapsed 和 author review 均预注册；不自动判定语义优胜。
 
-两份 plan 当前均为 dry-run/preflight design freeze，artifact 目录必须不存在。`paired_cli` 的 `--execute` 仍保留为后续单独授权入口；本轮不读取任何 credential、不发 Provider 请求。
+两份 plan 当前均为 dry-run/preflight design freeze，artifact 目录必须不存在。`paired_cli --execute` 已接入现有 DeepResearchRunner，但真实执行仍须单独授权；本轮不读取任何 credential、不发 Provider 请求。非零 known/unknown 结果保留 durable artifact，unknown 映射 exit 3。
 
 安全执行模板（仅在分别授权后使用；每个 provider 只在当前 PowerShell 进程设置对应环境变量，退出前清除）：
 
@@ -16,7 +16,7 @@ $secureKey = Read-Host "GLM API key" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
 try {
   $env:ZHIPUAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  python -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.json --execute
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-f8d0cba03855233691766953 --execute
 } finally {
   $env:ZHIPUAI_API_KEY = $null
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
@@ -28,7 +28,7 @@ $secureKey = Read-Host "DeepSeek API key" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
 try {
   $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  python -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.json --execute
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-1f107020f273d15d3dc7561c --execute
 } finally {
   $env:DEEPSEEK_API_KEY = $null
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
