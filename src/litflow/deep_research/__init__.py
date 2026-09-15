@@ -40,6 +40,7 @@ from .writer import FakeWriter, ReportDraft, ReportStatus, ReportValidationResul
 from .e2e import DeepResearchRunner, GLME2EPilotPlan, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, preflight_e2e_pilot
 from .e2e import E2ETerminalError, GLME2EPilotAttemptPlan, parse_e2e_pilot_plan
 from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner, DeepSeekSingleWriter
+from .paired_e2e import PairedSinglePaperPlan, parse_paired_plan, preflight_paired_plan
 from .writer_calibration import WriterCalibrationPlan, WriterCalibrationRunner, preflight_writer_calibration
 
 __all__ = [
@@ -133,6 +134,9 @@ __all__ = [
     "DeepSeekStructuredAdapter",
     "DeepSeekStructuredPlanner",
     "DeepSeekSingleWriter",
+    "PairedSinglePaperPlan",
+    "parse_paired_plan",
+    "preflight_paired_plan",
     "WriterCalibrationPlan",
     "WriterCalibrationRunner",
     "preflight_writer_calibration",

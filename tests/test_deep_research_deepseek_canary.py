@@ -301,3 +301,23 @@ def test_dedicated_cli_requires_execute_or_preflight(tmp_path):
 
     with pytest.raises(SystemExit):
         deepseek_cli.main(["--plan", str(PLAN_PATH), "--artifact-dir", str(tmp_path)])
+
+
+def test_historical_canary_closure_recomputes_all_hashes_without_mutation():
+    from litflow.deep_research.identity import sha256_hex
+    from litflow.deep_research.budgets import BudgetSpec
+    from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated_checkpoint, replay_runtime_events
+    from litflow.deep_research.state import RunState
+
+    root = Path("outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214")
+    manifest = json.loads(Path("docs/deep_research/deepseek/canary_closure_manifest.json").read_text(encoding="utf-8"))
+    before = {path.name: sha256_hex(path.read_bytes()) for path in root.iterdir()}
+    assert before == manifest["sha256"]
+    plan = json.loads((root / "immutable_plan.json").read_text(encoding="utf-8"))
+    initial = RunState(run_id=plan["run_id"], task_id=plan["task_id"], brief_id=plan["brief_id"], brief_approved=True)
+    events = UnifiedEventStore(root / "runtime.jsonl", run_id=plan["run_id"]).read_all()
+    checkpoint = read_coordinated_checkpoint(root / "runtime.checkpoint.json")
+    replayed = replay_runtime_events(initial, events, BudgetSpec.model_validate(events[0].payload["spec"]), checkpoint=checkpoint)
+    assert replayed.run_state.status.value == "complete" and replayed.ledger.provider_calls == 1 and replayed.ledger.cost_micros == Decimal("103.8000000")
+    assert json.loads((root / "replay_verification.json").read_text(encoding="utf-8"))["provider_calls_during_replay"] == 0
+    assert before == {path.name: sha256_hex(path.read_bytes()) for path in root.iterdir()}
