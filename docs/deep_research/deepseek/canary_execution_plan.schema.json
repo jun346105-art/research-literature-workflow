@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Immutable Phase-5 single-call contract; Planner defaults are low effort.",
+  "properties": {
+    "approval_state": {
+      "const": "design_only_pending_canary",
+      "title": "Approval State",
+      "type": "string"
+    },
+    "artifact_dir": {
+      "pattern": "^outputs/deep_research/canary/v1/dr-run-[0-9a-f]{24}$",
+      "title": "Artifact Dir",
+      "type": "string"
+    },
+    "brief_id": {
+      "pattern": "^dr-brief-[0-9a-f]{24}$",
+      "title": "Brief Id",
+      "type": "string"
+    },
+    "cache_hit_input_price_per_million_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Cache Hit Input Price Per Million Tokens"
+    },
+    "canary_attempt_id": {
+      "pattern": "^[a-z0-9][a-z0-9.-]*$",
+      "title": "Canary Attempt Id",
+      "type": "string"
+    },
+    "channel": {
+      "const": "ordinary_model_api",
+      "title": "Channel",
+      "type": "string"
+    },
+    "credential_environment_variable": {
+      "const": "DEEPSEEK_API_KEY",
+      "title": "Credential Environment Variable",
+      "type": "string"
+    },
+    "endpoint": {
+      "const": "https://api.deepseek.com/chat/completions",
+      "title": "Endpoint",
+      "type": "string"
+    },
+    "fallback_enabled": {
+      "const": false,
+      "title": "Fallback Enabled",
+      "type": "boolean"
+    },
+    "files_enabled": {
+      "const": false,
+      "title": "Files Enabled",
+      "type": "boolean"
+    },
+    "implementation_commit_sha": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Implementation Commit Sha"
+    },
+    "input_price_per_million_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Input Price Per Million Tokens"
+    },
+    "max_input_tokens": {
+      "const": 2048,
+      "title": "Max Input Tokens",
+      "type": "integer"
+    },
+    "max_output_tokens": {
+      "const": 4096,
+      "title": "Max Output Tokens",
+      "type": "integer"
+    },
+    "max_provider_calls": {
+      "const": 1,
+      "title": "Max Provider Calls",
+      "type": "integer"
+    },
+    "max_retries": {
+      "const": 0,
+      "title": "Max Retries",
+      "type": "integer"
+    },
+    "model_id": {
+      "const": "deepseek-flash",
+      "title": "Model Id",
+      "type": "string"
+    },
+    "monetary_budget_currency": {
+      "const": "USD",
+      "title": "Monetary Budget Currency",
+      "type": "string"
+    },
+    "monetary_budget_limit": {
+      "anyOf": [
+        {
+          "maximum": 0.02,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Monetary Budget Limit"
+    },
+    "operation_timeout_seconds": {
+      "const": 60,
+      "title": "Operation Timeout Seconds",
+      "type": "integer"
+    },
+    "output_price_per_million_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Output Price Per Million Tokens"
+    },
+    "parallel_enabled": {
+      "const": false,
+      "title": "Parallel Enabled",
+      "type": "boolean"
+    },
+    "pricing_type": {
+      "const": "peak",
+      "title": "Pricing Type",
+      "type": "string"
+    },
+    "provider": {
+      "const": "deepseek",
+      "title": "Provider",
+      "type": "string"
+    },
+    "reasoning_effort": {
+      "enum": [
+        "low",
+        "high"
+      ],
+      "title": "Reasoning Effort",
+      "type": "string"
+    },
+    "run_deadline_seconds": {
+      "const": 180,
+      "title": "Run Deadline Seconds",
+      "type": "integer"
+    },
+    "run_id": {
+      "pattern": "^dr-run-[0-9a-f]{24}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime_source_sha256": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Source Sha256"
+    },
+    "schema_version": {
+      "const": "dr-deepseek-canary-execution-plan-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stage": {
+      "enum": [
+        "planner",
+        "writer"
+      ],
+      "title": "Stage",
+      "type": "string"
+    },
+    "task_id": {
+      "pattern": "^dr-task-[0-9a-f]{24}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "text_only": {
+      "const": true,
+      "title": "Text Only",
+      "type": "boolean"
+    },
+    "thinking": {
+      "const": "enabled",
+      "title": "Thinking",
+      "type": "string"
+    },
+    "tools_enabled": {
+      "const": false,
+      "title": "Tools Enabled",
+      "type": "boolean"
+    },
+    "video_enabled": {
+      "const": false,
+      "title": "Video Enabled",
+      "type": "boolean"
+    },
+    "vision_enabled": {
+      "const": false,
+      "title": "Vision Enabled",
+      "type": "boolean"
+    },
+    "web_enabled": {
+      "const": false,
+      "title": "Web Enabled",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "provider",
+    "model_id",
+    "endpoint",
+    "channel",
+    "text_only",
+    "tools_enabled",
+    "vision_enabled",
+    "video_enabled",
+    "files_enabled",
+    "web_enabled",
+    "parallel_enabled",
+    "fallback_enabled",
+    "thinking",
+    "reasoning_effort",
+    "stage",
+    "max_provider_calls",
+    "max_retries",
+    "max_input_tokens",
+    "max_output_tokens",
+    "operation_timeout_seconds",
+    "run_deadline_seconds",
+    "monetary_budget_currency",
+    "monetary_budget_limit",
+    "pricing_type",
+    "input_price_per_million_tokens",
+    "output_price_per_million_tokens",
+    "cache_hit_input_price_per_million_tokens",
+    "approval_state",
+    "credential_environment_variable",
+    "canary_attempt_id",
+    "task_id",
+    "brief_id",
+    "run_id",
+    "artifact_dir"
+  ],
+  "title": "DeepSeekCanaryPlan",
+  "type": "object"
+}

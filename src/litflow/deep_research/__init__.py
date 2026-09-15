@@ -32,6 +32,7 @@ from .runtime_v2 import (
     replay_runtime_events,
 )
 from .canary import GLMCanaryPlan, GLMCanaryRunner
+from .deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner, parse_deepseek_canary_plan
 from .planner import FakePlanner, Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, ValidatedResearchPlan, plan_approved_brief, require_approved_brief
 from .executor import EvidenceCandidate, EvidenceGraph, ExecutorError, LocalExecutorResult, LocalResearchExecutor, ReadOnlyToolRegistry, ToolName
 from .gap_replan import EvidenceGap, GapConflictAssessment, PotentialConflict, ReplanDecisionRecord, ReplanOutcome, ReplannedResearchPlan, assess_evidence_graph, apply_bounded_replan, decide_replan
@@ -83,6 +84,9 @@ __all__ = [
     "replay_runtime_events",
     "GLMCanaryPlan",
     "GLMCanaryRunner",
+    "DeepSeekCanaryPlan",
+    "DeepSeekCanaryRunner",
+    "parse_deepseek_canary_plan",
     "FakePlanner",
     "Planner",
     "PlannerDraft",
