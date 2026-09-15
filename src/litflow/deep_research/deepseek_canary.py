@@ -166,10 +166,14 @@ class _DeepSeekTextOnlyAdapter:
     @staticmethod
     def _reported_usage(payload: object, plan: DeepSeekCanaryPlan) -> tuple[TokenUsage, str | None]:
         usage = payload.get("usage") if isinstance(payload, dict) else None
-        if not isinstance(usage, dict) or not all(isinstance(usage.get(field), int) and usage.get(field) >= 0 for field in ("prompt_tokens", "completion_tokens", "total_tokens")):
+        if not isinstance(usage, dict) or not all(type(usage.get(field)) is int and usage.get(field) >= 0 for field in ("prompt_tokens", "completion_tokens", "total_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens")):
             return TokenUsage(), "usage_missing"
-        token_usage = _usage(usage["prompt_tokens"], usage["completion_tokens"], plan)
-        return (token_usage, None) if token_usage.total_tokens == usage["total_tokens"] else (token_usage, "usage_inconsistent")
+        if usage["prompt_tokens"] != usage["prompt_cache_hit_tokens"] + usage["prompt_cache_miss_tokens"]:
+            return TokenUsage(), "usage_prompt_split_inconsistent"
+        if usage["total_tokens"] != usage["prompt_tokens"] + usage["completion_tokens"]:
+            return TokenUsage(), "usage_total_inconsistent"
+        cost = (Decimal(usage["prompt_cache_miss_tokens"]) * plan.input_price_per_million_tokens + Decimal(usage["prompt_cache_hit_tokens"]) * plan.cache_hit_input_price_per_million_tokens + Decimal(usage["completion_tokens"]) * plan.output_price_per_million_tokens) / Decimal("1000000")
+        return TokenUsage(input_tokens=usage["prompt_tokens"], output_tokens=usage["completion_tokens"], cost_micros=cost * Decimal("1000000")), None
 
     async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None, credential: str | None = None) -> _ProviderResult:
         if credential is None:
@@ -288,7 +292,7 @@ class DeepSeekCanaryRunner:
             raise DeepSeekCanaryConfigurationError("Canary implementation commit is not an ancestor of HEAD")
         if self.plan.runtime_source_sha256 != source_fingerprint:
             raise DeepSeekCanaryConfigurationError("Canary runtime source fingerprint does not match the immutable plan")
-        return self.plan.model_copy(update={"implementation_commit_sha": commit, "runtime_source_sha256": _runtime_source_sha256()})
+        return self.plan
 
     def preflight(self) -> DeepSeekCanaryPlan:
         self._adapter.validate_pre_dispatch()

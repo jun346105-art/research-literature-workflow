@@ -19,7 +19,7 @@ def _plan() -> dict[str, object]:
 
 
 def _response(*, content: str = '{"status":"ok","provider":"deepseek","model":"deepseek-flash"}', model: str = "deepseek-flash", usage: dict[str, int] | None = None) -> dict[str, object]:
-    return {"model": model, "id": "deepseek-request-1", "choices": [{"message": {"reasoning_content": "private reasoning", "content": content}}], "usage": usage or {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19}}
+    return {"model": model, "id": "deepseek-request-1", "choices": [{"message": {"reasoning_content": "private reasoning", "content": content}}], "usage": usage or {"prompt_tokens": 12, "completion_tokens": 7, "total_tokens": 19, "prompt_cache_hit_tokens": 4, "prompt_cache_miss_tokens": 8}}
 
 
 def test_deepseek_plan_is_immutable_and_uses_new_identity():
@@ -48,11 +48,12 @@ def test_normal_response_freezes_thinking_request_and_reconciles_cost(tmp_path, 
     request = json.loads(captured["body"])
     assert result.terminal == "complete" and result.ledger.provider_calls == 1
     assert result.ledger.input_tokens == 12 and result.ledger.output_tokens == 7
-    assert result.ledger.cost_micros == Decimal("12.0")
+    assert result.ledger.cost_micros == Decimal("10.824")
     assert request == {"model": "deepseek-flash", "messages": [{"role": "user", "content": "Return only JSON with status ok, provider deepseek, and model deepseek-flash."}], "max_tokens": 4096, "thinking": {"type": "enabled"}, "reasoning_effort": "low", "response_format": {"type": "json_object"}, "stream": False}
     persisted = "\n".join(path.read_text(encoding="utf-8") for path in (tmp_path / "canary").glob("*"))
     assert "fixture-key-never-persist" not in persisted and "reasoning_content" not in persisted and "Authorization" not in persisted
     assert json.loads((tmp_path / "canary" / "replay_verification.json").read_text(encoding="utf-8"))["provider_calls_during_replay"] == 0
+    assert json.loads((tmp_path / "canary" / "immutable_plan.json").read_text(encoding="utf-8")) == _plan()
 
 
 def test_missing_key_and_invalid_plan_are_pre_dispatch_zero_network(tmp_path, monkeypatch):
@@ -138,6 +139,32 @@ def test_source_drift_is_rejected(tmp_path, monkeypatch):
     assert not (tmp_path / "canary").exists()
 
 
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    (({"prompt_cache_hit_tokens": None}, "usage_missing"), ({"prompt_cache_hit_tokens": 3}, "usage_prompt_split_inconsistent"), ({"total_tokens": 20}, "usage_total_inconsistent")),
+)
+def test_cache_usage_audit_is_required_and_never_repaired(tmp_path, monkeypatch, change, expected):
+    from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner
+
+    response = _response()
+    usage = dict(response["usage"])
+    for key, value in change.items():
+        if value is None:
+            usage.pop(key)
+        else:
+            usage[key] = value
+    response["usage"] = usage
+
+    async def transport(**_kwargs):
+        return 200, {}, json.dumps(response).encode("utf-8")
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "fixture")
+    result = DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert result.terminal == "failed" and result.error_code.value == "contract_invalid"
+    assert diagnostics["contract_error_code"] == expected and diagnostics["usage_reported"] is False and diagnostics["cost_audit_complete"] is False
+
+
 def test_plan_commit_can_be_older_than_current_head_and_fingerprint_covers_runtime_sources():
     from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, _runtime_source_sha256
     from litflow.deep_research.identity import canonical_json_bytes, sha256_hex
@@ -169,7 +196,7 @@ def test_http_classes_are_known_and_zero_retry(tmp_path, monkeypatch, status, ex
     async def transport(**_kwargs):
         nonlocal calls
         calls += 1
-        return status, {}, json.dumps({"error": {"message": "redacted"}, "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5}}).encode()
+        return status, {}, json.dumps({"error": {"message": "redacted"}, "usage": {"prompt_tokens": 2, "completion_tokens": 3, "total_tokens": 5, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 2}}).encode()
 
     monkeypatch.setenv("DEEPSEEK_API_KEY", "fixture")
     result = DeepSeekCanaryRunner(DeepSeekCanaryPlan.model_validate(_plan()), tmp_path / "canary", transport=transport).execute()
@@ -196,7 +223,7 @@ def test_timeout_and_reset_are_unknown_without_reexecution(tmp_path, monkeypatch
     assert calls == 1
 
 
-@pytest.mark.parametrize("payload", (b"not-json", json.dumps({"model": "deepseek-flash", "choices": []}).encode(), json.dumps({"model": "wrong", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode()))
+@pytest.mark.parametrize("payload", (b"not-json", json.dumps({"model": "deepseek-flash", "choices": []}).encode(), json.dumps({"model": "wrong", "choices": [{"message": {"content": "{}"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 1}}).encode()))
 def test_malformed_missing_usage_and_model_mismatch_are_known_failures(tmp_path, monkeypatch, payload):
     from litflow.deep_research.deepseek_canary import DeepSeekCanaryPlan, DeepSeekCanaryRunner
 
