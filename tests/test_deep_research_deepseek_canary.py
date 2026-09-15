@@ -54,6 +54,8 @@ def test_normal_response_freezes_thinking_request_and_reconciles_cost(tmp_path, 
     assert "fixture-key-never-persist" not in persisted and "reasoning_content" not in persisted and "Authorization" not in persisted
     assert json.loads((tmp_path / "canary" / "replay_verification.json").read_text(encoding="utf-8"))["provider_calls_during_replay"] == 0
     assert json.loads((tmp_path / "canary" / "immutable_plan.json").read_text(encoding="utf-8")) == _plan()
+    diagnostics = json.loads((tmp_path / "canary" / "adapter_diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics["prompt_cache_hit_tokens"] == 4 and diagnostics["prompt_cache_miss_tokens"] == 8 and diagnostics["client_observed_elapsed_s"] > 0
 
 
 def test_missing_key_and_invalid_plan_are_pre_dispatch_zero_network(tmp_path, monkeypatch):
@@ -173,7 +175,7 @@ def test_plan_commit_can_be_older_than_current_head_and_fingerprint_covers_runti
     relative = ("src/litflow/deep_research/deepseek_canary.py", "src/litflow/deep_research/deepseek_cli.py", "src/litflow/deep_research/canary.py", "src/litflow/deep_research/runtime_v2.py", "src/litflow/deep_research/budgets.py", "src/litflow/deep_research/operations.py")
     expected = sha256_hex(canonical_json_bytes({name: sha256_hex((root / name).read_bytes()) for name in relative}))
     plan = DeepSeekCanaryPlan.model_validate(_plan())
-    assert plan.implementation_commit_sha == "b5e93f548a52e1bc0580bcfb5742be4358136a62"
+    assert plan.implementation_commit_sha == "af10c6840b10ed62c621abaf60c8af846b53eaf5"
     assert plan.runtime_source_sha256 == expected == _runtime_source_sha256()
 
 

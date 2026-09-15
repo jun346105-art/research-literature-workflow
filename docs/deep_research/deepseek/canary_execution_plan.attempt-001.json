@@ -34,6 +34,6 @@
   "brief_id": "dr-brief-222222222222222222222222",
   "run_id": "dr-run-0381179dd264e4f8324c3214",
   "artifact_dir": "outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214",
-  "implementation_commit_sha": "b5e93f548a52e1bc0580bcfb5742be4358136a62",
-  "runtime_source_sha256": "d0c4f2f75fab94aab1f78e3997baabd40532eb2d60860f2dbea5d370931334d8"
+  "implementation_commit_sha": "af10c6840b10ed62c621abaf60c8af846b53eaf5",
+  "runtime_source_sha256": "9803cfc583bfcc5ebb34f954670ee0f354ff2c6bcd942e75d4b430fc50ef7b3f"
 }

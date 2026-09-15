@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_metrics": {
+      "items": {
+        "enum": [
+          "terminal_status",
+          "grounding",
+          "claims_citations",
+          "replay_zero_calls",
+          "tokens",
+          "provider_native_cost",
+          "client_elapsed",
+          "author_review_required"
+        ],
+        "type": "string"
+      },
+      "title": "Acceptance Metrics",
+      "type": "array"
+    },
+    "artifact_dir": {
+      "pattern": "^outputs/deep_research/e2e/v1\\.2/dr-run-[0-9a-f]{24}$",
+      "title": "Artifact Dir",
+      "type": "string"
+    },
+    "attempt_id": {
+      "pattern": "^[a-z0-9][a-z0-9.-]*$",
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "brief_id": {
+      "pattern": "^dr-brief-[0-9a-f]{24}$",
+      "title": "Brief Id",
+      "type": "string"
+    },
+    "cache_hit_input_price_per_million": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Cache Hit Input Price Per Million"
+    },
+    "channel": {
+      "const": "ordinary_model_api",
+      "default": "ordinary_model_api",
+      "title": "Channel",
+      "type": "string"
+    },
+    "corpus_path": {
+      "pattern": "^outputs/rag_bm25_v1/[a-z0-9_.-]+$",
+      "title": "Corpus Path",
+      "type": "string"
+    },
+    "corpus_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Corpus Sha256",
+      "type": "string"
+    },
+    "credential_environment_variable": {
+      "enum": [
+        "ZHIPUAI_API_KEY",
+        "DEEPSEEK_API_KEY"
+      ],
+      "title": "Credential Environment Variable",
+      "type": "string"
+    },
+    "endpoint": {
+      "title": "Endpoint",
+      "type": "string"
+    },
+    "fallback_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Fallback Enabled",
+      "type": "boolean"
+    },
+    "files_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Files Enabled",
+      "type": "boolean"
+    },
+    "implementation_commit_sha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Implementation Commit Sha",
+      "type": "string"
+    },
+    "input_price_per_million": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Input Price Per Million"
+    },
+    "max_provider_attempts": {
+      "const": 2,
+      "default": 2,
+      "title": "Max Provider Attempts",
+      "type": "integer"
+    },
+    "max_provider_calls": {
+      "const": 2,
+      "default": 2,
+      "title": "Max Provider Calls",
+      "type": "integer"
+    },
+    "max_replans": {
+      "const": 1,
+      "default": 1,
+      "title": "Max Replans",
+      "type": "integer"
+    },
+    "max_retries": {
+      "const": 0,
+      "default": 0,
+      "title": "Max Retries",
+      "type": "integer"
+    },
+    "model_id": {
+      "enum": [
+        "glm-5.3-flash",
+        "deepseek-flash"
+      ],
+      "title": "Model Id",
+      "type": "string"
+    },
+    "monetary_budget_currency": {
+      "enum": [
+        "CNY",
+        "USD"
+      ],
+      "title": "Monetary Budget Currency",
+      "type": "string"
+    },
+    "monetary_budget_limit_micros": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Monetary Budget Limit Micros"
+    },
+    "operation_timeout_seconds": {
+      "const": 60,
+      "default": 60,
+      "title": "Operation Timeout Seconds",
+      "type": "integer"
+    },
+    "output_price_per_million": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Output Price Per Million"
+    },
+    "parallel_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Parallel Enabled",
+      "type": "boolean"
+    },
+    "planner_max_input_tokens": {
+      "const": 2048,
+      "default": 2048,
+      "title": "Planner Max Input Tokens",
+      "type": "integer"
+    },
+    "planner_max_output_tokens": {
+      "const": 4096,
+      "default": 4096,
+      "title": "Planner Max Output Tokens",
+      "type": "integer"
+    },
+    "planner_prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Planner Prompt Sha256",
+      "type": "string"
+    },
+    "planner_reasoning_effort": {
+      "const": "low",
+      "default": "low",
+      "title": "Planner Reasoning Effort",
+      "type": "string"
+    },
+    "provider": {
+      "enum": [
+        "zhipu-bigmodel",
+        "deepseek"
+      ],
+      "title": "Provider",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^dr-run-[0-9a-f]{24}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "run_timeout_seconds": {
+      "const": 180,
+      "default": 180,
+      "title": "Run Timeout Seconds",
+      "type": "integer"
+    },
+    "runtime_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Runtime Source Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "dr-paired-single-paper-e2e-v1",
+      "default": "dr-paired-single-paper-e2e-v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "task_id": {
+      "pattern": "^dr-task-[0-9a-f]{24}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "task_input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Task Input Sha256",
+      "type": "string"
+    },
+    "text_only": {
+      "const": true,
+      "default": true,
+      "title": "Text Only",
+      "type": "boolean"
+    },
+    "thinking": {
+      "const": "enabled",
+      "default": "enabled",
+      "title": "Thinking",
+      "type": "string"
+    },
+    "tools_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Tools Enabled",
+      "type": "boolean"
+    },
+    "vision_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Vision Enabled",
+      "type": "boolean"
+    },
+    "web_enabled": {
+      "const": false,
+      "default": false,
+      "title": "Web Enabled",
+      "type": "boolean"
+    },
+    "writer_max_input_tokens": {
+      "const": 4096,
+      "default": 4096,
+      "title": "Writer Max Input Tokens",
+      "type": "integer"
+    },
+    "writer_max_output_tokens": {
+      "const": 4096,
+      "default": 4096,
+      "title": "Writer Max Output Tokens",
+      "type": "integer"
+    },
+    "writer_prompt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Writer Prompt Sha256",
+      "type": "string"
+    },
+    "writer_reasoning_effort": {
+      "const": "high",
+      "default": "high",
+      "title": "Writer Reasoning Effort",
+      "type": "string"
+    }
+  },
+  "required": [
+    "provider",
+    "model_id",
+    "endpoint",
+    "credential_environment_variable",
+    "monetary_budget_currency",
+    "input_price_per_million",
+    "cache_hit_input_price_per_million",
+    "output_price_per_million",
+    "monetary_budget_limit_micros",
+    "task_id",
+    "brief_id",
+    "attempt_id",
+    "run_id",
+    "artifact_dir",
+    "implementation_commit_sha",
+    "runtime_source_sha256",
+    "corpus_path",
+    "corpus_sha256",
+    "planner_prompt_sha256",
+    "writer_prompt_sha256",
+    "task_input_sha256",
+    "acceptance_metrics"
+  ],
+  "title": "PairedSinglePaperPlan",
+  "type": "object"
+}
