@@ -39,7 +39,7 @@ from .gap_replan import EvidenceGap, GapConflictAssessment, PotentialConflict, R
 from .writer import FakeWriter, ReportDraft, ReportStatus, ReportValidationResult, SingleWriterRunner, ValidatedReport, Writer, validate_report_draft
 from .e2e import DeepResearchRunner, GLME2EPilotPlan, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, preflight_e2e_pilot
 from .e2e import E2ETerminalError, GLME2EPilotAttemptPlan, parse_e2e_pilot_plan
-from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner, DeepSeekSingleWriter
+from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekStructuredReply, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner, DeepSeekSingleWriter
 from .paired_e2e import PairedSinglePaperPlan, parse_paired_plan, preflight_paired_plan
 from .writer_calibration import WriterCalibrationPlan, WriterCalibrationRunner, preflight_writer_calibration
 
@@ -131,6 +131,7 @@ __all__ = [
     "GLME2EPilotAttemptPlan",
     "parse_e2e_pilot_plan",
     "DeepSeekInvocationPolicy",
+    "DeepSeekStructuredReply",
     "DeepSeekStructuredAdapter",
     "DeepSeekStructuredPlanner",
     "DeepSeekSingleWriter",

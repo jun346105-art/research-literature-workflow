@@ -6,19 +6,40 @@ import os
 import socket
 import time
 import urllib.error
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .canary import _AsyncTransport, _urllib_transport
-from .e2e import GLMAdapterError, GLMStructuredPlanner, GLMSingleWriter, GLMStructuredReply, _provider_diagnostics
+from .e2e import GLMAdapterError, GLMStructuredPlanner, GLMSingleWriter, _provider_diagnostics
 from .budgets import BudgetSpec, TokenUsage
 from .identity import canonical_json_bytes, sha256_hex
 
 
 DEEPSEEK_E2E_ENDPOINT = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_E2E_MODEL = "deepseek-flash"
+
+
+@dataclass(frozen=True)
+class DeepSeekStructuredReply:
+    content: str
+    usage: TokenUsage
+    model_identity_verified: bool
+    usage_reported: bool
+    request_id_present: bool
+    http_status: int | None = None
+    response_received: bool = True
+    response_json_parsed: bool = True
+    finish_reason: str | None = None
+    content_length: int = 0
+    content_sha256: str | None = None
+    observed_type: str = "object"
+    observed_keys: tuple[str, ...] = ()
+    prompt_cache_hit_tokens: int = 0
+    prompt_cache_miss_tokens: int = 0
+    client_observed_elapsed_s: float = 0.0
 
 
 class DeepSeekInvocationPolicy(BaseModel):
@@ -74,7 +95,7 @@ class DeepSeekStructuredAdapter:
             raise ValueError("credential missing for DeepSeek structured E2E")
         return credential
 
-    async def complete(self, *, prompt: str, operation_name: str) -> GLMStructuredReply:
+    async def complete(self, *, prompt: str, operation_name: str) -> DeepSeekStructuredReply:
         credential = self.require_credential_for_execute()
         planner = operation_name == "glm_structured_planner"
         max_tokens = self._policy.planner_max_output_tokens if planner else self._policy.writer_max_output_tokens
@@ -104,7 +125,7 @@ class DeepSeekStructuredAdapter:
         token_usage = TokenUsage(input_tokens=usage["prompt_tokens"], output_tokens=usage["completion_tokens"], cost_micros=cost * Decimal("1000000"))
         if payload.get("model") != self._policy.model_id:
             raise GLMAdapterError("provider_response_invalid", diagnostics={"failure_stage": "provider_response", "contract_error_code": "model_identity_unverified", "usage_reported": True, "client_observed_elapsed_s": elapsed}, usage=token_usage)
-        return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type="object", observed_keys=tuple(sorted(key for key in payload if key in {"choices", "error", "id", "model", "request_id", "usage"})), prompt_cache_hit_tokens=usage["prompt_cache_hit_tokens"], prompt_cache_miss_tokens=usage["prompt_cache_miss_tokens"], client_observed_elapsed_s=elapsed)
+        return DeepSeekStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=choice.get("finish_reason") if isinstance(choice.get("finish_reason"), str) else None, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type="object", observed_keys=tuple(sorted(key for key in payload if key in {"choices", "error", "id", "model", "request_id", "usage"})), prompt_cache_hit_tokens=usage["prompt_cache_hit_tokens"], prompt_cache_miss_tokens=usage["prompt_cache_miss_tokens"], client_observed_elapsed_s=elapsed)
 
 
 class DeepSeekStructuredPlanner(GLMStructuredPlanner):
@@ -115,4 +136,4 @@ class DeepSeekSingleWriter(GLMSingleWriter):
     pass
 
 
-__all__ = ["DEEPSEEK_E2E_ENDPOINT", "DEEPSEEK_E2E_MODEL", "DeepSeekInvocationPolicy", "DeepSeekStructuredAdapter", "DeepSeekStructuredPlanner", "DeepSeekSingleWriter"]
+__all__ = ["DEEPSEEK_E2E_ENDPOINT", "DEEPSEEK_E2E_MODEL", "DeepSeekInvocationPolicy", "DeepSeekStructuredReply", "DeepSeekStructuredAdapter", "DeepSeekStructuredPlanner", "DeepSeekSingleWriter"]
