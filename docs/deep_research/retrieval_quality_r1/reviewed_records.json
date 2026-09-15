@@ -9,6 +9,7 @@
   },
   "queries": [
     {
+      "answer_claim_family": "wtc3k2_composition",
       "expected_answerable": true,
       "gold_evidence_summary": "WT-C3k2 combines C3k2 and WTConv.",
       "query_en": "What does the WT-C3k2 module combine?",
@@ -31,6 +32,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "qa_window_transform",
       "expected_answerable": true,
       "gold_evidence_summary": "QA uses learnable quadrilateral transformations.",
       "query_en": "How does the QA Block change attention windows?",
@@ -53,6 +55,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "dysample_multiscale",
       "expected_answerable": true,
       "gold_evidence_summary": "DySample adaptively upsamples by feature complexity.",
       "query_en": "How does DySample support multi-scale features?",
@@ -75,6 +78,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "tpmn_texture_preservation",
       "expected_answerable": true,
       "gold_evidence_summary": "TPMN uses prior attention and multi-level feature fusion.",
       "query_en": "How does TPMN preserve low-level texture information for corrugated boxes?",
@@ -97,6 +101,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "rgbd_ransac_error_handling",
       "expected_answerable": true,
       "gold_evidence_summary": "It derives an error model and uses radial residuals.",
       "query_en": "How does modified RANSAC handle RGB-D plane fitting errors?",
@@ -121,6 +126,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "merge_yolo_precision_vs_yolo11",
       "expected_answerable": true,
       "gold_evidence_summary": "Reported Precision is 95.8% with a 2.1 point improvement.",
       "query_en": "What Precision result does Merge-YOLO report versus YOLO11?",
@@ -143,6 +149,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "qzudet_image_category_count",
       "expected_answerable": true,
       "gold_evidence_summary": "QZU-DET contains 5095 images and three conditions.",
       "query_en": "How many images and categories are in QZU-DET?",
@@ -165,6 +172,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "qzudet_121fps",
       "expected_answerable": true,
       "gold_evidence_summary": "The proposed method reports 121 FPS.",
       "query_en": "What inference speed is reported for tape-sealing defect detection?",
@@ -187,6 +195,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "rgbd_plane_angle_error",
       "expected_answerable": true,
       "gold_evidence_summary": "Weighted radial distance results are reported.",
       "query_en": "How is plane fitting angle error reduced to 0.5 degrees?",
@@ -209,6 +218,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "tpmn_texture_challenges",
       "expected_answerable": true,
       "gold_evidence_summary": "Texture variation, low-level features, and multi-level information loss are described.",
       "query_en": "What texture challenges affect corrugated courier box defect detection?",
@@ -231,6 +241,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "hybrid_single_mould_limit",
       "expected_answerable": true,
       "gold_evidence_summary": "Results are limited to parts from one mould.",
       "query_en": "What single-mould limitation is reported for hybrid 2D/3D inspection?",
@@ -253,6 +264,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "ssd_logistics_application",
       "expected_answerable": true,
       "gold_evidence_summary": "The paper addresses carton packaging quality detection in logistics.",
       "query_en": "What logistics carton application is addressed by the SSD packaging defect system?",
@@ -275,6 +287,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "packaging_yolo_papers",
       "expected_answerable": true,
       "gold_evidence_summary": "Cross-paper comparison of YOLO-based packaging defect methods.",
       "query_en": "Which papers improve YOLO networks for packaging defect detection?",
@@ -303,6 +316,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "rgbd_2d3d_geometric_vision",
       "expected_answerable": true,
       "gold_evidence_summary": "Comparison of RGB-D plane fitting and hybrid 2D/3D inspection.",
       "query_en": "Which papers address RGB-D or 2D/3D geometric vision?",
@@ -328,6 +342,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "packaging_small_multiscale_methods",
       "expected_answerable": true,
       "gold_evidence_summary": "Methods mention multi-level fusion, reduced misses, or small-object detection.",
       "query_en": "How do TPMN, Merge-YOLO, and the improved YOLOv8 model evaluated on the QZU-DET dataset respectively address small-scale or multi-scale packaging defects?",
@@ -356,6 +371,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "yolo_attention_upsampling_comparison",
       "expected_answerable": true,
       "gold_evidence_summary": "Compare attention/lightweight YOLO improvements and dynamic upsampling.",
       "query_en": "How do YOLOv8-GSP and Merge-YOLO use attention or upsampling modules to improve defect detection?",
@@ -381,6 +397,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "packaging_datasets_experimental_setups",
       "expected_answerable": true,
       "gold_evidence_summary": "Cross-paper dataset and experiment evidence.",
       "query_en": "How do the TPMN, Merge-YOLO, and QZU-DET papers report their datasets and experimental setups?",
@@ -409,6 +426,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "thermal_packaging_no_answer",
       "expected_answerable": false,
       "gold_evidence_summary": "No selected corpus evidence expected.",
       "query_en": "Which papers use thermal imaging for packaging defect detection?",
@@ -425,6 +443,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "mri_carton_no_answer",
       "expected_answerable": false,
       "gold_evidence_summary": "No selected corpus evidence expected.",
       "query_en": "Which papers use MRI for carton defect detection?",
@@ -441,6 +460,7 @@
       "split": "development"
     },
     {
+      "answer_claim_family": "zero_missed_detection_no_answer",
       "expected_answerable": false,
       "gold_evidence_summary": "No selected corpus evidence expected.",
       "query_en": "Which papers prove zero missed detections for all packaging defects?",

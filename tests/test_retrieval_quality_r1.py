@@ -32,7 +32,6 @@ def test_three_schemas_parse_as_draft_2020_12():
 
 
 def test_real_r1_files_pass_json_schema_validation():
-    pytest.importorskip("jsonschema")
     validate_json_schema_documents(MANIFEST)
 
 
@@ -71,12 +70,14 @@ def test_pending_counts_quotas_and_ids_are_isolated():
     held = load_r1_records(MANIFEST, split="held_out", allow_pending=True)
     reviewed = load_r1_records(MANIFEST, split="development")
     assert len(dev) == 12 and len(held) == 16
-    assert Counter(row["query_type"] for row in dev) == {"no_answer": 6, "hard_negative": 6}
+    assert Counter(row["query_type"] for row in dev) == {"hard_negative": 12}
     assert Counter(row["query_type"] for row in held) == {"single_paper": 8, "cross_paper": 4, "in_domain_no_answer": 2, "near_miss_hard_negative": 2}
     assert all(row["review_status"] == "pending_review" for row in dev + held)
     all_ids = [row["query_id"] for row in reviewed + dev + held]
     assert len(all_ids) == len(set(all_ids)) == 48
     assert len(load_all_r1_records(MANIFEST, allow_pending=True)) == 48
+    claim_families = [row["answer_claim_family"] for row in reviewed + dev + held]
+    assert len(claim_families) == len(set(claim_families)) == 48
 
 
 def test_pending_json_and_review_csv_match():
@@ -88,7 +89,13 @@ def test_pending_json_and_review_csv_match():
         assert review["split"] == record["split"]
         assert review["query_type"] == record["query_type"]
         assert review["expected_answerable"].lower() == str(record["expected_answerable"]).lower()
+        assert review["answer_claim_family"] == record["answer_claim_family"]
         assert review["review_status"] == record["review_status"] == "pending_review"
+        if record["split"] == "held_out":
+            overlap = record["development_overlap"]
+            assert review["passage_overlap"] == str(overlap["passage_overlap"]).lower()
+            assert review["answer_claim_overlap"] == "false"
+            assert review["independence_note"] == overlap["independence_note"]
 
 
 def test_candidate_qrels_resolve_to_declared_corpus_sources():
@@ -101,6 +108,19 @@ def test_candidate_qrels_resolve_to_declared_corpus_sources():
             assert passage_id in passages
             assert passages[passage_id]["paper_key"] in record["relevant_paper_keys"]
             assert passage_id.split(":", 1)[0] == passages[passage_id]["paper_key"]
+
+
+def test_held_out_passage_overlap_is_explicit_and_claim_overlap_is_false():
+    reviewed = load_r1_records(MANIFEST, split="development")
+    held = load_r1_records(MANIFEST, split="held_out", allow_pending=True)
+    development_passages = {passage_id for row in reviewed for passage_id in row["relevant_passage_ids"]}
+    for row in held:
+        actual_overlap = sorted(set(row["relevant_passage_ids"]) & development_passages)
+        declared = row["development_overlap"]
+        assert declared["passage_overlap"] == bool(actual_overlap)
+        assert declared["answer_claim_overlap"] is False
+        assert declared["independence_note"]
+    assert [row["query_id"] for row in held if row["development_overlap"]["passage_overlap"]] == ["H007"]
 
 
 def test_pending_review_is_fail_closed_for_formal_evaluation():

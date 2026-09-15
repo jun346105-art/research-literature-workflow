@@ -9,6 +9,7 @@ This document records the packaging boundary verified in DR-S02. It changes depe
 | NumPy | Default runtime | `2.5.2` in `requirements.runtime.lock`; `numpy>=2.5` in project metadata | `litflow.cli` imports `litflow.rag.dense` at module load, and `dense.py` / `windowed.py` import NumPy at module load. Runtime CLI help therefore needs NumPy. |
 | LangGraph | Default runtime lock completion | `1.2.11` | Already declared in project metadata and imported by the Agent modules reached from the CLI top-level import chain. Docker installs the lock before installing the project with `--no-deps`, so the lock must contain it. |
 | PyMuPDF | Test extra only | `1.28.2` as `.[test]` | Production PDF extraction imports `pypdf`, not PyMuPDF. `fitz` appears only in `tests/test_reading_context.py` to create fixture PDFs. Default CLI help, Offline Docker configuration, and the Reading Context production module do not import it. |
+| jsonschema | Test/evaluation extra only | `4.25.0` in `requirements.test.lock` and `.[test]` | Retrieval Quality R1 metrics do not require it, but formal R1 package validation explicitly uses `Draft202012Validator`. It remains outside the default runtime. |
 
 ## Import graph and exclusion boundary
 
@@ -18,6 +19,7 @@ litflow.cli -> rag.dense -> numpy
 rag.windowed -> numpy
 reading_context -> pdf.extractor -> pypdf
 tests/test_reading_context.py -> pytest.importorskip("fitz") -> PyMuPDF
+retrieval_quality_r1.validate_json_schema_documents -> jsonschema.Draft202012Validator
 rag.dense._Encoder -> torch + transformers (delayed, Dense-only)
 ```
 
@@ -37,13 +39,12 @@ python -c "import numpy"
 python -m litflow.cli --help
 ```
 
-Development test path adds only the declared test extra and pytest for test execution:
+Development/evaluation test path uses the test lock and pytest for test execution:
 
 ```powershell
-python -m pip install -r requirements.runtime.lock
-python -m pip install ".[test]"
+python -m pip install -r requirements.test.lock
 python -m pip install "pytest==9.1.1"
-python -m pytest -q tests/test_models.py tests/test_reading_context.py tests/test_docker_packaging.py
+python -m pytest -q tests/test_models.py tests/test_reading_context.py tests/test_retrieval_quality_r1.py tests/test_docker_packaging.py
 ```
 
-The fresh-environment commands are run in an S02-created system-temporary venv, never in the repository `.venv`. Passing Reading Context tests without skips is the test-extra contract; PyMuPDF is not added to the runtime lock because the production graph does not require it.
+The fresh-environment commands are run in a system-temporary venv. Passing Reading Context and R1 Schema tests without skips is the test-extra contract; neither PyMuPDF nor jsonschema is added to the runtime lock because the production graph does not require them.

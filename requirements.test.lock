@@ -1,0 +1,7 @@
+-r requirements.runtime.lock
+attrs==25.4.0
+jsonschema==4.25.0
+jsonschema-specifications==2025.9.1
+PyMuPDF==1.28.2
+referencing==0.37.0
+rpds-py==0.28.0

@@ -20,3 +20,6 @@ Files:
 - `schemas/dataset.schema.json`: dataset manifest contract.
 - `pending_candidates.json`: 28 candidate records for author review.
 - `pending_candidates.review.csv`: review worksheet; no row is ground truth until `answerable_correct`, `relevant_passages_correct`, `review_decision`, `reviewer`, and `reviewed_at` are completed and a separate reviewed artifact is frozen.
+- `PENDING_REVIEW_PACKET.md`: evidence-aware Revision 2 packet for the one authorized candidate revision; all recommendations remain advisory and all records remain pending.
+
+Formal Schema validation is a test/evaluation concern, not a core runtime dependency. Install `requirements.test.lock` (or the `test` extra) to obtain the pinned `jsonschema==4.25.0` validator.

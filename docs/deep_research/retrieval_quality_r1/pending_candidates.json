@@ -4,36 +4,542 @@
     "review_status": "pending_review",
     "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
     "ground_truth": false,
-    "review_instruction": "Do not use these records as formal qrels until an author confirms answerability and passages."
+    "candidate_revision": 2,
+    "supersedes_canonical_sha256": "301c605c51196e3e0bd95d574b54281f5af51d03c4e8f80aa9c1d0f7095e2e0c",
+    "revision_policy": "one_user_authorized_evidence_aware_revision; all records remain pending_review",
+    "review_instruction": "Do not use these records as formal qrels until an author confirms answerability, claim independence, and complete passages."
   },
   "queries": [
-    {"query_id":"D001","split":"dev_hard_negative","query_zh":"哪些论文使用热成像检测包装缺陷？","query_en":"Which papers use thermal imaging for packaging defect detection?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D002","split":"dev_hard_negative","query_zh":"哪些论文使用毫米波雷达检测纸箱缺陷？","query_en":"Which papers use millimeter-wave radar for carton defect detection?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D003","split":"dev_hard_negative","query_zh":"哪些论文证明所有包装缺陷都零漏检？","query_en":"Which papers prove zero missed detections for every packaging defect?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported universal claim; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D004","split":"dev_hard_negative","query_zh":"哪篇论文在真实仓库部署中保证全天候无误检？","query_en":"Which paper guarantees zero false positives in all-weather warehouse deployment?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported deployment claim; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D005","split":"dev_hard_negative","query_zh":"哪些论文使用MRI定位瓦楞纸箱裂纹？","query_en":"Which papers use MRI to localize corrugated carton cracks?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D006","split":"dev_hard_negative","query_zh":"哪个模型在所有数据集上达到100% mAP？","query_en":"Which model reaches 100% mAP on every dataset?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported universal metric; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D007","split":"dev_hard_negative","query_zh":"哪篇论文比较了包装缺陷检测与医学影像诊断？","query_en":"Which paper compares packaging defect detection with medical image diagnosis?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D008","split":"dev_hard_negative","query_zh":"哪些论文报告了对任意光照条件都稳定的检测器？","query_en":"Which papers report detectors stable under every illumination condition?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported universal robustness claim; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D009","split":"dev_hard_negative","query_zh":"哪篇论文用超声波检测纸箱表面缺陷？","query_en":"Which paper uses ultrasound to detect carton surface defects?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D010","split":"dev_hard_negative","query_zh":"哪些论文公开了跨工厂零样本验证？","query_en":"Which papers report cross-factory zero-shot validation?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported generalization claim; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D011","split":"dev_hard_negative","query_zh":"哪篇论文证明模型不需要标注数据？","query_en":"Which paper proves that its model needs no labeled data?","query_type":"hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate unsupported training claim; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"D012","split":"dev_hard_negative","query_zh":"哪些论文使用LiDAR完成纸箱缺陷定位？","query_en":"Which papers use LiDAR for carton defect localization?","query_type":"no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"H001","split":"held_out","query_zh":"TPMN数据集包含多少张包装图像？","query_en":"How many package images are in the TPMN dataset?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["L4DLHQUZ"],"relevant_passage_ids":["L4DLHQUZ:L4DLHQUZ_chunk_0003"],"gold_evidence_summary":"Candidate passage states the Cardboard-Boxes-Dataset contains 1210 images.","review_status":"pending_review"},
-    {"query_id":"H002","split":"held_out","query_zh":"SSD包装缺陷系统报告的mAP和FPS是多少？","query_en":"What mAP and FPS does the SSD carton defect system report?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["Z5HMPJQG"],"relevant_passage_ids":["Z5HMPJQG:Z5HMPJQG_chunk_0001"],"gold_evidence_summary":"Candidate abstract states mAP 0.9662 and FPS 36.","review_status":"pending_review"},
-    {"query_id":"H003","split":"held_out","query_zh":"Merge-YOLO相对YOLO11的Precision是多少？","query_en":"What Precision does Merge-YOLO report relative to YOLO11?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["DZ6TYBIQ"],"relevant_passage_ids":["DZ6TYBIQ:DZ6TYBIQ_chunk_0012"],"gold_evidence_summary":"Candidate passage reports 95.8% for Merge-YOLO and 93.7% for YOLO11.","review_status":"pending_review"},
-    {"query_id":"H004","split":"held_out","query_zh":"QZU-DET的训练验证测试集如何划分？","query_en":"How is QZU-DET split into training, validation, and test sets?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["3NLKTSIP"],"relevant_passage_ids":["3NLKTSIP:3NLKTSIP_chunk_0011"],"gold_evidence_summary":"Candidate passage reports the 3095/1000/1000 split.","review_status":"pending_review"},
-    {"query_id":"H005","split":"held_out","query_zh":"改进的RGB-D平面拟合使用什么残差方向？","query_en":"What residual direction does the improved RGB-D plane fitting use?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["7VU5R3RT"],"relevant_passage_ids":["7VU5R3RT:7VU5R3RT_chunk_0004"],"gold_evidence_summary":"Candidate passage states radial-distance residuals and weighted coordinates.","review_status":"pending_review"},
-    {"query_id":"H006","split":"held_out","query_zh":"混合2D/3D视觉系统的目标检测准确率设定是多少？","query_en":"What accuracy target is set for the hybrid 2D/3D vision system?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["GRPLVQ8G"],"relevant_passage_ids":["GRPLVQ8G:GRPLVQ8G_chunk_0003"],"gold_evidence_summary":"Candidate passage states a target accuracy of 90%.","review_status":"pending_review"},
-    {"query_id":"H007","split":"held_out","query_zh":"YOLOv8-GSP如何降低计算量并提高检测精度？","query_en":"How does YOLOv8-GSP reduce computation and improve detection accuracy?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["696N7XZ8"],"relevant_passage_ids":["696N7XZ8:696N7XZ8_chunk_0003"],"gold_evidence_summary":"Candidate passage describes Ghost convolution and attention in the neck.","review_status":"pending_review"},
-    {"query_id":"H008","split":"held_out","query_zh":"TPMN针对快递纸箱提出了哪些纹理挑战？","query_en":"What texture challenges does TPMN identify for courier boxes?","query_type":"single_paper","expected_answerable":true,"relevant_paper_keys":["L4DLHQUZ"],"relevant_passage_ids":["L4DLHQUZ:L4DLHQUZ_chunk_0002"],"gold_evidence_summary":"Candidate passage discusses low-level texture loss and varied defect scale.","review_status":"pending_review"},
-    {"query_id":"H009","split":"held_out","query_zh":"TPMN与QZU-DET论文的数据集规模如何比较？","query_en":"How do the TPMN and QZU-DET dataset sizes compare?","query_type":"cross_paper","expected_answerable":true,"relevant_paper_keys":["L4DLHQUZ","3NLKTSIP"],"relevant_passage_ids":["L4DLHQUZ:L4DLHQUZ_chunk_0003","3NLKTSIP:3NLKTSIP_chunk_0011"],"gold_evidence_summary":"Candidate comparison uses the 1210-image and 5095-image passages.","review_status":"pending_review"},
-    {"query_id":"H010","split":"held_out","query_zh":"Merge-YOLO与YOLOv8-GSP分别采用了哪些结构改进？","query_en":"What structural improvements do Merge-YOLO and YOLOv8-GSP use?","query_type":"cross_paper","expected_answerable":true,"relevant_paper_keys":["DZ6TYBIQ","696N7XZ8"],"relevant_passage_ids":["DZ6TYBIQ:DZ6TYBIQ_chunk_0008","696N7XZ8:696N7XZ8_chunk_0003"],"gold_evidence_summary":"Candidate comparison uses WT-C3k2/QA evidence and Ghost/attention evidence.","review_status":"pending_review"},
-    {"query_id":"H011","split":"held_out","query_zh":"RGB-D平面拟合与混合2D/3D系统分别面向什么视觉问题？","query_en":"What visual problems do RGB-D plane fitting and hybrid 2D/3D systems address?","query_type":"cross_paper","expected_answerable":true,"relevant_paper_keys":["7VU5R3RT","GRPLVQ8G"],"relevant_passage_ids":["7VU5R3RT:7VU5R3RT_chunk_0004","GRPLVQ8G:GRPLVQ8G_chunk_0003"],"gold_evidence_summary":"Candidate comparison uses sensor-error and integrated-vision passages.","review_status":"pending_review"},
-    {"query_id":"H012","split":"held_out","query_zh":"SSD系统与QZU-DET模型分别报告了什么速度指标？","query_en":"What speed-related metrics do the SSD system and QZU-DET model report?","query_type":"cross_paper","expected_answerable":true,"relevant_paper_keys":["Z5HMPJQG","3NLKTSIP"],"relevant_passage_ids":["Z5HMPJQG:Z5HMPJQG_chunk_0001","3NLKTSIP:3NLKTSIP_chunk_0005"],"gold_evidence_summary":"Candidate comparison uses 36 FPS and 121 FPS passages.","review_status":"pending_review"},
-    {"query_id":"H013","split":"held_out","query_zh":"冻结语料中哪些论文使用高光谱成像检测包装缺陷？","query_en":"Which papers in the frozen corpus use hyperspectral imaging for packaging defects?","query_type":"in_domain_no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate in-domain no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"H014","split":"held_out","query_zh":"冻结语料中哪些论文使用激光雷达检测纸箱缺陷？","query_en":"Which papers in the frozen corpus use LiDAR for carton defect detection?","query_type":"in_domain_no_answer","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Candidate in-domain no-answer; author confirmation required.","review_status":"pending_review"},
-    {"query_id":"H015","split":"held_out","query_zh":"哪篇论文使用RGB-D直接检测瓦楞纸箱缺陷？","query_en":"Which paper uses RGB-D to directly detect corrugated carton defects?","query_type":"near_miss_hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Near miss: RGB-D passage concerns plane fitting, not carton-defect detection.","review_status":"pending_review"},
-    {"query_id":"H016","split":"held_out","query_zh":"哪篇论文用MRI达到121 FPS的包装检测？","query_en":"Which paper uses MRI to achieve 121 FPS packaging inspection?","query_type":"near_miss_hard_negative","expected_answerable":false,"relevant_paper_keys":[],"relevant_passage_ids":[],"gold_evidence_summary":"Near miss: 121 FPS passage is packaging vision, not MRI.","review_status":"pending_review"}
+    {
+      "query_id": "D001",
+      "split": "dev_hard_negative",
+      "query_zh": "TPMN是否在QZU-DET数据集上报告了121 FPS的推理速度？",
+      "query_en": "Does TPMN report 121 FPS inference speed on the QZU-DET dataset?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "tpmn_qzudet_121fps_misattribution"
+    },
+    {
+      "query_id": "D002",
+      "split": "dev_hard_negative",
+      "query_zh": "YOLOv8-GSP是否使用WT-C3k2作为轻量化骨干模块？",
+      "query_en": "Does YOLOv8-GSP use WT-C3k2 as its lightweight backbone module?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "yolov8gsp_wtc3k2_misattribution"
+    },
+    {
+      "query_id": "D003",
+      "split": "dev_hard_negative",
+      "query_zh": "SSD物流纸箱系统是否使用含1210张图像的Cardboard-Boxes-Dataset训练？",
+      "query_en": "Was the SSD logistics-carton system trained on the 1,210-image Cardboard-Boxes-Dataset?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "ssd_cardboardboxes_dataset_misattribution"
+    },
+    {
+      "query_id": "D004",
+      "split": "dev_hard_negative",
+      "query_zh": "改进的RGB-D平面拟合算法是否在书籍包装的fold、scratch和broken三类缺陷上进行了评估？",
+      "query_en": "Was the improved RGB-D plane-fitting algorithm evaluated on fold, scratch, and broken book-packaging defects?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "rgbd_book_defect_categories_misattribution"
+    },
+    {
+      "query_id": "D005",
+      "split": "dev_hard_negative",
+      "query_zh": "Merge-YOLO论文是否将QZU-DET划分为3095张训练、1000张验证和1000张测试图像？",
+      "query_en": "Does the Merge-YOLO paper split QZU-DET into 3,095 training, 1,000 validation, and 1,000 test images?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "merge_yolo_qzudet_split_misattribution"
+    },
+    {
+      "query_id": "D006",
+      "split": "dev_hard_negative",
+      "query_zh": "改进RANSAC是否在QZU-DET数据集上报告了0.5°的平面拟合角度误差？",
+      "query_en": "Does the improved RANSAC method report a 0.5-degree plane-fitting angle error on QZU-DET?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "ransac_qzudet_angle_error_misattribution"
+    },
+    {
+      "query_id": "D007",
+      "split": "dev_hard_negative",
+      "query_zh": "混合2D/3D表面缺陷系统是否采用Focal Loss处理类别不平衡？",
+      "query_en": "Does the hybrid 2D/3D surface-defect system use Focal Loss to address class imbalance?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "hybrid_2d3d_focal_loss_misattribution"
+    },
+    {
+      "query_id": "D008",
+      "split": "dev_hard_negative",
+      "query_zh": "Merge-YOLO是否采用IFPN降低特征金字塔的计算复杂度？",
+      "query_en": "Does Merge-YOLO use IFPN to reduce feature-pyramid computational complexity?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "merge_yolo_ifpn_misattribution"
+    },
+    {
+      "query_id": "D009",
+      "split": "dev_hard_negative",
+      "query_zh": "TPMN是否将瓦楞纸板横截面分为B、C、E、BC、EB、EC、EE和Not八类？",
+      "query_en": "Does TPMN classify corrugated-board cross-sections into B, C, E, BC, EB, EC, EE, and Not?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "tpmn_flute_classes_misattribution"
+    },
+    {
+      "query_id": "D010",
+      "split": "dev_hard_negative",
+      "query_zh": "哪些论文公开了跨工厂零样本验证？",
+      "query_en": "Which papers report cross-factory zero-shot validation?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate in-domain unsupported generalization claim; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cross_factory_zero_shot_validation"
+    },
+    {
+      "query_id": "D011",
+      "split": "dev_hard_negative",
+      "query_zh": "Cardboard-Boxes-Dataset上的TPMN实验是否把90%设为检测准确率目标？",
+      "query_en": "Do the TPMN experiments on Cardboard-Boxes-Dataset set a 90% detection-accuracy target?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "tpmn_90pct_target_misattribution"
+    },
+    {
+      "query_id": "D012",
+      "split": "dev_hard_negative",
+      "query_zh": "SSD纸箱缺陷系统是否在QZU-DET上报告了98.1%的mAP50？",
+      "query_en": "Does the SSD carton-defect system report 98.1% mAP50 on QZU-DET?",
+      "query_type": "hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Candidate relation/attribution error; author confirmation required.",
+      "review_status": "pending_review",
+      "answer_claim_family": "ssd_qzudet_map_misattribution"
+    },
+    {
+      "query_id": "H001",
+      "split": "held_out",
+      "query_zh": "双视图迁移学习包装数据集包含多少个包装样本，每个样本由哪些视图组成？",
+      "query_en": "How many package examples are in the two-view transfer-learning dataset, and which views make up each example?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "2V3T43BS"
+      ],
+      "relevant_passage_ids": [
+        "2V3T43BS:2V3T43BS_chunk_0003",
+        "2V3T43BS:2V3T43BS_chunk_0004"
+      ],
+      "gold_evidence_summary": "The dataset has 200 package examples represented by 400 RGB images; each package has one top view and one side view.",
+      "review_status": "pending_review",
+      "answer_claim_family": "two_view_dataset_unit_and_views",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H002",
+      "split": "held_out",
+      "query_zh": "瓦楞纸板CNN分类器为什么增加Not类，它表示什么情况？",
+      "query_en": "Why does the corrugated-board CNN classifier add a Not class, and what situation does it represent?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "Q55RU9N6"
+      ],
+      "relevant_passage_ids": [
+        "Q55RU9N6:Q55RU9N6_chunk_0009",
+        "Q55RU9N6:Q55RU9N6_chunk_0010"
+      ],
+      "gold_evidence_summary": "The Not class represents no board sample or an invalid acquisition state such as an open device door, preventing forced assignment to one of seven flute classes.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cnn_not_class_purpose",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H003",
+      "split": "held_out",
+      "query_zh": "双瓦楞纸板几何分析方法测量哪些几何特征？",
+      "query_en": "Which geometric features does the double-walled corrugated-board analysis method measure?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "JRIUZQ58"
+      ],
+      "relevant_passage_ids": [
+        "JRIUZQ58:JRIUZQ58_chunk_0001"
+      ],
+      "gold_evidence_summary": "It measures layer thickness, overall board thickness, flute height, and the center lines of each layer.",
+      "review_status": "pending_review",
+      "answer_claim_family": "double_wall_measured_geometry",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H004",
+      "split": "held_out",
+      "query_zh": "双视图迁移学习实验中，哪个预训练模型变体取得最高分类得分，其Accuracy和F1是多少？",
+      "query_en": "Which pretrained-model variant achieves the highest classification scores in the two-view experiment, and what are its Accuracy and F1?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "2V3T43BS"
+      ],
+      "relevant_passage_ids": [
+        "2V3T43BS:2V3T43BS_chunk_0010",
+        "2V3T43BS:2V3T43BS_chunk_0011"
+      ],
+      "gold_evidence_summary": "EfficientNetV2-21k-S with RGB input achieves 100% Accuracy and 100% F1.",
+      "review_status": "pending_review",
+      "answer_claim_family": "two_view_best_classification_model",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H005",
+      "split": "held_out",
+      "query_zh": "瓦楞纸板类型分类中，最高平均准确率的CNN结构是什么，平均准确率是多少？",
+      "query_en": "Which CNN architecture has the highest average accuracy for corrugated-board type classification, and what is that accuracy?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "Q55RU9N6"
+      ],
+      "relevant_passage_ids": [
+        "Q55RU9N6:Q55RU9N6_chunk_0012",
+        "Q55RU9N6:Q55RU9N6_chunk_0013"
+      ],
+      "gold_evidence_summary": "The 6conv_0dense_128nodes network—six convolutional layers, 128 filters per layer, and no dense layer—has 99.04% average accuracy.",
+      "review_status": "pending_review",
+      "answer_claim_family": "flute_cnn_best_architecture_accuracy",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H006",
+      "split": "held_out",
+      "query_zh": "双瓦楞几何方法的遗传算法使用了多少次最大迭代、多少种群规模，以及什么变异和交叉概率？",
+      "query_en": "What maximum iterations, population size, mutation probability, and crossover probability are used by the genetic algorithm for double-wall geometry?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "JRIUZQ58"
+      ],
+      "relevant_passage_ids": [
+        "JRIUZQ58:JRIUZQ58_chunk_0016"
+      ],
+      "gold_evidence_summary": "It uses 500 maximum iterations, population size 100, mutation probability 0.15, and crossover probability 0.2.",
+      "review_status": "pending_review",
+      "answer_claim_family": "double_wall_genetic_algorithm_parameters",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H007",
+      "split": "held_out",
+      "query_zh": "QZU-DET上的改进YOLOv8报告了多少mAP50和F1？",
+      "query_en": "What mAP50 and F1 does the improved YOLOv8 report on QZU-DET?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "3NLKTSIP"
+      ],
+      "relevant_passage_ids": [
+        "3NLKTSIP:3NLKTSIP_chunk_0002",
+        "3NLKTSIP:3NLKTSIP_chunk_0005"
+      ],
+      "gold_evidence_summary": "It reports 98.1% mAP50 and 91.6% F1 on QZU-DET.",
+      "review_status": "pending_review",
+      "answer_claim_family": "qzudet_map50_f1",
+      "development_overlap": {
+        "passage_overlap": true,
+        "overlapping_query_ids": [
+          "Q08",
+          "Q15"
+        ],
+        "answer_claim_overlap": false,
+        "independence_note": "The passages overlap development qrels, but development asks inference speed and small/multi-scale methods, not the mAP50/F1 result."
+      }
+    },
+    {
+      "query_id": "H008",
+      "split": "held_out",
+      "query_zh": "改进SSD纸箱缺陷模型收集了多少张物流纸箱照片用于训练和优化？",
+      "query_en": "How many logistics-carton photos were collected to train and optimize the improved SSD model?",
+      "query_type": "single_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "Z5HMPJQG"
+      ],
+      "relevant_passage_ids": [
+        "Z5HMPJQG:Z5HMPJQG_chunk_0005"
+      ],
+      "gold_evidence_summary": "The study collected 2,000 logistics-carton photos.",
+      "review_status": "pending_review",
+      "answer_claim_family": "ssd_training_photo_count",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H009",
+      "split": "held_out",
+      "query_zh": "双视图迁移学习研究与瓦楞纸板CNN分类研究分别如何构成单个输入样本？",
+      "query_en": "How do the two-view transfer-learning study and the corrugated-board CNN classification study construct one input sample?",
+      "query_type": "cross_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "2V3T43BS",
+        "Q55RU9N6"
+      ],
+      "relevant_passage_ids": [
+        "2V3T43BS:2V3T43BS_chunk_0004",
+        "Q55RU9N6:Q55RU9N6_chunk_0007",
+        "Q55RU9N6:Q55RU9N6_chunk_0008"
+      ],
+      "gold_evidence_summary": "The transfer-learning study pairs top and side package views; the board-classification study records a board cross-section with a dedicated camera/LED acquisition device.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cross_paper_input_sample_construction",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H010",
+      "split": "held_out",
+      "query_zh": "两项包装分类研究各自取得最高分类得分的模型是什么，报告的得分如何比较？",
+      "query_en": "Which model achieves the highest classification score in each of the two packaging-classification studies, and how do the reported scores compare?",
+      "query_type": "cross_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "2V3T43BS",
+        "Q55RU9N6"
+      ],
+      "relevant_passage_ids": [
+        "2V3T43BS:2V3T43BS_chunk_0010",
+        "2V3T43BS:2V3T43BS_chunk_0011",
+        "Q55RU9N6:Q55RU9N6_chunk_0012",
+        "Q55RU9N6:Q55RU9N6_chunk_0013"
+      ],
+      "gold_evidence_summary": "EfficientNetV2-21k-S reports 100% Accuracy/F1 in the two-view study; 6conv_0dense_128nodes reports 99.04% average accuracy in the flute-classification study.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cross_paper_best_classification_models",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H011",
+      "split": "held_out",
+      "query_zh": "双瓦楞几何分析论文与瓦楞纸板CNN论文的主要输出目标有何不同？",
+      "query_en": "How do the primary output goals differ between the double-wall geometry paper and the corrugated-board CNN paper?",
+      "query_type": "cross_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "JRIUZQ58",
+        "Q55RU9N6"
+      ],
+      "relevant_passage_ids": [
+        "JRIUZQ58:JRIUZQ58_chunk_0001",
+        "Q55RU9N6:Q55RU9N6_chunk_0004",
+        "Q55RU9N6:Q55RU9N6_chunk_0005"
+      ],
+      "gold_evidence_summary": "The geometry method estimates physical layer/flute geometry from cross-sections; the CNN method assigns flute/type classes to cross-section images.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cross_paper_geometry_vs_classification_output",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H012",
+      "split": "held_out",
+      "query_zh": "双视图包装分类与双瓦楞几何分析分别报告了什么数据或样本质量限制？",
+      "query_en": "What data or sample-quality limitation is reported by the two-view package classifier and by the double-wall geometry method?",
+      "query_type": "cross_paper",
+      "expected_answerable": true,
+      "relevant_paper_keys": [
+        "2V3T43BS",
+        "JRIUZQ58"
+      ],
+      "relevant_passage_ids": [
+        "2V3T43BS:2V3T43BS_chunk_0010",
+        "2V3T43BS:2V3T43BS_chunk_0011",
+        "JRIUZQ58:JRIUZQ58_chunk_0026",
+        "JRIUZQ58:JRIUZQ58_chunk_0028",
+        "JRIUZQ58:JRIUZQ58_chunk_0029"
+      ],
+      "gold_evidence_summary": "The classifier results come from a small computer-generated dataset and may differ on real-world data; the geometry method degrades with crushed/noisy cross-sections and depends on sample quality.",
+      "review_status": "pending_review",
+      "answer_claim_family": "cross_paper_data_quality_limitations",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H013",
+      "split": "held_out",
+      "query_zh": "双视图迁移学习包装分类器在独立真实仓库数据集上的准确率是多少？",
+      "query_en": "What accuracy does the two-view transfer-learning package classifier report on an independent real-warehouse dataset?",
+      "query_type": "in_domain_no_answer",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "The paper reports only a small computer-generated dataset and proposes real-world evaluation as future work; no independent real-warehouse accuracy is reported.",
+      "review_status": "pending_review",
+      "answer_claim_family": "two_view_real_warehouse_accuracy_no_answer",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H014",
+      "split": "held_out",
+      "query_zh": "瓦楞纸板CNN对分层或倾斜样本报告了多少分类准确率？",
+      "query_en": "What classification accuracy does the corrugated-board CNN report for delaminated or inclined samples?",
+      "query_type": "in_domain_no_answer",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "The inspected samples did not include delamination or inclined cases, so no such subgroup accuracy is reported.",
+      "review_status": "pending_review",
+      "answer_claim_family": "flute_cnn_delamination_inclination_accuracy_no_answer",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H015",
+      "split": "held_out",
+      "query_zh": "哪篇论文使用RGB-D直接检测瓦楞纸箱缺陷？",
+      "query_en": "Which paper uses RGB-D to directly detect corrugated carton defects?",
+      "query_type": "near_miss_hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Near miss: RGB-D evidence concerns plane fitting, not carton-defect detection.",
+      "review_status": "pending_review",
+      "answer_claim_family": "rgbd_carton_direct_detection",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    },
+    {
+      "query_id": "H016",
+      "split": "held_out",
+      "query_zh": "哪篇论文用MRI达到121 FPS的包装检测？",
+      "query_en": "Which paper uses MRI to achieve 121 FPS packaging inspection?",
+      "query_type": "near_miss_hard_negative",
+      "expected_answerable": false,
+      "relevant_paper_keys": [],
+      "relevant_passage_ids": [],
+      "gold_evidence_summary": "Near miss: 121 FPS is reported for a vision-based QZU-DET model, not MRI.",
+      "review_status": "pending_review",
+      "answer_claim_family": "mri_121fps_attribution",
+      "development_overlap": {
+        "passage_overlap": false,
+        "overlapping_query_ids": [],
+        "answer_claim_overlap": false,
+        "independence_note": "No qrel passage overlap with reviewed development; answer intent was audited as distinct."
+      }
+    }
   ]
 }
