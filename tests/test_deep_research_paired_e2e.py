@@ -104,3 +104,25 @@ def test_paired_cli_execute_enters_shared_runner_without_transport(monkeypatch, 
     assert paired_cli.main(["--plan", str(plan_file), "--artifact-dir", str(artifact), "--execute"]) == expected
     if expected == 0:
         assert (artifact / "provider_telemetry.json").is_file()
+
+
+def test_telemetry_counts_durable_dispatches_and_confirmed_replies_only(tmp_path):
+    from litflow.deep_research.paired_cli import _write_telemetry
+    from litflow.deep_research.runtime_v2 import RuntimeEventType, UnifiedEventStore, create_runtime_event
+    from litflow.deep_research.deepseek_e2e import DeepSeekStructuredReply
+    from litflow.deep_research.budgets import TokenUsage
+
+    plan = _plans()[0]
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    store = UnifiedEventStore(artifact / "runtime.jsonl", run_id=plan.run_id)
+    first = create_runtime_event(plan.run_id, 1, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "a" * 24, attempt_id="dr-attempt-" + "a" * 24, payload={"operation_name": "structured_planner"})
+    second = create_runtime_event(plan.run_id, 2, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "b" * 24, attempt_id="dr-attempt-" + "b" * 24, payload={"operation_name": "single_writer"}, previous_event_hash=first.event_hash)
+    store.append(first)
+    store.append(second)
+    reply = DeepSeekStructuredReply(content="{}", usage=TokenUsage(), model_identity_verified=True, usage_reported=True, request_id_present=True, prompt_cache_hit_tokens=2, prompt_cache_miss_tokens=3, client_observed_elapsed_s=0.5)
+    adapter = type("Adapter", (), {"replies": [reply]})()
+    _write_telemetry(artifact, plan, adapter)
+    telemetry = json.loads((artifact / "provider_telemetry.json").read_text(encoding="utf-8"))
+    assert telemetry["provider_calls"] == 2 and telemetry["planner_calls"] == 1 and telemetry["writer_calls"] == 1
+    assert telemetry["prompt_cache_hit_tokens"] == [2] and telemetry["client_observed_elapsed_s"] == [0.5]

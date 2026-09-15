@@ -10,10 +10,41 @@ from pathlib import Path
 from .budgets import BudgetSpec
 from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekSingleWriter, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner
 from .e2e import GLMInvocationPolicy, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, parse_e2e_pilot_plan
+from .e2e import E2ETerminalError
 from .executor import LocalResearchExecutor, ReadOnlyToolRegistry
 from .paired_e2e import parse_paired_plan, preflight_paired_plan
 from .identity import canonical_json
 from .e2e import DeepResearchRunner
+from .executor import ExecutorError
+from .writer import WriterError
+from .runtime_v2 import RuntimeEventType, UnifiedEventStore
+
+
+def _write_telemetry(artifact_dir: Path | None, plan, adapter) -> None:
+    if artifact_dir is None or not artifact_dir.is_dir():
+        return
+    event_path = artifact_dir / "runtime.jsonl"
+    events = UnifiedEventStore(event_path, run_id=plan.run_id).read_all() if event_path.is_file() else []
+    dispatches = [event for event in events if event.event_type is RuntimeEventType.operation_dispatched]
+    replies = list(getattr(adapter, "replies", ()))
+    elapsed = [getattr(reply, "client_observed_elapsed_s", None) for reply in replies if getattr(reply, "client_observed_elapsed_s", None) is not None]
+    if not elapsed:
+        elapsed = [event.payload.get("elapsed_s") for event in events if event.event_type is RuntimeEventType.elapsed_recorded and event.payload.get("elapsed_s") is not None]
+    telemetry = {
+        "provider": plan.provider,
+        "run_id": plan.run_id,
+        "provider_calls": len(dispatches),
+        "planner_calls": sum(event.payload.get("operation_name") == "structured_planner" for event in dispatches),
+        "writer_calls": sum(event.payload.get("operation_name") == "single_writer" for event in dispatches),
+        "client_observed_elapsed_s": elapsed,
+        "prompt_cache_hit_tokens": [reply.prompt_cache_hit_tokens for reply in replies],
+        "prompt_cache_miss_tokens": [reply.prompt_cache_miss_tokens for reply in replies],
+        "raw_persisted": False,
+        "reasoning_persisted": False,
+        "credential_persisted": False,
+        "authorization_persisted": False,
+    }
+    (artifact_dir / "provider_telemetry.json").write_text(canonical_json(telemetry) + "\n", encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--dry-run", action="store_true")
     mode.add_argument("--execute", action="store_true")
     args = parser.parse_args(argv)
+    adapter = None
+    plan = None
     try:
         plan = parse_paired_plan(json.loads(args.plan.read_text(encoding="utf-8")))
         preflight_paired_plan(plan, repo_root=Path.cwd())
@@ -52,13 +85,21 @@ def main(argv: list[str] | None = None) -> int:
             adapter.require_credential_for_execute()
             runner = DeepResearchRunner(planner, LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=budget), writer, budget=budget)
             result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=plan.attempt_id))
-            telemetry = {"provider": plan.provider, "run_id": result.run_id, "planner_calls": 1, "writer_calls": 1, "client_observed_elapsed_s": [getattr(reply, "client_observed_elapsed_s", None) for reply in getattr(adapter, "replies", ())], "prompt_cache_hit_tokens": [getattr(reply, "prompt_cache_hit_tokens", None) for reply in getattr(adapter, "replies", ())], "prompt_cache_miss_tokens": [getattr(reply, "prompt_cache_miss_tokens", None) for reply in getattr(adapter, "replies", ())], "raw_persisted": False, "reasoning_persisted": False, "credential_persisted": False}
-            (args.artifact_dir / "provider_telemetry.json").write_text(canonical_json(telemetry) + "\n", encoding="utf-8", newline="\n")
+            _write_telemetry(args.artifact_dir, plan, adapter)
             print(json.dumps({"terminal": result.terminal, "provider": plan.provider, "run_id": result.run_id}, ensure_ascii=False))
             return 0 if result.terminal == "complete" else 3 if result.terminal == "manual_review_required" else 2
         print(json.dumps({"preflight": "passed", "dry_run": True, "provider": plan.provider, "run_id": plan.run_id, "artifact_dir": plan.artifact_dir}, ensure_ascii=False))
         return 0
+    except E2ETerminalError as error:
+        _write_telemetry(args.artifact_dir, plan, adapter)
+        print(json.dumps({"terminal": "outcome_unknown" if error.outcome_unknown else "failed", "error_code": error.error_code, "diagnostics": error.diagnostics}, ensure_ascii=False))
+        return 3 if error.outcome_unknown else 2
+    except (WriterError, ExecutorError) as error:
+        _write_telemetry(args.artifact_dir, plan, adapter)
+        print(json.dumps({"terminal": "failed", "error_code": error.code, "diagnostics": error.diagnostics}, ensure_ascii=False))
+        return 2
     except (OSError, ValueError) as error:
+        _write_telemetry(args.artifact_dir, plan, adapter)
         print(json.dumps({"terminal": "failed", "error_code": "contract_invalid", "error": str(error)}, ensure_ascii=False))
         return 2
 
