@@ -11,6 +11,7 @@ import os
 import re
 import socket
 import subprocess
+import time
 import urllib.error
 from decimal import Decimal
 from pathlib import Path
@@ -164,48 +165,50 @@ class _DeepSeekTextOnlyAdapter:
         return canonical_json_bytes({"model": self._plan.model_id, "messages": [{"role": "user", "content": _PROMPT}], "max_tokens": self._plan.max_output_tokens, "thinking": {"type": self._plan.thinking}, "reasoning_effort": self._plan.reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
 
     @staticmethod
-    def _reported_usage(payload: object, plan: DeepSeekCanaryPlan) -> tuple[TokenUsage, str | None]:
+    def _reported_usage(payload: object, plan: DeepSeekCanaryPlan) -> tuple[TokenUsage, str | None, int | None, int | None]:
         usage = payload.get("usage") if isinstance(payload, dict) else None
         if not isinstance(usage, dict) or not all(type(usage.get(field)) is int and usage.get(field) >= 0 for field in ("prompt_tokens", "completion_tokens", "total_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens")):
-            return TokenUsage(), "usage_missing"
+            return TokenUsage(), "usage_missing", None, None
         if usage["prompt_tokens"] != usage["prompt_cache_hit_tokens"] + usage["prompt_cache_miss_tokens"]:
-            return TokenUsage(), "usage_prompt_split_inconsistent"
+            return TokenUsage(), "usage_prompt_split_inconsistent", usage["prompt_cache_hit_tokens"], usage["prompt_cache_miss_tokens"]
         if usage["total_tokens"] != usage["prompt_tokens"] + usage["completion_tokens"]:
-            return TokenUsage(), "usage_total_inconsistent"
+            return TokenUsage(), "usage_total_inconsistent", usage["prompt_cache_hit_tokens"], usage["prompt_cache_miss_tokens"]
         cost = (Decimal(usage["prompt_cache_miss_tokens"]) * plan.input_price_per_million_tokens + Decimal(usage["prompt_cache_hit_tokens"]) * plan.cache_hit_input_price_per_million_tokens + Decimal(usage["completion_tokens"]) * plan.output_price_per_million_tokens) / Decimal("1000000")
-        return TokenUsage(input_tokens=usage["prompt_tokens"], output_tokens=usage["completion_tokens"], cost_micros=cost * Decimal("1000000")), None
+        return TokenUsage(input_tokens=usage["prompt_tokens"], output_tokens=usage["completion_tokens"], cost_micros=cost * Decimal("1000000")), None, usage["prompt_cache_hit_tokens"], usage["prompt_cache_miss_tokens"]
 
     async def call(self, *, operation_id: str, attempt_id: str, request: Any, timeout_s: float | None = None, credential: str | None = None) -> _ProviderResult:
         if credential is None:
             raise DeepSeekCanaryConfigurationError("credential must be validated before durable dispatch")
         if timeout_s != self._plan.operation_timeout_seconds or not isinstance(request, dict) or request.get("operation") not in {"deepseek_text_only_canary", "glm_text_only_canary"}:
             return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics("pre_dispatch_contract", "invocation_contract_invalid", "operation", type(request).__name__))
+        started = time.monotonic()
         try:
             status, headers, raw = await self._transport(url=self._plan.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=self._request_body(), timeout_s=float(timeout_s))
         except (TimeoutError, socket.timeout, ConnectionResetError, ConnectionError, urllib.error.URLError):
-            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome, diagnostics=_AdapterDiagnostics("transport_invocation", "outcome_unknown"))
+            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome, diagnostics=_AdapterDiagnostics("transport_invocation", "outcome_unknown", client_observed_elapsed_s=max(0.000001, time.monotonic() - started)))
+        elapsed = max(0.000001, time.monotonic() - started)
         try:
             payload: object = json.loads(raw.decode("utf-8"))
             parsed = True
         except (UnicodeDecodeError, json.JSONDecodeError):
             payload, parsed = None, False
-        usage, usage_error = self._reported_usage(payload, self._plan)
+        usage, usage_error, cache_hit, cache_miss = self._reported_usage(payload, self._plan)
         if not 200 <= status < 300:
             error = ErrorCode.rate_limited if status == 429 else ErrorCode.transient_provider if status >= 500 else ErrorCode.permanent_provider
             base = _diagnostics_for_payload(status=status, payload=payload) if parsed else _AdapterDiagnostics("transport_contract", "http_non_2xx", http_status=status, provider_response_received=True, observed_type="bytes")
-            return _ProviderResult("failed", usage=usage, error_code=error, provider_request_id=_request_id(payload, headers), diagnostics=_with(base, failure_stage="transport_contract", contract_error_code="http_non_2xx", usage_reported=usage_error is None, usage_inconsistent=usage_error == "usage_inconsistent", cost_verification="verified" if usage_error is None else "failed" if usage_error == "usage_inconsistent" else "unavailable", cost_audit_complete=usage_error is None))
+            return _ProviderResult("failed", usage=usage, error_code=error, provider_request_id=_request_id(payload, headers), diagnostics=_with(base, failure_stage="transport_contract", contract_error_code="http_non_2xx", usage_reported=usage_error is None, usage_inconsistent=usage_error in {"usage_prompt_split_inconsistent", "usage_total_inconsistent"}, cost_verification="verified" if usage_error is None else "failed" if usage_error != "usage_missing" else "unavailable", cost_audit_complete=usage_error is None, prompt_cache_hit_tokens=cache_hit, prompt_cache_miss_tokens=cache_miss, client_observed_elapsed_s=elapsed))
         if not parsed:
-            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics("transport_contract", "response_body_not_json", "JSON object", "bytes", http_status=status, provider_response_received=True))
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics("transport_contract", "response_body_not_json", "JSON object", "bytes", http_status=status, provider_response_received=True, client_observed_elapsed_s=elapsed))
         if not isinstance(payload, dict):
-            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.contract_invalid, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="response_object_required"))
+            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.contract_invalid, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="response_object_required", client_observed_elapsed_s=elapsed))
         if isinstance(payload.get("error"), dict):
-            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.permanent_provider, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="provider_error_envelope", usage_reported=usage_error is None))
+            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.permanent_provider, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="provider_error_envelope", usage_reported=usage_error is None, prompt_cache_hit_tokens=cache_hit, prompt_cache_miss_tokens=cache_miss, client_observed_elapsed_s=elapsed))
         choices = payload.get("choices")
         choice = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
         content = choice.get("message", {}).get("content") if isinstance(choice, dict) else None
         if not isinstance(content, str):
-            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.contract_invalid, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="content_missing"))
-        base = _with(_diagnostics_for_payload(status=status, payload=payload), provider_response_confirmed=payload.get("model") == self._plan.model_id, model_identity_verified=payload.get("model") == self._plan.model_id, usage_reported=usage_error is None, usage_inconsistent=usage_error == "usage_inconsistent", cost_verification="verified" if usage_error is None else "failed" if usage_error == "usage_inconsistent" else "unavailable", cost_audit_complete=usage_error is None)
+            return _ProviderResult("failed", usage=usage, error_code=ErrorCode.contract_invalid, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="content_missing", client_observed_elapsed_s=elapsed))
+        base = _with(_diagnostics_for_payload(status=status, payload=payload), provider_response_confirmed=payload.get("model") == self._plan.model_id, model_identity_verified=payload.get("model") == self._plan.model_id, usage_reported=usage_error is None, usage_inconsistent=usage_error in {"usage_prompt_split_inconsistent", "usage_total_inconsistent"}, cost_verification="verified" if usage_error is None else "failed" if usage_error != "usage_missing" else "unavailable", cost_audit_complete=usage_error is None, prompt_cache_hit_tokens=cache_hit, prompt_cache_miss_tokens=cache_miss, client_observed_elapsed_s=elapsed)
         try:
             structured = json.loads(content)
         except json.JSONDecodeError:

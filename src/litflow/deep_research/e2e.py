@@ -367,6 +367,9 @@ class GLMStructuredReply(BaseModel):
     content_sha256: str | None = None
     observed_type: str = "object"
     observed_keys: tuple[str, ...] = ()
+    prompt_cache_hit_tokens: int = 0
+    prompt_cache_miss_tokens: int = 0
+    client_observed_elapsed_s: float = 0.0
 
 
 _SAFE_PROVIDER_KEYS = frozenset({"choices", "error", "id", "model", "request_id", "usage"})
@@ -419,6 +422,7 @@ class GLMStructuredAdapter:
         planner_stage = operation_name == "glm_structured_planner"
         output_limit = self._policy.planner_max_output_tokens if planner_stage else self._policy.writer_max_output_tokens
         reasoning_effort = self._policy.planner_reasoning_effort if planner_stage else self._policy.writer_reasoning_effort
+        started = time.monotonic()
         body = canonical_json_bytes({"model": self._policy.model_id, "messages": [{"role": "user", "content": prompt}], "temperature": self._policy.temperature, "top_p": self._policy.top_p, "max_tokens": output_limit, "thinking": {"type": self._policy.thinking_type}, "reasoning_effort": reasoning_effort, "response_format": {"type": "json_object"}, "stream": False})
         try:
             status, headers, raw = await self._transport(url=self._policy.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=body, timeout_s=float(self._policy.operation_timeout_seconds))
@@ -453,7 +457,7 @@ class GLMStructuredAdapter:
         if payload.get("model") != self._policy.model_id:
             raise GLMAdapterError("provider_response_invalid", diagnostics=_provider_diagnostics(status=status, received=True, parsed=True, payload=payload, failure_stage="provider_response", error_code="provider_response_invalid", content=content, finish_reason=finish_reason), usage=token_usage)
         observed_type, observed_keys = _provider_shape(payload)
-        return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=finish_reason, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type=observed_type, observed_keys=observed_keys)
+        return GLMStructuredReply(content=content, usage=token_usage, model_identity_verified=True, usage_reported=True, request_id_present=isinstance(payload.get("id") or headers.get("x-request-id"), str), http_status=status, finish_reason=finish_reason, content_length=len(content), content_sha256=sha256_hex(content.encode("utf-8")), observed_type=observed_type, observed_keys=observed_keys, prompt_cache_miss_tokens=usage["prompt_tokens"], client_observed_elapsed_s=max(0.000001, time.monotonic() - started))
 
 
 class GLMStructuredPlanner:

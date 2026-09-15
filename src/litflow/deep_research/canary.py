@@ -182,6 +182,9 @@ class _AdapterDiagnostics:
     application_observed_value_types: tuple[str, ...] = ()
     content_length: int = 0
     content_sha256: str | None = None
+    prompt_cache_hit_tokens: int | None = None
+    prompt_cache_miss_tokens: int | None = None
+    client_observed_elapsed_s: float | None = None
 
     def artifact(self) -> dict[str, object]:
         return {
@@ -206,6 +209,9 @@ class _AdapterDiagnostics:
             "application_observed_value_types": list(self.application_observed_value_types),
             "content_length": self.content_length,
             "content_sha256": self.content_sha256,
+            "prompt_cache_hit_tokens": self.prompt_cache_hit_tokens,
+            "prompt_cache_miss_tokens": self.prompt_cache_miss_tokens,
+            "client_observed_elapsed_s": self.client_observed_elapsed_s,
         }
 
 
