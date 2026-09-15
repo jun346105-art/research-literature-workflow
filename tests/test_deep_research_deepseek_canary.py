@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 
-PLAN_PATH = Path("docs/deep_research/deepseek/canary_execution_plan.attempt-001.json")
+PLAN_PATH = Path("docs/deep_research/deepseek/canary_execution_plan.attempt-002.json")
 
 
 def _plan() -> dict[str, object]:
@@ -27,8 +27,8 @@ def test_deepseek_plan_is_immutable_and_uses_new_identity():
 
     plan = DeepSeekCanaryPlan.model_validate(_plan())
     assert plan.model_id == DEEPSEEK_MODEL and plan.endpoint == DEEPSEEK_ENDPOINT
-    assert plan.run_id == "dr-run-0381179dd264e4f8324c3214"
-    assert plan.canary_attempt_id == "deepseek-flash-text-canary-001"
+    assert plan.run_id == "dr-run-55ad818f4f600f6ca7b4e28c"
+    assert plan.canary_attempt_id == "deepseek-flash-text-canary-002"
     assert plan.budget_spec().max_cost_micros == Decimal("20000")
     with pytest.raises(ValidationError):
         DeepSeekCanaryPlan.model_validate({**_plan(), "model_id": "deepseek-v4-flash"})
@@ -175,7 +175,7 @@ def test_plan_commit_can_be_older_than_current_head_and_fingerprint_covers_runti
     relative = ("src/litflow/deep_research/deepseek_canary.py", "src/litflow/deep_research/deepseek_cli.py", "src/litflow/deep_research/canary.py", "src/litflow/deep_research/runtime_v2.py", "src/litflow/deep_research/budgets.py", "src/litflow/deep_research/operations.py")
     expected = sha256_hex(canonical_json_bytes({name: sha256_hex((root / name).read_bytes()) for name in relative}))
     plan = DeepSeekCanaryPlan.model_validate(_plan())
-    assert plan.implementation_commit_sha == "af10c6840b10ed62c621abaf60c8af846b53eaf5"
+    assert plan.implementation_commit_sha == "6c4c66f8eec9d8f653df57cae2910198fe21b206"
     assert plan.runtime_source_sha256 == expected == _runtime_source_sha256()
 
 

@@ -13,7 +13,7 @@
 - 预算币种 USD，hard limit `$0.02`
 - peak pricing snapshot：cache miss input `$0.30/M`、output `$1.20/M`、cache hit input `$0.006/M`。完整 usage 必须包含 `prompt_tokens`、`completion_tokens`、`total_tokens`、`prompt_cache_hit_tokens`、`prompt_cache_miss_tokens`；计价为 `miss*0.30/M + hit*0.006/M + completion*1.20/M`，并验证 input split 与 total sum。
 
-当前 immutable binding：implementation commit `b5e93f548a52e1bc0580bcfb5742be4358136a62`（允许其祖先之后的 plan/docs commit），runtime source fingerprint `d0c4f2f75fab94aab1f78e3997baabd40532eb2d60860f2dbea5d370931334d8`。
+当前 future Canary attempt-002 immutable binding：implementation commit `6c4c66f4e4fd2f6c7a9a5bc0d8de6d58df1e91ca`（允许其祖先之后的 plan/docs commit），runtime source fingerprint `ba064273be7cd7ea3d36fd495197db4aca46bad31bdede63dccbb728e90c9d4f`。历史 attempt-001 artifact 仅由 closure manifest 核验，不回写。
 
 费用只按响应中的 `usage` reconcile；失败响应若带有完整 usage 也记账，attempt 按 ID 去重，replay 不调用 Provider、不重复计费。missing/inconsistent usage 不得完成 Canary。reasoning 内容只用于请求处理，不进入事件、checkpoint 或 artifact。
 
@@ -24,7 +24,7 @@ $secureKey = Read-Host "DeepSeek API key" -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
 try {
   $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  python -m litflow.deep_research.deepseek_cli --plan docs/deep_research/deepseek/canary_execution_plan.attempt-001.json --artifact-dir outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214 --execute
+  python -m litflow.deep_research.deepseek_cli --plan docs/deep_research/deepseek/canary_execution_plan.attempt-002.json --artifact-dir outputs/deep_research/canary/v1/dr-run-55ad818f4f600f6ca7b4e28c --execute
 } finally {
   $env:DEEPSEEK_API_KEY = $null
   [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
