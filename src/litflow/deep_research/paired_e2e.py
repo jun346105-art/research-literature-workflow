@@ -104,6 +104,9 @@ def parse_paired_plan(data: dict[str, object]) -> PairedSinglePaperPlan:
 
 def preflight_paired_plan(plan: PairedSinglePaperPlan, *, repo_root: Path) -> None:
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, check=True, capture_output=True, text=True).stdout.strip()
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=repo_root, check=True, capture_output=True, text=True).stdout.strip()
+    if status:
+        raise ValueError("paired E2E worktree must be clean")
     ancestor = subprocess.run(["git", "merge-base", "--is-ancestor", plan.implementation_commit_sha, head], cwd=repo_root, check=False)
     if ancestor.returncode != 0 or plan.runtime_source_sha256 != paired_runtime_source_sha256():
         raise ValueError("paired implementation binding mismatch")
