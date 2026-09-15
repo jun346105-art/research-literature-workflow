@@ -13,6 +13,7 @@ import socket
 import subprocess
 import time
 import urllib.error
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
@@ -51,6 +52,20 @@ DEEPSEEK_MODEL = "deepseek-flash"
 DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
 _PROMPT = "Return only JSON with status ok, provider deepseek, and model deepseek-flash."
 _OUTPUT_ROOT = "out" + "puts"
+
+
+@dataclass(frozen=True)
+class _DeepSeekDiagnostics:
+    base: _AdapterDiagnostics
+    prompt_cache_hit_tokens: int | None = None
+    prompt_cache_miss_tokens: int | None = None
+    client_observed_elapsed_s: float | None = None
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self.base, name)
+
+    def artifact(self) -> dict[str, object]:
+        return {**self.base.artifact(), "prompt_cache_hit_tokens": self.prompt_cache_hit_tokens, "prompt_cache_miss_tokens": self.prompt_cache_miss_tokens, "client_observed_elapsed_s": self.client_observed_elapsed_s}
 
 
 class _DeepSeekAcknowledgement(BaseModel):
@@ -185,7 +200,7 @@ class _DeepSeekTextOnlyAdapter:
         try:
             status, headers, raw = await self._transport(url=self._plan.endpoint, headers={"Content-Type": "application/json", "Authorization": f"Bearer {credential}"}, body=self._request_body(), timeout_s=float(timeout_s))
         except (TimeoutError, socket.timeout, ConnectionResetError, ConnectionError, urllib.error.URLError):
-            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome, diagnostics=_AdapterDiagnostics("transport_invocation", "outcome_unknown", client_observed_elapsed_s=max(0.000001, time.monotonic() - started)))
+            return _ProviderResult("unknown", error_code=ErrorCode.unknown_outcome, diagnostics=_DeepSeekDiagnostics(_AdapterDiagnostics("transport_invocation", "outcome_unknown"), client_observed_elapsed_s=max(0.000001, time.monotonic() - started)))
         elapsed = max(0.000001, time.monotonic() - started)
         try:
             payload: object = json.loads(raw.decode("utf-8"))
@@ -198,7 +213,7 @@ class _DeepSeekTextOnlyAdapter:
             base = _diagnostics_for_payload(status=status, payload=payload) if parsed else _AdapterDiagnostics("transport_contract", "http_non_2xx", http_status=status, provider_response_received=True, observed_type="bytes")
             return _ProviderResult("failed", usage=usage, error_code=error, provider_request_id=_request_id(payload, headers), diagnostics=_with(base, failure_stage="transport_contract", contract_error_code="http_non_2xx", usage_reported=usage_error is None, usage_inconsistent=usage_error in {"usage_prompt_split_inconsistent", "usage_total_inconsistent"}, cost_verification="verified" if usage_error is None else "failed" if usage_error != "usage_missing" else "unavailable", cost_audit_complete=usage_error is None, prompt_cache_hit_tokens=cache_hit, prompt_cache_miss_tokens=cache_miss, client_observed_elapsed_s=elapsed))
         if not parsed:
-            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_AdapterDiagnostics("transport_contract", "response_body_not_json", "JSON object", "bytes", http_status=status, provider_response_received=True, client_observed_elapsed_s=elapsed))
+            return _ProviderResult("failed", error_code=ErrorCode.contract_invalid, diagnostics=_DeepSeekDiagnostics(_AdapterDiagnostics("transport_contract", "response_body_not_json", "JSON object", "bytes", http_status=status, provider_response_received=True), client_observed_elapsed_s=elapsed))
         if not isinstance(payload, dict):
             return _ProviderResult("failed", usage=usage, error_code=ErrorCode.contract_invalid, diagnostics=_with(_diagnostics_for_payload(status=status, payload=payload), failure_stage="provider_adapter_contract", contract_error_code="response_object_required", client_observed_elapsed_s=elapsed))
         if isinstance(payload.get("error"), dict):
@@ -237,7 +252,16 @@ def _request_id(payload: object, headers: dict[str, str]) -> str | None:
 
 
 def _with(base: _AdapterDiagnostics, **changes: object) -> _AdapterDiagnostics:
-    return _AdapterDiagnostics(**{**base.__dict__, **changes})
+    telemetry = {"prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None, "client_observed_elapsed_s": None}
+    if isinstance(base, _DeepSeekDiagnostics):
+        raw = dict(base.base.__dict__)
+        telemetry.update({key: getattr(base, key) for key in telemetry})
+    else:
+        raw = dict(base.__dict__)
+    for key in tuple(telemetry):
+        if key in changes:
+            telemetry[key] = changes.pop(key)
+    return _DeepSeekDiagnostics(_AdapterDiagnostics(**{**raw, **changes}), **telemetry)
 
 
 def render_deepseek_canary_schema() -> str:
