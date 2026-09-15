@@ -11,7 +11,9 @@ from jsonschema import Draft202012Validator
 
 from litflow.rag.retrieval_quality_r1 import (
     R1EvaluationError,
+    apply_top_score_gate,
     assert_tuning_split,
+    calibrate_top_score_gate,
     canonical_sha256,
     evaluate_rankings,
     load_all_r1_records,
@@ -159,6 +161,17 @@ def test_formal_result_reproduces_development_selection_and_one_held_out_run():
     assert result["limitations"]["h007"].startswith("query/claim-held-out only")
 
 
+def test_round4_gate_is_reproducible_from_development_only():
+    config = json.loads((BASE / "round4_relevance_gate.json").read_text(encoding="utf-8"))
+    records = load_r1_records(MANIFEST, split="development") + load_r1_records(MANIFEST, split="dev_hard_negative")
+    rankings = json.loads((BASE / "results" / "r1_rankings.json").read_text(encoding="utf-8"))["development"]["bm25_en"]
+    actual = calibrate_top_score_gate(records, rankings, retriever_mode="bm25_en", minimum_answerable_success_at_10=0.85)
+    assert actual["threshold"] == config["gate"]["threshold"] == 11.398627187607
+    assert actual["development_report"]["answerable_retrieval_success_at_10"] == config["calibration"]["after"]["answerable_retrieval_success_at_10"]
+    assert actual["development_report"]["no_answer_false_positive_rate_at_10"] == config["calibration"]["after"]["no_answer_false_positive_rate_at_10"]
+    assert config["held_out"] == {"run_count": 0, "replay_count": 0, "used_for_calibration": False, "claim": "not_independently_validated"}
+
+
 def test_result_manifest_freezes_result_and_rankings_bytes():
     manifest = json.loads((BASE / "results" / "r1_result_manifest.json").read_text(encoding="utf-8"))
     assert manifest["held_out_execution_count"] == 1
@@ -213,6 +226,30 @@ def test_held_out_is_never_a_tuning_split():
 def test_evaluator_rejects_unapproved_retriever_modes():
     with pytest.raises(R1EvaluationError, match="unsupported R1 retriever mode"):
         evaluate_rankings([], [], retriever_mode="reranker")
+
+
+def test_top_score_gate_is_calibrated_on_development_and_preserves_rankings():
+    common = {"split": "development", "query_zh": "q", "query_en": "q", "query_type": "method", "gold_evidence_summary": "gold", "review_status": "reviewed", "source_review_status": "source", "source_path": "source.json", "source_record_sha256": "0" * 64}
+    records = [
+        {**common, "query_id": "a", "expected_answerable": True, "relevant_paper_keys": ["p"], "relevant_passage_ids": ["p:gold"]},
+        {**common, "query_id": "n", "expected_answerable": False, "relevant_paper_keys": [], "relevant_passage_ids": []},
+    ]
+    rankings = [
+        {"query_id": "a", "results": [{"passage_id": "p:gold", "score": 2.0}], "latency_ms": 1.0},
+        {"query_id": "n", "results": [{"passage_id": "p:false", "score": 1.0}], "latency_ms": 1.0},
+    ]
+    calibration = calibrate_top_score_gate(records, rankings, retriever_mode="bm25_en", minimum_answerable_success_at_10=1.0)
+    assert calibration["threshold"] == 2.0
+    gated = apply_top_score_gate(rankings, calibration["threshold"])
+    assert gated[0]["results"] == rankings[0]["results"]
+    assert gated[1]["results"] == []
+    assert calibration["development_report"]["no_answer_false_positive_rate_at_10"] == 0.0
+
+
+def test_gate_calibration_rejects_held_out_records():
+    records = [{"query_id": "h", "split": "held_out"}]
+    with pytest.raises(R1EvaluationError, match="held-out"):
+        calibrate_top_score_gate(records, [{"query_id": "h", "results": []}], retriever_mode="bm25_en", minimum_answerable_success_at_10=0.8)
 
 
 def test_metrics_cover_multiple_qrels_graded_ndcg_and_latency():

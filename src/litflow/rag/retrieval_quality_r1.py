@@ -116,6 +116,51 @@ def select_development_mode(reports: dict[str, dict[str, Any]], mode_order: list
     return max(mode_order, key=key)
 
 
+def apply_top_score_gate(rankings: list[dict[str, Any]], threshold: float) -> list[dict[str, Any]]:
+    """Return the original ranking or an empty safe-abstention result."""
+    if threshold < 0:
+        raise R1EvaluationError("retrieval gate threshold must be non-negative")
+    gated = []
+    for record in rankings:
+        results = record.get("results")
+        if not isinstance(results, list):
+            raise R1EvaluationError("ranking results must be an array")
+        top_score = float(results[0].get("score", 0.0)) if results else 0.0
+        accepted = bool(results) and top_score >= threshold
+        gated.append({**record, "results": results if accepted else []})
+    return gated
+
+
+def calibrate_top_score_gate(records: list[dict[str, Any]], rankings: list[dict[str, Any]], *, retriever_mode: str, minimum_answerable_success_at_10: float) -> dict[str, Any]:
+    """Select one threshold from development only, never from held-out."""
+    if not 0 <= minimum_answerable_success_at_10 <= 1:
+        raise R1EvaluationError("minimum answerable success must be between zero and one")
+    for record in records:
+        assert_tuning_split(record["split"])
+    thresholds = sorted({0.0, *(float(row["results"][0].get("score", 0.0)) for row in rankings if row.get("results"))})
+    eligible = []
+    for threshold in thresholds:
+        report = evaluate_rankings(records, apply_top_score_gate(rankings, threshold), retriever_mode=retriever_mode)
+        if (report["answerable_retrieval_success_at_10"] or 0.0) >= minimum_answerable_success_at_10:
+            eligible.append((threshold, report))
+    if not eligible:
+        raise R1EvaluationError("no retrieval threshold satisfies the answerable-success constraint")
+
+    def key(candidate: tuple[float, dict[str, Any]]) -> tuple[float, ...]:
+        threshold, report = candidate
+        metrics = report["metrics"]
+        return (
+            report["no_answer_false_positive_rate_at_10"] if report["no_answer_false_positive_rate_at_10"] is not None else 1.0,
+            -(report["answerable_retrieval_success_at_10"] or 0.0),
+            -(metrics["recall_at_10"] or 0.0),
+            -(metrics["ndcg_at_10"] or 0.0),
+            threshold,
+        )
+
+    threshold, report = min(eligible, key=key)
+    return {"threshold": threshold, "minimum_answerable_success_at_10": minimum_answerable_success_at_10, "development_report": report}
+
+
 def validate_json_schema_documents(manifest_path: Path) -> None:
     """Validate committed R1 JSON with the optional standards validator.
 

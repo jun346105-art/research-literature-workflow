@@ -25,5 +25,6 @@ Files:
 - `r1_evaluation_plan.json`: immutable development-selection and one-shot held-out policy.
 - `model_asset_manifest.json`: exact offline model identity and file hashes; weights remain outside Git.
 - `R1_RESULT.md` and `results/`: formal offline R1 report, metrics, and rankings.
+- `ROUND4_RELEVANCE_GATE.md` and `round4_relevance_gate.json`: the single development-calibrated post-R1 optimization; original held-out remains untouched.
 
 Formal Schema validation is a test/evaluation concern, not a core runtime dependency. Install `requirements.test.lock` (or the `test` extra) to obtain the pinned `jsonschema==4.25.0` validator.
