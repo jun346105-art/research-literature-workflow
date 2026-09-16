@@ -119,13 +119,17 @@ def test_telemetry_counts_durable_dispatches_and_confirmed_replies_only(tmp_path
     store = UnifiedEventStore(artifact / "runtime.jsonl", run_id=plan.run_id)
     first = create_runtime_event(plan.run_id, 1, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "a" * 24, attempt_id="dr-attempt-" + "a" * 24, payload={"operation_name": "structured_planner"})
     second = create_runtime_event(plan.run_id, 2, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "b" * 24, attempt_id="dr-attempt-" + "b" * 24, payload={"operation_name": "single_writer"}, previous_event_hash=first.event_hash)
+    third = create_runtime_event(plan.run_id, 3, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "c" * 24, attempt_id="dr-attempt-" + "c" * 24, payload={"operation_kind": "tool", "operation_name": "search_local_corpus"}, previous_event_hash=second.event_hash)
+    fourth = create_runtime_event(plan.run_id, 4, RuntimeEventType.operation_dispatched, operation_id="dr-operation-" + "d" * 24, attempt_id="dr-attempt-" + "d" * 24, payload={"operation_kind": "tool", "operation_name": "read_passage"}, previous_event_hash=third.event_hash)
     store.append(first)
     store.append(second)
+    store.append(third)
+    store.append(fourth)
     reply = DeepSeekStructuredReply(content="{}", usage=TokenUsage(), model_identity_verified=True, usage_reported=True, request_id_present=True, prompt_cache_hit_tokens=2, prompt_cache_miss_tokens=3, client_observed_elapsed_s=0.5)
     adapter = type("Adapter", (), {"replies": [reply]})()
     _write_telemetry(artifact, plan, adapter)
     telemetry = json.loads((artifact / "provider_telemetry.json").read_text(encoding="utf-8"))
-    assert telemetry["provider_calls"] == 2 and telemetry["planner_calls"] == 1 and telemetry["writer_calls"] == 1
+    assert telemetry["provider_calls"] == 2 and telemetry["planner_calls"] == 1 and telemetry["writer_calls"] == 1 and telemetry["tool_calls"] == 2
     assert telemetry["prompt_cache_hit_tokens"] == [2] and telemetry["client_observed_elapsed_s"] == [0.5]
 
 

@@ -30,6 +30,8 @@ def _write_telemetry(artifact_dir: Path | None, plan, adapter) -> None:
     event_path = artifact_dir / "runtime.jsonl"
     events = UnifiedEventStore(event_path, run_id=plan.run_id).read_all() if event_path.is_file() else []
     dispatches = [event for event in events if event.event_type is RuntimeEventType.operation_dispatched]
+    provider_dispatches = [event for event in dispatches if event.payload.get("operation_kind") == "provider" or event.payload.get("operation_name") in {"structured_planner", "single_writer"}]
+    tool_dispatches = [event for event in dispatches if event.payload.get("operation_kind") == "tool" or event.payload.get("operation_name") not in {"structured_planner", "single_writer"}]
     replies = list(getattr(adapter, "replies", ()))
     elapsed = [getattr(reply, "client_observed_elapsed_s", None) for reply in replies if getattr(reply, "client_observed_elapsed_s", None) is not None]
     if not elapsed:
@@ -37,9 +39,10 @@ def _write_telemetry(artifact_dir: Path | None, plan, adapter) -> None:
     telemetry = {
         "provider": plan.provider,
         "run_id": plan.run_id,
-        "provider_calls": len(dispatches),
-        "planner_calls": sum(event.payload.get("operation_name") == "structured_planner" for event in dispatches),
-        "writer_calls": sum(event.payload.get("operation_name") == "single_writer" for event in dispatches),
+        "provider_calls": len(provider_dispatches),
+        "planner_calls": sum(event.payload.get("operation_name") == "structured_planner" for event in provider_dispatches),
+        "writer_calls": sum(event.payload.get("operation_name") == "single_writer" for event in provider_dispatches),
+        "tool_calls": len(tool_dispatches),
         "client_observed_elapsed_s": elapsed,
         "prompt_cache_hit_tokens": [reply.prompt_cache_hit_tokens for reply in replies],
         "prompt_cache_miss_tokens": [reply.prompt_cache_miss_tokens for reply in replies],
