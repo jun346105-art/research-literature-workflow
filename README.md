@@ -8,8 +8,8 @@
 
 ![LitFlow workbench](docs/screenshots/litflow-mvp-workbench.png)
 
-**Evidence-grounded** · Claims stay linked to frozen source passages.  
-**Reproducible by design** · Explicit contracts, immutable artifacts, checkpoints and replay.  
+**Evidence-grounded** · Claims stay linked to frozen source passages.<br>
+**Reproducible by design** · Explicit contracts, immutable artifacts, checkpoints and replay.<br>
 **Evaluated end to end** · Retrieval, abstention, grounding and real-provider canaries are recorded with scope limits.
 
 ## 1. Overview

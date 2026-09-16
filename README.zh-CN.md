@@ -8,8 +8,8 @@
 
 ![LitFlow 工作台](docs/screenshots/litflow-mvp-workbench.png)
 
-**证据驱动** · 主要 Claim 均可追溯到冻结的原文 passage。  
-**可复现设计** · 显式合同、不可变 artifact、checkpoint 与 replay。  
+**证据驱动** · 主要 Claim 均可追溯到冻结的原文 passage。<br>
+**可复现设计** · 显式合同、不可变 artifact、checkpoint 与 replay。<br>
 **端到端验证** · 检索、拒答、grounding 与真实 Provider Canary 均保留范围边界。
 
 ## 1. 概览
