@@ -1,0 +1,22 @@
+{
+  "schema_version": "dr-glm-e2e-failure-closure-v1",
+  "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-f8d0cba03855233691766953",
+  "artifact_file_count": 3,
+  "artifact_mutated": false,
+  "status": "failed_known_preexisting_http_401",
+  "origin": "not_provable",
+  "user_cli_dispatched": false,
+  "provider_calls": 1,
+  "planner_calls": 1,
+  "writer_calls": 0,
+  "tool_calls": 0,
+  "retries": 0,
+  "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cost": "0"},
+  "elapsed_s": 1.4016112,
+  "checks": {"http_status": 401, "event_hash_chain": "passed", "checkpoint_hashes": "passed", "full_replay_matches": true, "secret_scan": "passed", "private_path_scan": "passed"},
+  "sha256": {
+    "checkpoint.json": "4eedba00e07d5b598d404b30407430fdbfddf11e4df245022bd5ca3bd5512d62",
+    "provider_telemetry.json": "27ee869d2ccd2b608de18de76efb6eb7dd22a92ccefc61cbba054dcb4bbab4cf",
+    "runtime.jsonl": "89ff023d79738c3c227614158c86ce440260302c41a4ef2bd0ad1b4c02d4ab6b"
+  }
+}
