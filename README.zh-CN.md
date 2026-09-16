@@ -1,120 +1,167 @@
-# LitFlow
+# LitFlow Research Copilot
 
-中文 | [English README](README.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-> **LitFlow是面向工科文献的本地优先、证据驱动、双语研究写作Copilot。**
+[![CI](https://github.com/jun346105-art/research-literature-workflow/actions/workflows/tests.yml/badge.svg)](https://github.com/jun346105-art/research-literature-workflow/actions/workflows/tests.yml) [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml) [![FastAPI](https://img.shields.io/badge/FastAPI-local%20API-009688.svg)](docs/API.md) [![Release](https://img.shields.io/github/v/release/jun346105-art/research-literature-workflow)](https://github.com/jun346105-art/releases)
 
-它把本地文献材料转化为带 passage 级溯源的可审核研究素材。它不是自动整篇论文生成器，也不是线上 SaaS 产品。
+> **面向科研文献的本地优先、证据驱动 DeepResearch Copilot：将 Zotero 与 PDF 转化为可追溯的研究计划、证据、引用和研究报告。**
 
-![LitFlow 持久化已验证任务与 Evidence Inspector](docs/screenshots/litflow-mvp-workbench.png)
+![LitFlow 工作台](docs/screenshots/litflow-mvp-workbench.png)
 
-## LitFlow 解决什么问题
+**证据驱动** · 主要 Claim 均可追溯到冻结的原文 passage。  
+**可复现设计** · 显式合同、不可变 artifact、checkpoint 与 replay。  
+**端到端验证** · 检索、拒答、grounding 与真实 Provider Canary 均保留范围边界。
 
-通用 AI 的回答可能看似合理，却丢失支撑它的论文、页码、passage 和原文 quote。LitFlow 将控制权留在研究者的本地语料中：
+## 1. 概览
 
-- 模型只能看到当前问题检索到的 passages；
-- 每条展示 Claim 都绑定检索到的 citation；
-- citation membership、quote anchor 与 claim-citation coverage 在展示前严格验证；
-- 证据不足与部分覆盖会保留，而不会转换成无证据结论；
-- 人工审核、原始响应、usage、manifest、SHA 与失败 artifact 可审计。
+LitFlow 将本地文献语料转化为可审核研究材料。系统保持 Source、Evidence、Citation 和 Validator 的边界可见，不把未经支持的文字当作事实展示。
 
-## 五项核心能力
+## 2. 演示
 
-1. **本地输入与 Clean Context**：Zotero 元数据和本地 PDF 生成带页码溯源、经过质量门的 chunks。
-2. **语言感知检索**：中文问题经机器翻译后检索英文 BM25；英文问题保留原始措辞。
-3. **证据驱动 QA**：展示已验证 Claims、citations、连续英文 quote、页码、passage ID、部分覆盖和安全失败状态。
-4. **Evidence 与 Writing 视图**：review-ready Evidence Matrix 支撑作者可编辑的双语方法比较草稿。
-5. **本地交付边界**：FastAPI、SSE job 状态、原生浏览器工作台、持久化 jobs 与仅绑定 localhost 的 Docker Demo。
+五分钟离线 Demo 展示问题输入、结构化计划、本地证据、带引用报告、验证和 replay。无需 API Key，也不会发送外部请求。
+
+![Evidence Matrix](docs/screenshots/litflow-mvp-evidence-matrix.png)
 
 ```text
-Zotero / 本地 PDF
--> Clean Context
--> Provenance Passage Corpus
--> Language-aware Retrieval
--> Evidence-grounded QA
--> Claim / Citation / Quote Validation
--> Evidence Matrix
--> Bilingual Author-editable Draft
--> FastAPI / SSE / UI
--> Docker Demo
+问题 → 计划 → EvidenceGraph → 带引用报告 → Validator → 终态/replay
 ```
 
-## Docker 快速启动
+## 3. 为什么是 LitFlow
 
-默认命令启动 **Offline Demo**，仅绑定 `127.0.0.1`。它以只读方式挂载本地 demo artifacts，不需要也不会读取 API key。
+- 本地论文保持权威，检索过程可检查。
+- 展示前验证 evidence quote、locator 与 citation。
+- 部分结果与证据不足保持显式。
+- 人工审核和发表质量与结构化 grounding 分开。
 
-```powershell
-$env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
-docker compose up --build
-```
+## 4. 核心能力
 
-打开 `http://127.0.0.1:8015/`。
+- Zotero/PDF 摄取为带页码溯源的 passages。
+- BM25 与有界 R1 检索评测，以及仅在 development 校准的 no-answer gate。
+- 单 Agent：Planner → 本地只读工具 → EvidenceGraph → Writer → 确定性 Validator。
+- FastAPI jobs、SSE 事件、持久化 artifact 与零外部调用 replay。
+- GLM/DeepSeek 能力画像、显式预算和安全 Provider 诊断。
 
-Online QA 必须显式启用 profile，且可能产生 provider 费用。默认命令不会启用它。详见 [Docker 演示说明](docs/DOCKER_DEMO.md)。
-
-## 人工审核 Pilot 指标
-
-以下均为**小规模 human-reviewed pilot，不是大规模 benchmark**。
-
-| 领域 | 保守结果 | 边界 |
-| --- | --- | --- |
-| Retrieval | 20 条 pilot query，其中 17 条 answerable | `query_en` 只能作为 oracle-style reference |
-| 中文检索 | machine translation -> BM25-EN Recall@10 `0.7157` | BM25-ZH-raw Recall@10 `0.6275`，绝对提升 `+0.0882` |
-| Mixed-language smoke | expected-paper Hit@10 `5/6` | 中文->中文存在 1 条 known miss，不是广泛 benchmark |
-| QA 可用性 | grounded answer success `9/17` (`52.9%`) | retrieval 与 execution availability 仍有限 |
-| 展示 QA 安全性 | 作者审核 usability `9/9`；citation validity、strict quote grounding、claim coverage 均为 `100%` | 自动 grounding 不等于语义正确 |
-| No-answer | abstention `3/3` | 仅限 pilot |
-| Writing | 双语方法比较草稿 `pass_with_moderate_human_revision` | `publication_ready=false` |
-| Docker | image 约 `54.54 MB`；health 就绪 `1.20s`；health latency `142.04ms` | 仅限本地 Docker 演示 |
-
-## 架构
+## 5. 系统架构
 
 ```mermaid
 flowchart LR
-  A[Input / Ingestion<br/>Zotero 与本地 PDFs] --> B[Clean Context<br/>带页码溯源的 chunks]
-  B --> C[Retrieval<br/>语言感知 BM25]
-  C --> D[Grounded QA<br/>Claims 与 citations]
-  D --> E[Evidence / Writing<br/>Matrix 与双语草稿]
-  E --> F[API / UI / Docker<br/>本地 Demo]
+  A[Zotero / PDF] --> B[摄取]
+  B --> C[Hybrid Retrieval]
+  C --> D[Planner]
+  D --> E[工具执行]
+  E --> F[EvidenceGraph]
+  F --> G[Writer]
+  G --> H[Validator]
+  H --> I[FastAPI / SSE / UI]
 ```
 
-## 演示材料
+## 6. 工作方式
 
-- [Docker 演示说明](docs/DOCKER_DEMO.md)
-- [3-5 分钟演示脚本](docs/DEMO_SCRIPT.md)
-- [Demo Checklist](docs/DEMO_CHECKLIST.md)
-- [Evidence Matrix 截图](docs/screenshots/litflow-mvp-evidence-matrix.png)
-- [双语 Writing Draft 截图](docs/screenshots/litflow-mvp-writing-draft.png)
-- [DeepResearch API Demo](docs/DEEPRESEARCH_DEMO.md)
+```mermaid
+flowchart LR
+  A[提交任务] --> B[规划]
+  B --> C[本地检索]
+  C --> D[构建证据]
+  D --> E[带引用写作]
+  E --> F[验证]
+  F --> G[complete / partial / failed]
+```
 
-首图展示的是**持久化已验证 Q01 job 的恢复**，不宣称它是新的实时调用。
+程序拥有正式 ID、Evidence 归属、quote 锚定、终态和 artifact 路径；模型只提出不可信草案。
 
-## 已知限制
+## 7. 评测
 
-- 当前是本地优先 MVP，不含云部署、用户系统、数据库或多用户协作。
-- 不支持扫描版 PDF OCR，也不自动下载 PDF。
-- `v0.3A` 方法精读对象抽取为 `experimental_fail`，不是生产能力。
-- Dense 和 Hybrid 在当前受限 pilot 中未超过选定的 BM25 baseline。
-- QA availability 有限：17 条 answerable pilot query 只有 9 条产生 grounded answer。
-- 中文原生语料支持仍是 smoke-test 级，不是广泛多语言 benchmark。
-- Writing 输出为作者可编辑、人工审核门控的草稿，不默认视为可发表稿件。
-- DeepResearch API 默认提供离线 closure replay Demo；真实 Provider 仍是受控、可选路径。
+R1 使用 10 篇论文、185 个 passages：32 条 development query，以及一次未参与调参的 16 条 held-out 运行。最终选择 BM25-EN。
 
-## 文档
+| 数据集 / 指标 | 结果 |
+|---|---:|
+| Development BM25-EN Recall@10 | 0.735294 |
+| Held-out Recall@5 / @10 / @20 | 0.715278 / 0.840278 / 0.861111 |
+| Held-out MRR@10 / nDCG@10 | 0.680556 / 0.688869 |
+| Held-out answerable success@10 | 1.000000 |
+| Held-out no-answer FP@10 | 1.000000 |
+| Round 4 development no-answer FP | 1.000000 → 0.800000 |
 
-- [架构](ARCHITECTURE.md)
-- [API 与本地 MVP](docs/API.md)
-- [Evaluation Run 002](docs/EVALUATION_RUN_002.zh-CN.md)
-- [证据锚定](docs/EVIDENCE_GROUNDING.zh-CN.md)
-- [面试讲解指南](docs/INTERVIEW_GUIDE.zh-CN.md)
-- [简历项目描述](docs/RESUME_PROJECT.zh-CN.md) 与 [English version](docs/RESUME_PROJECT.en.md)
-- [Release Notes](RELEASE_NOTES_v1.1.0.md)
+这是受限冻结语料结果，不是开放域或语义正确性结论。held-out 未用于调参；no-answer 仍未彻底解决。
 
-## 开发检查
+## 8. Provider 兼容性
+
+| Provider | 结果 | 发现 |
+|---|---|---|
+| GLM-5.3-Flash | Complete | 在冻结任务上完成并通过 grounding |
+| DeepSeek | Writer 截断 | 固定 4096 token 预算与高推理 token 消耗不兼容 |
+
+这不是模型质量排名。DeepSeek 官方最大输出并非 4096；问题来自项目固定 Writer 预算。Round 5 已加入显式 Planner/Writer 预算、能力画像、离线 doctor 和错误分类，没有选择性重跑。
+
+## 9. 五分钟离线 Quickstart
+
+Windows PowerShell：
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m pytest -q -p no:cacheprovider
+python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
 ```
 
-当前测试记录：`587 passed, 1 warning`。
+Linux/macOS：
+
+```bash
+PYTHONPATH=src python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
+```
+
+打开 `http://127.0.0.1:8015/`，或调用离线 job API：
+
+```powershell
+$job = Invoke-RestMethod http://127.0.0.1:8015/api/deep-research/jobs -Method Post -ContentType 'application/json' -Body '{"query":"Explain the frozen demo result"}'
+Invoke-RestMethod "http://127.0.0.1:8015/api/deep-research/jobs/$($job.job_id)/result"
+```
+
+Docker 方式见 [Docker 演示说明](docs/DOCKER_DEMO.md)。
+
+## 10. API
+
+```text
+POST /api/deep-research/jobs
+GET  /api/deep-research/jobs/{job_id}
+GET  /api/deep-research/jobs/{job_id}/result
+GET  /api/deep-research/jobs/{job_id}/events   (SSE)
+```
+
+现有 `/api/v1/*` MVP QA 路由继续保留。Demo facade 会明确拒绝 `mode=online`；真实 Provider 仍只能通过受控 CLI。
+
+## 11. 项目结构
+
+```text
+src/litflow/deep_research/   合同、Runtime、检索、grounding
+src/litflow_api/             FastAPI、job 持久化、SSE 与 UI
+docs/deep_research/          架构、评测和审计证据
+outputs/                     本地 artifact 与冻结 Demo 输入
+tests/                       离线合同与回归测试
+```
+
+## 12. 可复现性与安全
+
+- 默认 Demo 离线且不需要 Key。
+- Artifact 按 run identity 不可覆盖，replay 不调用 Provider。
+- Key 只存在于进程，不记录、不哈希、不持久化。
+- API 只暴露相对 artifact 定位，不返回私人绝对路径或原始响应。
+- `publication_ready=false`、`author_review_required=true` 保持保守默认。
+
+## 13. 已知限制
+
+- 本地优先单机产品，不含账号、云部署或多用户安全。
+- 语义正确性与发表质量不会被自动证明。
+- Web、多模态、多 Agent、Critic 和长任务稳定性尚未验证。
+- DeepSeek 配对运行是 Writer 截断已知失败，不能据此比较模型质量。
+- Docker 构建需要运行中的 Docker Desktop daemon。
+
+## 14. 文档
+
+[DeepResearch Demo](docs/DEEPRESEARCH_DEMO.md) · [架构](docs/deep_research/ARCHITECTURE.md) · [R1 结果](docs/deep_research/retrieval_quality_r1/R1_RESULT.md) · [Round 5 Provider Closure](docs/deep_research/paired_e2e/ROUND5_PROVIDER_CLOSURE.md) · [Docker 演示](docs/DOCKER_DEMO.md) · [Release notes](RELEASE_NOTES_v1.2.0.md) · [面试指南](docs/INTERVIEW_GUIDE.zh-CN.md) · [简历描述](docs/RESUME_PROJECT.zh-CN.md)
+
+## 15. 路线图
+
+Round 6 是当前本地 API/Demo 封版。Web 检索、多模态证据、多 Agent 编排、公开部署和更大规模 benchmark 均明确延期。
+
+## 16. License
+
+仓库当前未声明 license 文件；对外再分发前请先确认许可。
