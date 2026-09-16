@@ -94,7 +94,7 @@ def write_paired_plan_schema(output_dir: Path) -> Path:
 
 def paired_runtime_source_sha256() -> str:
     root = Path(__file__).resolve().parents[3]
-    names = ("src/litflow/deep_research/e2e.py", "src/litflow/deep_research/e2e_cli.py", "src/litflow/deep_research/paired_cli.py", "src/litflow/deep_research/deepseek_e2e.py", "src/litflow/deep_research/paired_e2e.py", "src/litflow/deep_research/executor.py", "src/litflow/deep_research/writer.py", "src/litflow/deep_research/runtime_v2.py")
+    names = ("src/litflow/deep_research/e2e.py", "src/litflow/deep_research/e2e_cli.py", "src/litflow/deep_research/paired_cli.py", "src/litflow/deep_research/deepseek_e2e.py", "src/litflow/deep_research/paired_e2e.py", "src/litflow/deep_research/gap_replan.py", "src/litflow/deep_research/executor.py", "src/litflow/deep_research/writer.py", "src/litflow/deep_research/runtime_v2.py")
     return sha256_hex(canonical_json_bytes({name: sha256_hex((root / name).read_bytes()) for name in names}))
 
 
