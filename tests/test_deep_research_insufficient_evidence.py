@@ -47,12 +47,15 @@ def test_insufficient_schema_is_canonical_and_byte_stable(tmp_path: Path):
     assert json.loads(first)["$schema"] == "https://json-schema.org/draft/2020-12/schema"
 
 
-def test_insufficient_attempt_plan_passes_offline_preflight():
+def test_historical_insufficient_attempt_plan_fails_closed_after_source_change():
+    from litflow.deep_research.e2e import E2EConfigurationError
+
     plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json").read_text(encoding="utf-8")))
     assert isinstance(plan, GLME2EInsufficientEvidenceAttemptPlan)
     assert plan.tasks[0].attempt_id == "glm-5.3-flash-deepresearch-insufficient-evidence-002"
     assert plan.tasks[0].expected_terminal == "insufficient_evidence"
-    assert len(preflight_e2e_pilot(plan, repo_root=Path.cwd())) == 1
+    with pytest.raises(E2EConfigurationError, match="binding"):
+        preflight_e2e_pilot(plan, repo_root=Path.cwd())
 
 
 def test_empty_evidence_requires_structured_abstention():
