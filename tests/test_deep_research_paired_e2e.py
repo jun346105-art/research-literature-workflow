@@ -14,7 +14,7 @@ PAIR_DIR = Path("docs/deep_research/paired_e2e")
 
 def _plans():
     from litflow.deep_research.paired_e2e import parse_paired_plan
-    return [parse_paired_plan(json.loads(path.read_text(encoding="utf-8"))) for path in sorted(PAIR_DIR.glob("paired_*plan.json"))]
+    return [parse_paired_plan(json.loads(path.read_text(encoding="utf-8"))) for path in sorted(PAIR_DIR.glob("paired_*attempt-002.json"))]
 
 
 def test_paired_plans_share_inputs_but_have_distinct_runs_and_native_prices():
@@ -41,7 +41,7 @@ def test_paired_cli_dry_run_preflight_uses_no_key_or_network(tmp_path):
     env.pop("DEEPSEEK_API_KEY", None)
     env.pop("ZHIPUAI_API_KEY", None)
     env["PYTHONPATH"] = "src"
-    for path in sorted(PAIR_DIR.glob("paired_*plan.json")):
+    for path in sorted(PAIR_DIR.glob("paired_*attempt-002.json")):
         result = subprocess.run([sys.executable, "-m", "litflow.deep_research.paired_cli", "--plan", str(path), "--dry-run"], cwd=Path.cwd(), env=env, capture_output=True, text=True, check=False)
         assert result.returncode == 0, result.stdout + result.stderr
         assert not (Path.cwd() / json.loads(path.read_text())["artifact_dir"]).exists()
