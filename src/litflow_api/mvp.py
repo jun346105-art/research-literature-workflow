@@ -315,7 +315,11 @@ class MvpService:
                 "request": request.model_dump(),
                 "result": result,
             }
-            self._persist_job(job_id)
+            try:
+                self._persist_job(job_id)
+            except OSError:
+                # Offline containers mount demo inputs read-only; keep this demo job in memory.
+                pass
         return job_id
 
     def deep_research_job(self, job_id: str) -> dict[str, Any]:
