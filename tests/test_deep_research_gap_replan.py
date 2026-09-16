@@ -67,7 +67,7 @@ def test_one_evidence_unit_can_support_two_subtasks_without_false_gaps():
     second = ResearchSubtask.create(task.task_id, "Reuse evidence", "Same evidence is admissible", expected_evidence=("method",), completion_criteria=("one",))
     source_edge = EvidenceGraphEdge(run_id=graph.run_id, relation="subtask_retrieved_source", from_id=second.subtask_id, to_id=graph.sources[0].source_id)
     edge = EvidenceGraphEdge(run_id=graph.run_id, relation="evidence_supports_subtask", from_id=graph.evidence_units[0].evidence_id, to_id=second.subtask_id)
-    graph = EvidenceGraph(run_id=graph.run_id, task_id=graph.task_id, plan_id=graph.plan_id, subtasks=(graph.subtasks[0], second), sources=graph.sources, evidence_units=graph.evidence_units, edges=tuple(sorted((*graph.edges, source_edge, edge), key=lambda item: (item.relation, item.from_id, item.to_id))))
+    graph = EvidenceGraph(run_id=graph.run_id, task_id=graph.task_id, plan_id=graph.plan_id, subtasks=tuple(sorted((*graph.subtasks, second), key=lambda item: item.subtask_id)), sources=graph.sources, evidence_units=graph.evidence_units, edges=tuple(sorted((*graph.edges, source_edge, edge), key=lambda item: (item.relation, item.from_id, item.to_id))))
     assessment = asyncio.run(assess_evidence_graph(graph, (), AssessmentContext(completed_subtask_ids=tuple(item.subtask_id for item in graph.subtasks))))
     assert assessment.gaps == ()
 
