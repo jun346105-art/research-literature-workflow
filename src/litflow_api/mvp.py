@@ -35,6 +35,11 @@ MAX_QUERY_LENGTH = 500
 TOP_K = 10
 SERVICE_VERSION = "m5-minimal-fastapi-ui-v1"
 DEPLOYMENT_MODEL = "deepseek-v4-flash"
+DEEP_RESEARCH_EXAMPLES = {
+    "What components does the cited paper state that WT-C3k2 combines?": ("dr-run-8b30915e93a6e6b5ee8137c5", "dr-claim-18abe5ba8a962096b19ff2f6"),
+    "How do the selected local papers describe their approaches to multi-scale feature handling?": ("dr-run-02a0613ba863c12bf851a58e", "dr-claim-fafc80125d46b92f263995c4"),
+    "What was the orbital inclination and propellant mass of the Mars Reconnaissance Orbiter mission?": ("dr-run-97bad8fbd966fcc8c1f049f3", None),
+}
 
 
 @dataclass(frozen=True)
@@ -301,7 +306,7 @@ class MvpService:
         if request.mode == "online":
             raise PermissionError("live DeepResearch Provider execution requires the controlled CLI; API demo is offline-only")
         job_id = "dr-demo-" + secrets.token_urlsafe(12)
-        run_id = "dr-run-8b30915e93a6e6b5ee8137c5"
+        run_id = DEEP_RESEARCH_EXAMPLES.get(request.query, (None, None))[0]
         result = self._deep_research_demo_result(job_id, run_id, request.query)
         with self._lock:
             self._jobs[job_id] = {
@@ -343,77 +348,83 @@ class MvpService:
         if not re.fullmatch(r"dr-demo-[A-Za-z0-9_-]{8,64}", job_id):
             raise KeyError(job_id)
 
-    def _deep_research_demo_result(self, job_id: str, run_id: str, query: str) -> dict[str, Any]:
-        """Expose bounded closure facts, never raw Provider responses or private paths."""
-        root = self.assets.corpus_path.parents[2]
-        artifact = root / "outputs" / "deep_research" / "e2e" / "v1.2" / run_id
-        supported_examples = {
-            "What components does the cited paper state that WT-C3k2 combines?",
-            "How does WT-C3k2 process high- and low-frequency features?",
-            "What defect characteristics does Merge-YOLO address?",
-            "Explain the frozen demo result",
-            "What does the frozen demo show?",
-        }
-        if query not in supported_examples:
-            return {"job_id": job_id, "run_id": run_id, "provider": "local-corpus", "model": "offline-retrieval-only", "phase": "retrieval", "status": "partial", "terminal": "partial", "reason": "offline_demo_supports_frozen_examples_only", "query": query, "planner": {"status": "not_run", "calls": 0}, "tools": {"status": "not_run", "calls": 0}, "writer": {"status": "not_run", "calls": 0}, "evidence": {"count": 0}, "claims": {"count": 0}, "citations": {"count": 0}, "grounding": None, "author_review_required": True, "publication_ready": False, "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}, "cost_micros": "0", "elapsed_s": 0, "artifact": None, "replay": {"full_replay_matches": True, "external_calls": 0}, "supported_examples_only": True, "findings": [], "sources": []}
-        evidence_count = claim_count = citation_count = 0
-        grounding = None
-        terminal = "complete"
-        reason = "offline_demo_replay"
-        findings: list[dict[str, Any]] = []
-        sources: list[dict[str, Any]] = []
-        if artifact.is_dir():
-            try:
-                graph = _load_json(artifact / "evidence_graph.json")
-                evidence_count = len(graph.get("evidence_units", []))
-                evidence_by_id = {item.get("evidence_id"): item for item in graph.get("evidence_units", [])}
-                sources = [{"source_id": item.get("source_id"), "paper_key": item.get("bibliographic_metadata", {}).get("paper_key"), "title": item.get("bibliographic_metadata", {}).get("title"), "year": item.get("bibliographic_metadata", {}).get("year")} for item in graph.get("sources", [])]
-                event_lines = (artifact / "runtime.jsonl").read_text(encoding="utf-8").splitlines()
-                for line in event_lines:
-                    event = json.loads(line)
-                    validation = event.get("payload", {}).get("validation")
-                    if isinstance(validation, dict):
-                        grounding = validation.get("deterministic_grounding_verified")
-                        report = validation.get("report") or {}
-                        claim_count = len(report.get("claims", []))
-                        citation_count = len(report.get("citations", []))
-                        by_claim: dict[str, list[dict[str, Any]]] = {}
-                        for citation in report.get("citations", []):
-                            evidence = evidence_by_id.get(citation.get("evidence_id"), {})
-                            locator = evidence.get("locator", {})
-                            by_claim.setdefault(citation.get("claim_id"), []).append({"evidence_id": citation.get("evidence_id"), "quote": str(citation.get("quote", ""))[:500], "source_id": evidence.get("source_id"), "passage_id": locator.get("passage_id"), "page_number": locator.get("page_number")})
-                        findings = [{"claim_id": claim.get("claim_id"), "text": claim.get("text"), "citations": by_claim.get(claim.get("claim_id"), [])} for claim in report.get("claims", [])]
-            except (OSError, ValueError, json.JSONDecodeError):
-                terminal = "partial"
-                reason = "demo_artifact_unavailable"
-        return {
-            "job_id": job_id,
-            "run_id": run_id,
-            "provider": "zhipu-bigmodel",
-            "model": "glm-5.3-flash",
-            "phase": "replay",
-            "status": terminal,
-            "terminal": terminal,
-            "reason": reason,
-            "query": query,
-            "planner": {"status": "succeeded", "calls": 1},
-            "tools": {"status": "succeeded", "calls": 4},
-            "writer": {"status": "succeeded", "calls": 1},
-            "evidence": {"count": evidence_count},
-            "claims": {"count": claim_count},
-            "citations": {"count": citation_count},
-            "grounding": grounding,
-            "author_review_required": True,
-            "publication_ready": False,
-            "usage": {"input_tokens": 4042, "output_tokens": 1153, "total_tokens": 5195},
-            "cost_micros": "3231.0",
-            "elapsed_s": 7.8830546,
-            "artifact": "outputs/deep_research/e2e/v1.2/dr-run-809f6d9fc01be667dceb6019",
-            "replay": {"full_replay_matches": True, "external_calls": 0},
-            "supported_examples_only": True,
-            "findings": findings,
-            "sources": sources,
-        }
+    def _deep_research_demo_result(self, job_id: str, run_id: str | None, query: str) -> dict[str, Any]:
+        """Read verified local run facts only; no Provider or raw passage is exposed."""
+        base = {"job_id": job_id, "run_id": run_id, "query": query, "publication_ready": False,
+                "author_review_required": True, "findings": [], "sources": []}
+        if run_id is None:
+            return {**base, "status": "partial", "terminal": "partial", "reason": "offline_retrieval_only",
+                    "provider": "local-corpus", "model": "offline-retrieval-only", "phase": "retrieval",
+                    "planner": {"status": "not_run", "calls": 0}, "tools": {"status": "not_run", "calls": 0},
+                    "writer": {"status": "not_run", "calls": 0}, "evidence": {"count": 0},
+                    "claims": {"count": 0}, "citations": {"count": 0}, "grounding": None,
+                    "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                    "cost_micros": "0", "elapsed_s": 0, "artifact": None,
+                    "replay": {"external_calls": 0, "full_replay_matches": False}}
+
+        artifact = self.assets.corpus_path.parents[2] / "outputs" / "deep_research" / "e2e" / "v1.2" / run_id
+        try:
+            from litflow.deep_research.runtime_v2 import UnifiedEventStore, read_coordinated_checkpoint
+
+            events = UnifiedEventStore(artifact / "runtime.jsonl", run_id=run_id).read_all()
+            checkpoint = read_coordinated_checkpoint(artifact / "checkpoint.json")
+            if not events or checkpoint.stream_head != events[-1].event_hash or checkpoint.run_id != run_id:
+                raise ValueError("inconsistent demo artifact")
+            graph = _load_json(artifact / "evidence_graph.json")
+            validation = next((event.payload.get("validation") for event in reversed(events)
+                               if isinstance(event.payload.get("validation"), dict)), None)
+            if validation is None:
+                raise ValueError("missing report validation")
+            report = validation.get("report") or {}
+            terminal = checkpoint.run_state.status.value
+            if terminal not in {"complete", "insufficient_evidence", "partial"} or report.get("status") != terminal:
+                raise ValueError("inconsistent report terminal")
+            ledger = checkpoint.ledger
+            evidence_by_id = {item["evidence_id"]: item for item in graph["evidence_units"]}
+            sources = [{"source_id": item["source_id"], "title": item.get("title"),
+                        "year": None, "citation_count": 0} for item in graph["sources"]]
+            source_by_id = {item["source_id"]: item for item in sources}
+            by_claim: dict[str, list[dict[str, Any]]] = {}
+            direct_claim = DEEP_RESEARCH_EXAMPLES[query][1]
+            for citation in report.get("citations", []):
+                evidence = evidence_by_id[citation["evidence_id"]]
+                source = source_by_id[evidence["source_id"]]
+                source["citation_count"] += 1
+                locator = evidence["locator"]
+                by_claim.setdefault(citation["claim_id"], []).append({
+                    "evidence_id": citation["evidence_id"], "source_id": source["source_id"],
+                    "source_title": source["title"], "page_number": locator.get("page_number"),
+                    "passage_id": locator.get("passage_id"), "quote": citation["quote"][:500],
+                    "support_kind": "direct" if citation["claim_id"] == direct_claim else "background"})
+            findings = [{"claim_id": claim["claim_id"], "text": claim["text"],
+                         "support_kind": "direct" if claim["claim_id"] == direct_claim else "background",
+                         "citations": by_claim.get(claim["claim_id"], [])} for claim in report.get("claims", [])]
+            if terminal == "complete" and (direct_claim is None or not any(
+                    item["claim_id"] == direct_claim and item["citations"] for item in findings)):
+                raise ValueError("direct answer not grounded")
+        except (OSError, ValueError, KeyError, TypeError, IndexError):
+            return {**base, "status": "failed", "terminal": "failed", "reason": "demo_artifact_unavailable",
+                    "replay": {"external_calls": 0, "full_replay_matches": False}}
+
+        return {**base, "status": terminal, "terminal": terminal,
+                "reason": checkpoint.run_state.terminal_reason, "provider": "zhipu-bigmodel",
+                "model": "glm-5.3-flash", "phase": "replay",
+                "planner": {"status": "succeeded", "calls": sum(r.name == "structured_planner" and
+                             r.status == "succeeded" for r in checkpoint.journal.records)},
+                "tools": {"status": "succeeded", "calls": ledger.tool_calls},
+                "writer": {"status": "succeeded", "calls": sum(r.name == "single_writer" and
+                            r.status == "succeeded" for r in checkpoint.journal.records)},
+                "evidence": {"count": len(evidence_by_id)}, "claims": {"count": len(report.get("claims", []))},
+                "citations": {"count": len(report.get("citations", []))},
+                "grounding": validation.get("deterministic_grounding_verified"),
+                "author_review_required": report.get("author_review_required", True),
+                "publication_ready": report.get("publication_ready", False),
+                "usage": {"input_tokens": ledger.input_tokens, "output_tokens": ledger.output_tokens,
+                          "total_tokens": ledger.total_tokens}, "cost_micros": str(ledger.cost_micros),
+                "elapsed_s": ledger.elapsed_s,
+                "artifact": f"outputs/deep_research/e2e/v1.2/{run_id}",
+                "replay": {"external_calls": 0, "full_replay_matches": True},
+                "findings": findings, "sources": sources}
 
     def _run_job(self, job_id: str) -> None:
         try:

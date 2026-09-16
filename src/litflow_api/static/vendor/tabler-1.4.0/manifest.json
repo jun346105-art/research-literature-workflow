@@ -1,0 +1,13 @@
+{
+  "package": "@tabler/core",
+  "version": "1.4.0",
+  "source": "https://registry.npmjs.org/@tabler/core/-/core-1.4.0.tgz",
+  "package_integrity": "sha512-5BigzOlbOH9N0Is4u0rYNRCiwtnUXWO57K9zwuscygcicAa8UV9MGaS4zTgQsZEtZ9tsNANhN/YD8gCBGKYCiw==",
+  "license": "MIT",
+  "files": {
+    "tabler.min.css": "7ef750bd10546a695d0b12767ad8048bd8f3ec5de7daefb1067f9d0daa3d1c9a",
+    "tabler.min.css.map": "1a45ff4c66c1ace76fe38215d49afc61e721eb60ed377fb9e79acd30c94a9a11",
+    "tabler.min.js": "b60c76160e97624574dbb8cf10abe6aee9a6493b60096fdfc15dd1dd2bd99eb9",
+    "tabler.min.js.map": "17e561010bc35efabfb4d54810c159d64d3ddd9aa930c4eab2faf906c0326419"
+  }
+}

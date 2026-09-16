@@ -6,7 +6,7 @@
 
 > **面向科研文献的本地优先、证据驱动 DeepResearch Copilot：将 Zotero 与 PDF 转化为可追溯的研究计划、证据、引用和研究报告。**
 
-![LitFlow 工作台](docs/screenshots/litflow-mvp-workbench.png)
+![LitFlow Tabler 研究首页](docs/screenshots/litflow-v1.3-home-zh.png)
 
 **证据驱动** · 主要 Claim 均可追溯到冻结的原文 passage。<br>
 **可复现设计** · 显式合同、不可变 artifact、checkpoint 与 replay。<br>
@@ -20,7 +20,9 @@ LitFlow 将本地文献语料转化为可审核研究材料。系统保持 Sourc
 
 五分钟离线 Demo 展示问题输入、结构化计划、本地证据、带引用报告、验证和 replay。无需 API Key，也不会发送外部请求。
 
-![Evidence Matrix](docs/screenshots/litflow-mvp-evidence-matrix.png)
+![可核验证据的结果页](docs/screenshots/litflow-v1.3-result-zh.png)
+
+本地界面使用固定版本 Tabler 1.4.0（MIT，许可证随静态资源保存）。首个示例读取冻结研究结果；另两个示例与任意问题只显示本地检索，不套用固定报告。直接回答优先展示，背景 Claim 默认折叠，行内引用可打开原句，运行 ID 位于 Developer details。[五分钟演示](docs/DEEPRESEARCH_DEMO.md)。
 
 ```text
 问题 → 计划 → EvidenceGraph → 带引用报告 → Validator → 终态/replay

@@ -1,6 +1,6 @@
 # DeepResearch 五分钟 Demo
 
-默认 Demo 完全离线：它读取仓库中已冻结、脱敏的 GLM single-paper closure artifact，走同一个 FastAPI job 持久化与 SSE 读取入口，不构造在线 client，也不需要 API Key。
+默认 Demo 完全离线：首页首个示例读取已有的 single-paper 冻结 artifact；另两个示例只运行本地检索，不套用报告。服务端仍可按精确冻结任务问题读取 cross-paper 与 insufficient-evidence artifact。DeepResearch job 走现有 FastAPI 与 SSE 入口，不构造在线 client，也不需要 API Key。若本机没有相应 artifact，接口明确返回失败而不伪装为成功。
 
 ```mermaid
 flowchart LR
@@ -30,14 +30,14 @@ python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
 创建离线任务：
 
 ```powershell
-$job = Invoke-RestMethod http://127.0.0.1:8015/api/deep-research/jobs -Method Post -ContentType 'application/json' -Body '{"query":"Explain the frozen demo result"}'
+$job = Invoke-RestMethod http://127.0.0.1:8015/api/deep-research/jobs -Method Post -ContentType 'application/json' -Body '{"query":"What components does the cited paper state that WT-C3k2 combines?"}'
 $jobId = $job.job_id
 Invoke-RestMethod "http://127.0.0.1:8015/api/deep-research/jobs/$jobId"
 Invoke-RestMethod "http://127.0.0.1:8015/api/deep-research/jobs/$jobId/result"
 curl.exe "http://127.0.0.1:8015/api/deep-research/jobs/$jobId/events"
 ```
 
-返回内容包含 run/provider/model、阶段状态、Planner/Tool/Writer 计数、Evidence/Claim/Citation 数量、grounding、token/cost/elapsed、artifact 相对定位和 replay 外部调用数。`publication_ready` 始终保守为 false。
+返回内容包含 run/provider/model、阶段状态、Planner/Tool/Writer 计数、Evidence/Claim/Citation 数量、grounding、token/cost/elapsed、artifact 相对定位和 replay 外部调用数。`publication_ready` 始终保守为 false。引用抽屉只显示有界 quote，不返回整篇原文。Tabler 1.4.0 CSS/JS 随项目本地提供，许可证在 `src/litflow_api/static/vendor/tabler-1.4.0/LICENSE.txt`。若旧页面显示浏览器默认样式，刷新页面并检查版本化 CSS 链接是否成功加载。
 
 ## 入口与边界
 

@@ -6,7 +6,7 @@
 
 > **A local-first, evidence-grounded DeepResearch copilot for scientific literature — from Zotero and PDFs to traceable plans, evidence, citations and research reports.**
 
-![LitFlow workbench](docs/screenshots/litflow-mvp-workbench.png)
+![LitFlow Tabler research home](docs/screenshots/litflow-v1.3-home-en.png)
 
 **Evidence-grounded** · Claims stay linked to frozen source passages.<br>
 **Reproducible by design** · Explicit contracts, immutable artifacts, checkpoints and replay.<br>
@@ -20,7 +20,9 @@ LitFlow turns a local literature corpus into reviewable research material. It ke
 
 The five-minute offline demo shows a submitted question, a structured plan, local evidence, grounded citations, validation and replay. It needs no API key and sends no external request.
 
-![Evidence Matrix](docs/screenshots/litflow-mvp-evidence-matrix.png)
+![Evidence-backed result](docs/screenshots/litflow-v1.3-result-zh.png)
+
+The local UI uses pinned Tabler 1.4.0 assets (MIT; see the bundled license). The first example loads a frozen research run; the other example questions and arbitrary queries show local retrieval only. The report separates a direct answer from collapsed contextual claims. Open an inline citation to inspect its source quote; run IDs stay under Developer details. [Demo guide](docs/DEEPRESEARCH_DEMO.md).
 
 ```text
 Question → Plan → EvidenceGraph → Cited report → Validator → terminal/replay

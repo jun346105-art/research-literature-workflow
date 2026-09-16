@@ -1,56 +1,81 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>LitFlow Research Copilot</title>
-    <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/static/style.css">
-  </head>
-  <body>
-    <header class="topbar">
-      <a class="brand" href="/" aria-label="LitFlow Research Copilot"><span class="brand-mark">L</span><span><strong>LitFlow</strong><small>Research Copilot</small></span></a>
-      <nav class="main-nav" aria-label="Primary navigation">
-        <button class="nav-link is-active" data-view="research" data-i18n="navResearch" type="button">研究</button>
-        <button class="nav-link" data-view="sources" data-i18n="navSources" type="button">文献</button>
-        <button class="nav-link" data-view="runs" data-i18n="navRuns" type="button">记录</button>
-        <button class="nav-link" data-view="about" data-i18n="navAbout" type="button">关于</button>
-      </nav>
-      <div class="topbar-actions"><span id="mode-badge" class="badge badge-offline" data-i18n="offlineBadge">离线验证 Demo</span><button id="lang-zh" class="lang-button is-active" type="button">中文</button><span aria-hidden="true">/</span><button id="lang-en" class="lang-button" type="button">English</button></div>
-    </header>
-
-    <main id="app" class="page-shell">
-      <section id="research-view" class="view">
-        <div class="hero">
-          <p class="eyebrow" data-i18n="eyebrow">LOCAL LITERATURE RESEARCH</p>
-          <h1 data-i18n="heroTitle">基于你的文献，生成可核验的研究回答</h1>
-          <p class="hero-copy" data-i18n="heroCopy">从本地论文中查找证据、整理结论，并将每条关键发现追溯到原文。</p>
-          <div class="trust-note"><span class="trust-dot" aria-hidden="true"></span><span data-i18n="trustNote">回答基于本地文献，可点击核查原文证据。当前为离线验证 Demo。</span></div>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LitFlow Research Copilot</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/static/vendor/tabler-1.4.0/tabler.min.css">
+  <link rel="stylesheet" href="/static/style.css?v=1.3.0-rc1">
+  <script src="/static/vendor/tabler-1.4.0/tabler.min.js" defer></script>
+  <script src="/static/app.js?v=1.3.0-rc1" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="navbar navbar-expand-md bg-white border-bottom sticky-top" aria-label="Main navigation">
+      <div class="container-xl">
+        <a class="navbar-brand brand" href="/" aria-label="LitFlow Research Copilot"><span class="brand-mark">L</span><span>LitFlow <small>Research Copilot</small></span></a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#site-nav" aria-controls="site-nav" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+        <div class="collapse navbar-collapse" id="site-nav">
+          <nav class="navbar-nav ms-md-4" aria-label="Primary navigation">
+            <button class="nav-link active" data-view="research" type="button" data-i18n="navResearch">研究</button>
+            <button class="nav-link" data-view="sources" type="button" data-i18n="navSources">文献</button>
+            <button class="nav-link" data-view="runs" type="button" data-i18n="navRuns">记录</button>
+            <button class="nav-link" data-view="about" type="button" data-i18n="navAbout">关于</button>
+          </nav>
+          <div class="ms-md-auto d-flex align-items-center gap-2 py-2 py-md-0">
+            <span class="badge bg-teal-lt text-teal" data-i18n="offlineBadge">已验证离线演示</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Language"><button id="lang-zh" class="btn btn-outline-secondary active" type="button">中文</button><button id="lang-en" class="btn btn-outline-secondary" type="button">English</button></div>
+            <a href="/docs" class="btn btn-ghost-secondary btn-sm" target="_blank" rel="noopener" data-i18n="apiDocs">API 文档</a>
+          </div>
         </div>
-
-        <section class="research-card" aria-labelledby="query-label">
-          <label id="query-label" for="query" data-i18n="queryLabel">你想研究什么？</label>
-          <textarea id="query" maxlength="500" data-i18n-placeholder="queryPlaceholder" placeholder="例如：WT-C3k2 结合了哪些组件？"></textarea>
-          <p id="query-error" class="form-error" role="alert" hidden></p>
-          <div class="research-actions"><button id="start-research" class="primary-action" type="button" data-i18n="startButton">开始研究</button><span class="helper" data-i18n="inputHint">先输入一个完整问题，或选择下面的已验证示例。</span></div>
+      </div>
+    </header>
+    <main class="page-wrapper">
+      <div class="container-xl content-shell">
+        <section id="research-view" class="view">
+          <div id="home-state">
+            <section class="hero text-center">
+              <span class="hero-kicker" data-i18n="eyebrow">LOCAL LITERATURE RESEARCH</span>
+              <h1 data-i18n="heroTitle">基于你的文献，生成可核验的研究回答</h1>
+              <p class="text-secondary lead" data-i18n="heroCopy">从本地论文中查找证据、整理结论，并将每条关键发现追溯到原文。</p>
+            </section>
+            <section class="card composer" aria-labelledby="query-label">
+              <div class="card-body">
+                <label id="query-label" class="form-label fs-3 mb-3" for="query" data-i18n="queryLabel">你想研究什么？</label>
+                <textarea id="query" class="form-control form-control-lg" rows="5" maxlength="500" data-i18n-placeholder="queryPlaceholder" placeholder="例如：WT-C3k2 结合了哪些组件？"></textarea>
+                <p id="query-error" class="text-danger small mt-2" role="alert" hidden></p>
+                <div class="composer-actions"><span class="text-secondary small" data-i18n="inputHint">可选择已验证示例；其他问题只进行本地检索，不生成固定报告。</span><button id="start-research" class="btn btn-primary btn-lg" type="button" data-i18n="startButton">开始研究</button></div>
+              </div>
+            </section>
+            <section class="examples" aria-labelledby="examples-title">
+              <div class="section-label" data-i18n="examplesEyebrow">从一个问题开始</div>
+              <h2 id="examples-title" class="h3 mb-3" data-i18n="examplesTitle">已验证的离线示例</h2>
+              <div class="row row-cards">
+                <div class="col-md-4"><button class="card example-card w-100" type="button" data-example="single"><span data-i18n="exampleOne">WT-C3k2 结合了哪些组件？</span></button></div>
+                <div class="col-md-4"><button class="card example-card w-100" type="button" data-example="frequency"><span data-i18n="exampleTwo">WT-C3k2如何处理高频与低频特征？</span></button></div>
+                <div class="col-md-4"><button class="card example-card w-100" type="button" data-example="defects"><span data-i18n="exampleThree">Merge-YOLO针对哪些包装缺陷？</span></button></div>
+              </div>
+            </section>
+          </div>
+          <section id="progress-view" class="card progress-card" hidden aria-live="polite">
+            <div class="card-body"><div class="d-flex justify-content-between align-items-center"><h2 class="h3 mb-0" data-i18n="progressTitle">正在整理本地证据</h2><span class="badge bg-blue-lt text-blue" id="progress-status"></span></div>
+              <ol id="progress-steps" class="step-list"><li data-step="0" data-i18n="stepOne">分析问题</li><li data-step="1" data-i18n="stepTwo">查找文献</li><li data-step="2" data-i18n="stepThree">整理证据</li><li data-step="3" data-i18n="stepFour">生成回答</li></ol>
+            </div>
+          </section>
+          <section id="result-view" hidden aria-live="polite"></section>
+          <button id="new-research" type="button" class="btn btn-outline-secondary mt-4" hidden data-i18n="newResearch">研究新问题</button>
         </section>
-
-        <section class="examples" aria-labelledby="examples-title">
-          <div class="section-heading"><div><p class="eyebrow" data-i18n="examplesEyebrow">START WITH AN EXAMPLE</p><h2 id="examples-title" data-i18n="examplesTitle">查看已验证的离线研究示例</h2></div></div>
-          <div class="example-grid"><button class="example-card" type="button" data-query="What components does the cited paper state that WT-C3k2 combines?"><span class="example-label">01</span><span data-i18n="exampleOne">WT-C3k2 结合了哪些组件？</span><span class="arrow" aria-hidden="true">→</span></button><button class="example-card" type="button" data-query="How does WT-C3k2 process high- and low-frequency features?"><span class="example-label">02</span><span data-i18n="exampleTwo">WT-C3k2 如何处理高频与低频特征？</span><span class="arrow" aria-hidden="true">→</span></button><button class="example-card" type="button" data-query="What defect characteristics does Merge-YOLO address?"><span class="example-label">03</span><span data-i18n="exampleThree">Merge-YOLO 针对哪些包装缺陷特征？</span><span class="arrow" aria-hidden="true">→</span></button></div>
-        </section>
-
-        <section id="progress-view" class="progress-card" hidden aria-live="polite"><div class="section-heading"><div><p class="eyebrow" data-i18n="progressEyebrow">RESEARCH IN PROGRESS</p><h2 id="progress-title" data-i18n="progressTitle">正在整理本地证据</h2></div><span id="progress-status" class="badge badge-neutral">—</span></div><ol id="progress-steps" class="step-list"><li data-step="0"><span class="step-dot"></span><span data-i18n="stepOne">分析问题</span></li><li data-step="1"><span class="step-dot"></span><span data-i18n="stepTwo">查找相关文献</span></li><li data-step="2"><span class="step-dot"></span><span data-i18n="stepThree">整理证据</span></li><li data-step="3"><span class="step-dot"></span><span data-i18n="stepFour">生成并核验回答</span></li></ol></section>
-
-        <section id="result-view" class="result-view" hidden></section>
-      </section>
-
-      <section id="sources-view" class="view secondary-view" hidden><div class="page-heading"><p class="eyebrow" data-i18n="sourcesEyebrow">FROZEN LOCAL CORPUS</p><h1 data-i18n="sourcesTitle">你的文献</h1><p data-i18n="sourcesCopy">这些论文构成当前离线研究范围。</p></div><div id="sources-list" class="source-list"></div></section>
-      <section id="runs-view" class="view secondary-view" hidden><div class="page-heading"><p class="eyebrow" data-i18n="runsEyebrow">LOCAL RUN HISTORY</p><h1 data-i18n="runsTitle">研究记录</h1><p data-i18n="runsCopy">每次离线示例都会保留可审计的运行摘要。</p></div><div id="runs-list" class="runs-list"></div></section>
-      <section id="about-view" class="view secondary-view" hidden><div class="page-heading"><p class="eyebrow" data-i18n="aboutEyebrow">ABOUT LITFLOW</p><h1 data-i18n="aboutTitle">让研究结论回到原文</h1><p data-i18n="aboutCopy">LitFlow 是本地优先的科研文献 Copilot。它把检索、证据、引用和验证连接起来，同时保留人工复核边界。</p></div><div class="about-grid"><article class="info-card"><h2 data-i18n="aboutCardOneTitle">可信</h2><p data-i18n="aboutCardOneCopy">每条关键发现都能展开查看论文、页码与原文引用。</p></article><article class="info-card"><h2 data-i18n="aboutCardTwoTitle">可复现</h2><p data-i18n="aboutCardTwoCopy">冻结语料、不可变 artifact、checkpoint 与 replay 让结果可追踪。</p></article><article class="info-card"><h2 data-i18n="aboutCardThreeTitle">诚实</h2><p data-i18n="aboutCardThreeCopy">证据不足、语义正确性和人工审核状态都会明确显示。</p></article></div></section>
+        <section id="sources-view" class="view" hidden><h1 data-i18n="sourcesTitle">本地文献</h1><p class="text-secondary" data-i18n="sourcesCopy">当前冻结语料中的论文。</p><div id="sources-list" class="row row-cards"></div></section>
+        <section id="runs-view" class="view" hidden><h1 data-i18n="runsTitle">研究记录</h1><p class="text-secondary" data-i18n="runsCopy">本次浏览会话中的离线结果。</p><div id="runs-list"></div></section>
+        <section id="about-view" class="view" hidden><h1 data-i18n="aboutTitle">让研究结论回到原文</h1><p class="text-secondary" data-i18n="aboutCopy">本地优先、引用可核验，最终发表仍需人工审阅。</p></section>
+      </div>
     </main>
-    <footer><span data-i18n="footer">Local-first research copilot · Evidence is reviewable, publication is not automatic.</span><a href="/docs" target="_blank" rel="noopener" data-i18n="apiDocs">API 文档</a></footer>
-    <section id="legacy-workbench-compat" hidden aria-hidden="true"><strong>Calm Research Workbench</strong><div id="evidence-inspector"><button id="inspector-close" type="button">Close</button><div id="citation-drawer"></div></div><div id="original-query" aria-live="polite"></div><button data-view="matrix" type="button">Evidence Matrix</button><button data-view="writing" type="button">Bilingual Writing Draft</button><span>Recovered job / 已恢复历史任务</span></section>
-    <script src="/static/app.js"></script>
-  </body>
+    <footer class="footer footer-transparent text-center"><div class="container-xl"><span data-i18n="footer">本地优先 · 证据可核验 · 发表需人工审阅</span></div></footer>
+  </div>
+  <div id="evidence-drawer" class="offcanvas offcanvas-end" tabindex="-1" aria-labelledby="drawer-title">
+    <div class="offcanvas-header"><h2 id="drawer-title" class="offcanvas-title" data-i18n="evidenceTitle">原文证据</h2><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+    <div id="drawer-body" class="offcanvas-body"></div>
+  </div>
+</body>
 </html>

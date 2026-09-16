@@ -239,30 +239,37 @@ def test_static_ui_is_served(tmp_path):
     assert response.status_code == 200
     assert "LitFlow" in response.text
     assert 'rel="icon" href="data:,"' in response.text
-    assert 'id="citation-drawer"' in response.text
+    assert 'id="evidence-drawer"' in response.text
 
 
-def test_workbench_shell_exposes_accessible_state_and_inspector_regions(tmp_path):
+def test_tabler_shell_and_local_assets_are_complete(tmp_path):
     client = _client(tmp_path)
     markup = client.get("/").text
     for required in (
-        "Calm Research Workbench",
-        'id="evidence-inspector"',
-        'aria-live="polite"',
-        'id="original-query"',
-        'data-view="matrix"',
-        'data-view="writing"',
-        'id="inspector-close"',
-        'Recovered job / 已恢复历史任务',
+        'vendor/tabler-1.4.0/tabler.min.css',
+        'vendor/tabler-1.4.0/tabler.min.js',
+        'style.css?v=1.3.0-rc1',
+        'app.js?v=1.3.0-rc1',
+        'class="card composer"',
+        'class="btn btn-primary btn-lg"',
+        'class="form-control form-control-lg"',
+        'class="offcanvas offcanvas-end"',
+        'id="home-state"', 'id="progress-view"', 'id="result-view"',
     ):
         assert required in markup
+    assert 'https://cdn' not in markup
+    for asset in ('/static/vendor/tabler-1.4.0/tabler.min.css', '/static/vendor/tabler-1.4.0/tabler.min.js', '/static/style.css', '/static/app.js'):
+        response = client.get(asset)
+        assert response.status_code == 200 and response.content
+        assert ('text/css' if asset.endswith('.css') else 'javascript') in response.headers['content-type']
     script = (Path(__file__).parents[1] / "src" / "litflow_api" / "static" / "app.js").read_text(encoding="utf-8")
-    assert "EventSource" in script
-    assert "openInspector" in script
+    assert 'data-bs-toggle="offcanvas"' in script
+    assert 'state.phase' in script
+    assert 'Object.values(frozen).includes(query)' in script
     style = (Path(__file__).parents[1] / "src" / "litflow_api" / "static" / "style.css").read_text(encoding="utf-8")
-    assert "@media (max-width: 1279px)" in style
-    assert "@media (max-width: 767px)" in style
-    assert ".passage-block { max-height: 48vh; overflow: auto; }" in style
+    assert '.composer textarea:focus' in style
+    assert '.result-grid' in style
+    assert '@media (max-width:767px)' in style
 
 
 def test_completed_job_is_reloadable_from_its_file_backed_artifact(tmp_path):
