@@ -28,12 +28,13 @@
 15. [B06 Gap/Conflict/Replan](EVIDENCE_GAP_CONFLICT_V1.md) 与 [执行记录](sessions/B06-DR-S15-S16.md)：确定性结构缺口、潜在冲突候选与一次有界重规划。
 16. [B07 Single Writer](SINGLE_WRITER_V1.md)、[Report Validator](REPORT_VALIDATOR_V1.md)、[offline E2E](OFFLINE_SINGLE_AGENT_E2E_V1.md)、[Schema](writer/v1/README.md) 与 [执行记录](sessions/B07-DR-S17-S18.md)：单一 FakeWriter、程序拥有的 Claim/Citation 与安全展示边界。
 17. [GLM E2E Preparation](GLM_DEEP_RESEARCH_E2E_PREP_V1.md)、[v1 pilot](e2e/v1/README.md)、[v1.1 attempts](e2e/v1.1/README.md)、[v1.2 single-paper Attempt-008](e2e/v1.2/README.md)、[Follow-up Pilot Designs](e2e/v1.2/FOLLOWUP_PILOTS.md)、[Cross-paper Attempt-001](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json)、[Cross-paper Attempt-002](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json)、[Cross-paper Attempt-003](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json)、[Cross-paper Closure](CROSS_PAPER_COMPARISON_RESULT_V1.md)、[insufficient-evidence Closure](INSUFFICIENT_EVIDENCE_RESULT_V1.md)、[insufficient-evidence plan](e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json)、[Writer Calibration Result](WRITER_CALIBRATION_RESULT_V1.md)、[Attempt-008 Result](REAL_SINGLE_PAPER_E2E_RESULT_V1.md)、[R8 Session](sessions/B08E2E-R8-ATTEMPT-008-CLOSURE.md)、[R9 Session](sessions/B08E2E-R9-CROSS-PAPER-PLAN.md)、[R10 Session](sessions/B08E2E-R10-CROSS-PAPER-REPAIR.md)、[R11 Session](sessions/B08E2E-R11-CROSS-PAPER-CLOSURE-INSUFFICIENT-EVIDENCE.md)、[执行记录](sessions/B08E2E-PREP.md)、[exit semantics repair](sessions/B08E2E-EXIT-SEMANTICS.md)、[Planner incident repair](sessions/B08E2E-R1-PLANNER-CONTRACT.md)、[budget calibration](sessions/B08E2E-R2-BUDGET-CALIBRATION.md)、[stage budgets](sessions/B08E2E-R3-STAGE-BUDGETS.md)、[scope calibration](sessions/B08E2E-R4-SCOPE-CONTRACT.md)、[Planner output contract](sessions/B08E2E-R5-PLANNER-OUTPUT-CONTRACT.md)、[Writer calibration](sessions/B08E2E-R6-WRITER-CALIBRATION.md)、[CLI wiring](sessions/B08E2E-R6C-WRITER-CALIBRATION-CLI.md) 与 [Writer identity ownership](sessions/B08E2E-R7-WRITER-IDENTITY-OWNERSHIP.md)：单 Agent GLM Planner/Writer 的受控 E2E 结果与后续 Pilot 设计；Attempt-008 单篇、Cross-paper Attempt-003 和 obvious out-of-domain abstention 均在限定本地语料口径下通过。
-18. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
-19. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
-20. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
-21. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
-22. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
-23. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
-24. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
+18. [Round 5 Provider closure](paired_e2e/ROUND5_PROVIDER_CLOSURE.md) 与 [机器清单](paired_e2e/round5_provider_closure.manifest.json)：GLM 完成、DeepSeek 在固定 4096 Writer 预算下已知截断；兼容性加固保持显式预算、能力画像、错误分类和离线 doctor。该结果不是模型质量排名。
+19. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+20. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
+21. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
+22. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
+23. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
+24. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
+25. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
 
 后续 Session 必须先以本目录的边界和 manifest 做只读预检；不得用路线图的长期目标提前扩张当前 Session 范围。

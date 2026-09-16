@@ -1,0 +1,60 @@
+{
+  "schema_version": "dr-round5-provider-closure-v1",
+  "status": "round5_closed_asymmetric_provider_outcome",
+  "implementation_commit_sha": "acf79c2a9a145d287a664d2261a0e1adc3bcd2af",
+  "providers": {
+    "zhipu-bigmodel": {
+      "run_id": "dr-run-809f6d9fc01be667dceb6019",
+      "terminal": "complete",
+      "provider_calls": 2,
+      "planner_calls": 1,
+      "writer_calls": 1,
+      "tool_calls": 4,
+      "retries": 0,
+      "input_tokens": 4042,
+      "output_tokens": 1153,
+      "total_tokens": 5195,
+      "cost_micros": "3231.0",
+      "elapsed_s": 7.8830546,
+      "grounding": true,
+      "replay_external_calls": 0,
+      "artifact": "outputs/deep_research/e2e/v1.2/dr-run-809f6d9fc01be667dceb6019",
+      "artifact_sha256": {
+        "assessment.json": "404b49c46ab586d4c1d9df29386e9c4031b1e6f0fabf22d67ef97889ba7147c5",
+        "checkpoint.json": "a988726f65431837c50177b2a26809afe2c09e0b3cfb178da502cbf5803c9f20",
+        "evidence_graph.json": "849b2c6c87c9bf8e7941038c8d9b653dda879c5be7e374b8f351b13c8912f2a1",
+        "provider_telemetry.json": "a230e0877e1f418269d628ac9eb298b58675b0794ee4a18d7cd5ddc00f8576d1",
+        "runtime.jsonl": "c712cd64b43363bca8ff48b56a7338e35d372b2ff1b3233ef64fd286b57ae074",
+        "validated_plan.json": "0f059a41f662c72e7b2ca3c2e0ea62747c6a428e5f4fb2524be71b67984daab4"
+      }
+    },
+    "deepseek": {
+      "run_id": "dr-run-5b45d452661bd2204c0dfef1",
+      "terminal": "failed",
+      "error_code": "writer_content_truncated",
+      "provider_calls": 2,
+      "planner_calls": 1,
+      "writer_calls": 1,
+      "tool_calls": 4,
+      "retries": 0,
+      "input_tokens": 2836,
+      "output_tokens": 4526,
+      "total_tokens": 7362,
+      "cost_micros": "6282.0000000",
+      "elapsed_s": 18.5722525,
+      "replay_external_calls": 0,
+      "artifact": "outputs/deep_research/e2e/v1.2/dr-run-5b45d452661bd2204c0dfef1",
+      "artifact_sha256": {
+        "assessment.json": "db1eff9c8ecd3c937195d8f104b9f24e97c2a13983a1d4e7bb0546f794e0fd89",
+        "checkpoint.json": "465426fbc1c6e2eab13774560c0ff9010f24413049775ae46dd8383798fc8f",
+        "evidence_graph.json": "cf996b04d68499091f638f7a4144c6173045f63fe2bb3f2a610c48d346ba1e1b",
+        "provider_telemetry.json": "debfbf2112f3cbc9a9a9b4069c2d415fbe6a401ab579a3747565a643d19ad6bb",
+        "runtime.jsonl": "804e7210f879e835f3cc3eb62a5af8e2b59f3db4a0c44f142d66ac876b904a2c",
+        "validated_plan.json": "78e2d7b2c5e810e2de28c8a1d57f3d2b415a60fd825743477b8fdc8e855a48aa"
+      }
+    }
+  },
+  "historical_artifacts_unchanged": true,
+  "credentials_persisted": false,
+  "real_requests_during_hardening": false
+}
