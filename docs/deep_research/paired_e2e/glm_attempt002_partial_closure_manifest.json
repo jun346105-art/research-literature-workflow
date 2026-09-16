@@ -1,0 +1,31 @@
+{
+  "schema_version": "dr-glm-e2e-partial-closure-v1",
+  "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54a1758d625415",
+  "artifact_file_count": 6,
+  "artifact_mutated": false,
+  "status": "partial",
+  "origin": "generic_runtime_defect",
+  "run_recoverable": false,
+  "provider_operations": 2,
+  "planner_calls": 1,
+  "writer_calls": 1,
+  "tool_calls": 4,
+  "retries": 0,
+  "usage": {"input_tokens": 3108, "output_tokens": 787, "total_tokens": 3895, "cost_micros_cny": "2345"},
+  "elapsed_s": 6.0491241,
+  "grounding_verified": true,
+  "claims": 3,
+  "citations": 3,
+  "author_review_required": true,
+  "publication_ready": false,
+  "gap_count": 2,
+  "checks": {"event_hash_chain": "passed", "checkpoint_hashes": "passed", "full_replay_matches": true, "secret_scan": "passed", "private_path_scan": "passed"},
+  "sha256": {
+    "assessment.json": "234c62e164e5cee384eb64d28f7ec364bba6561b54c2d6554c47475fe1b12a14",
+    "checkpoint.json": "a6ff16973076edd96a1a27746dfef1ebd4a40e9f731adb586a13ac2673bcae88",
+    "evidence_graph.json": "d84aacdfc50bf4fe4cb85ac4a9e205965eda8afee678454fb754c57603e8fa1f",
+    "provider_telemetry.json": "ed97ba1c1620fa1da844804037a95d00569fa452d8106eb451e6f210a21b5f35",
+    "runtime.jsonl": "30cf031290cbc0844200e134f98613338fd9b72d58936b6ec139d5c23f6efefd",
+    "validated_plan.json": "c5d65fc0e19bf324164bb9c32d699c17c3fefaa59a7e7bc9d866de8dde8e0483"
+  }
+}

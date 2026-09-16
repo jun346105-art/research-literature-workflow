@@ -17,8 +17,8 @@ if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
   try {
     $env:ZHIPUAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-e5303a3ece54a1758d625415"
-    .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.attempt-002.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54a1758d625415 --execute
+  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-a33941e22e6880abd6ac1c7e"
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.attempt-003.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-a33941e22e6880abd6ac1c7e --execute
   } finally {
     $env:ZHIPUAI_API_KEY = $null
     $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
@@ -35,8 +35,8 @@ if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-9ac7f2076d6f
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
   try {
     $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-9ac7f2076d6ff41d7dff8d8a"
-    .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.attempt-002.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-9ac7f2076d6ff41d7dff8d8a --execute
+  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-b0470b864fa67481ce6e6df9"
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.attempt-003.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-b0470b864fa67481ce6e6df9 --execute
   } finally {
     $env:DEEPSEEK_API_KEY = $null
     $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
