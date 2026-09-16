@@ -167,7 +167,10 @@ async def assess_evidence_graph(graph: EvidenceGraph, requirements: tuple[Subtas
     graph = EvidenceGraph.model_validate(graph.model_dump(mode="json"))
     subtask_ids = {item.subtask_id for item in graph.subtasks}
     evidence_by_id = {item.evidence_id: item for item in graph.evidence_units}
-    evidence_to_subtask = {edge.from_id: edge.to_id for edge in graph.edges if edge.relation == "evidence_supports_subtask"}
+    evidence_to_subtasks: dict[str, set[str]] = {}
+    for edge in graph.edges:
+        if edge.relation == "evidence_supports_subtask":
+            evidence_to_subtasks.setdefault(edge.from_id, set()).add(edge.to_id)
     source_for_evidence = {edge.to_id: edge.from_id for edge in graph.edges if edge.relation == "source_contains_evidence"}
     requirement_by_id = {item.subtask_id: item for item in requirements}
     if len(requirement_by_id) != len(requirements) or set(requirement_by_id) - subtask_ids:
@@ -175,7 +178,7 @@ async def assess_evidence_graph(graph: EvidenceGraph, requirements: tuple[Subtas
     gaps: list[EvidenceGap] = []
     for subtask in graph.subtasks:
         requirement = requirement_by_id.get(subtask.subtask_id, SubtaskEvidenceRequirement(subtask_id=subtask.subtask_id))
-        ids = sorted(evidence_id for evidence_id, owner in evidence_to_subtask.items() if owner == subtask.subtask_id)
+        ids = sorted(evidence_id for evidence_id, owners in evidence_to_subtasks.items() if subtask.subtask_id in owners)
         types = sorted({evidence_by_id[item].provenance_metadata.get("evidence_type", "") for item in ids} - {""})
         sources = sorted({source_for_evidence[item] for item in ids if item in source_for_evidence})
         if not ids:
