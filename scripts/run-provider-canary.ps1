@@ -25,4 +25,7 @@ try {
     $keyPointer = [IntPtr]::Zero
 }
 Write-Output ("provider=$Provider exit_code=$exitCode artifact=$artifactPath")
+if (Test-Path -LiteralPath $artifactPath) {
+    Get-ChildItem -LiteralPath $artifactPath -File | ForEach-Object { Write-Output ("artifact_file=$($_.Name) bytes=$($_.Length)") }
+}
 exit $exitCode

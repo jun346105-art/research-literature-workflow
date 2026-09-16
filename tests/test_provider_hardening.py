@@ -72,3 +72,4 @@ def test_run_script_does_not_echo_credentials():
     assert "Read-Host" in script
     assert "Write-Output $secureKey" not in script
     assert "ZeroFreeBSTR" in script
+    assert "artifact_file=" in script
