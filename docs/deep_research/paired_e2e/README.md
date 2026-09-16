@@ -12,25 +12,37 @@
 安全执行模板（仅在分别授权后使用；每个 provider 只在当前 PowerShell 进程设置对应环境变量，退出前清除）：
 
 ```powershell
-$secureKey = Read-Host "GLM API key" -AsSecureString
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
-try {
-  $env:ZHIPUAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-f8d0cba03855233691766953 --execute
-} finally {
-  $env:ZHIPUAI_API_KEY = $null
-  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54a1758d625415")) {
+  $secureKey = Read-Host "GLM API key" -AsSecureString
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+  try {
+    $env:ZHIPUAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-e5303a3ece54a1758d625415"
+    .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.attempt-002.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54a1758d625415 --execute
+  } finally {
+    $env:ZHIPUAI_API_KEY = $null
+    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+} else {
+  throw "Refusing to execute: artifact already exists"
 }
 ```
 
 ```powershell
-$secureKey = Read-Host "DeepSeek API key" -AsSecureString
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
-try {
-  $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-1f107020f273d15d3dc7561c --execute
-} finally {
-  $env:DEEPSEEK_API_KEY = $null
-  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-9ac7f2076d6ff41d7dff8d8a")) {
+  $secureKey = Read-Host "DeepSeek API key" -AsSecureString
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+  try {
+    $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-9ac7f2076d6ff41d7dff8d8a"
+    .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.attempt-002.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-9ac7f2076d6ff41d7dff8d8a --execute
+  } finally {
+    $env:DEEPSEEK_API_KEY = $null
+    $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+  }
+} else {
+  throw "Refusing to execute: artifact already exists"
 }
 ```
