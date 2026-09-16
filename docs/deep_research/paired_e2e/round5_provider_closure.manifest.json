@@ -46,7 +46,7 @@
       "artifact": "outputs/deep_research/e2e/v1.2/dr-run-5b45d452661bd2204c0dfef1",
       "artifact_sha256": {
         "assessment.json": "db1eff9c8ecd3c937195d8f104b9f24e97c2a13983a1d4e7bb0546f794e0fd89",
-        "checkpoint.json": "465426fbc1c6e2eab13774560c0ff9010f24413049775ae46dd8383798fc8f",
+        "checkpoint.json": "465426fbc1c6e2eab13774560c0ff9010f24413049775aefd46dd8383798fc8f",
         "evidence_graph.json": "cf996b04d68499091f638f7a4144c6173045f63fe2bb3f2a610c48d346ba1e1b",
         "provider_telemetry.json": "debfbf2112f3cbc9a9a9b4069c2d415fbe6a401ab579a3747565a643d19ad6bb",
         "runtime.jsonl": "804e7210f879e835f3cc3eb62a5af8e2b59f3db4a0c44f142d66ac876b904a2c",
