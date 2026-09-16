@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from decimal import Decimal
 from pathlib import Path
 
@@ -18,6 +19,9 @@ from .e2e import DeepResearchRunner
 from .executor import ExecutorError
 from .writer import WriterError
 from .runtime_v2 import RuntimeEventType, UnifiedEventStore
+
+
+AUTH_ENVIRONMENT_VARIABLE = "LITFLOW_PAIRED_EXECUTE_RUN_ID"
 
 
 def _write_telemetry(artifact_dir: Path | None, plan, adapter) -> None:
@@ -63,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.execute:
             if args.artifact_dir is None or args.artifact_dir.as_posix() != plan.artifact_dir:
                 raise ValueError("artifact-dir must exactly match the frozen task target")
+            if os.environ.get(AUTH_ENVIRONMENT_VARIABLE) != plan.run_id:
+                raise ValueError("one-time paired execution authorization is missing or does not match the plan run_id")
             trusted_path = Path("docs/deep_research/e2e/v1.2/glm_e2e_pilot_plan.attempt-008.json")
             trusted = parse_e2e_pilot_plan(json.loads(trusted_path.read_text(encoding="utf-8")))
             task = next(item for item in trusted.tasks if item.task_key == "single_paper")
@@ -73,16 +79,17 @@ def main(argv: list[str] | None = None) -> int:
             if plan.provider == "deepseek":
                 policy = DeepSeekInvocationPolicy()
                 adapter = DeepSeekStructuredAdapter(policy)
+                adapter.require_credential_for_execute()
                 planner = DeepSeekStructuredPlanner(adapter, reservation_usage=policy.reservation("planner"))
                 writer = DeepSeekSingleWriter(adapter, reservation_usage=policy.reservation("writer"))
                 budget = policy.budget_spec()
             else:
                 policy = GLMInvocationPolicy()
                 adapter = GLMStructuredAdapter(policy)
+                adapter.require_credential_for_execute()
                 planner = GLMStructuredPlanner(adapter, reservation_usage=policy.reservation("planner"))
                 writer = GLMSingleWriter(adapter, reservation_usage=policy.reservation("writer"))
                 budget = BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_input_tokens=6144, max_output_tokens=8192, max_total_tokens=14336, max_retries=0, max_replans=1, max_cost_micros=Decimal("20000"), run_timeout_s=180, operation_timeout_s=60)
-            adapter.require_credential_for_execute()
             runner = DeepResearchRunner(planner, LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=budget), writer, budget=budget)
             result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=plan.attempt_id))
             _write_telemetry(args.artifact_dir, plan, adapter)

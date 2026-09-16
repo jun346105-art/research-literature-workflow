@@ -101,6 +101,7 @@ def test_paired_cli_execute_enters_shared_runner_without_transport(monkeypatch, 
     plan_file.write_text(json.dumps(plan), encoding="utf-8")
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
+    monkeypatch.setenv("LITFLOW_PAIRED_EXECUTE_RUN_ID", parsed_plan.run_id)
     assert paired_cli.main(["--plan", str(plan_file), "--artifact-dir", str(artifact), "--execute"]) == expected
     if expected == 0:
         assert (artifact / "provider_telemetry.json").is_file()
@@ -126,3 +127,33 @@ def test_telemetry_counts_durable_dispatches_and_confirmed_replies_only(tmp_path
     telemetry = json.loads((artifact / "provider_telemetry.json").read_text(encoding="utf-8"))
     assert telemetry["provider_calls"] == 2 and telemetry["planner_calls"] == 1 and telemetry["writer_calls"] == 1
     assert telemetry["prompt_cache_hit_tokens"] == [2] and telemetry["client_observed_elapsed_s"] == [0.5]
+
+
+def test_execute_auth_latch_precedes_host_credentials_and_network(monkeypatch, tmp_path):
+    from litflow.deep_research import paired_cli
+
+    plan_path = PAIR_DIR / "paired_deepseek_single_paper_plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    artifact = tmp_path / "artifact"
+    monkeypatch.setattr(paired_cli, "preflight_paired_plan", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(paired_cli, "DeepSeekStructuredAdapter", lambda *_args, **_kwargs: pytest.fail("adapter must not be constructed"))
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "host-key")
+    monkeypatch.delenv("LITFLOW_PAIRED_EXECUTE_RUN_ID", raising=False)
+    plan["artifact_dir"] = artifact.as_posix().replace("\\", "/")
+    from litflow.deep_research.paired_e2e import parse_paired_plan
+    parsed = parse_paired_plan(json.loads(plan_path.read_text(encoding="utf-8"))).model_copy(update={"artifact_dir": plan["artifact_dir"]})
+    monkeypatch.setattr(paired_cli, "parse_paired_plan", lambda _data: parsed)
+    path = tmp_path / "plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    assert paired_cli.main(["--plan", str(path), "--artifact-dir", str(artifact), "--execute"]) == 2
+    assert not artifact.exists()
+
+
+def test_existing_glm_attempt001_artifact_fails_closed_before_credential(monkeypatch):
+    from litflow.deep_research import paired_cli
+
+    monkeypatch.setenv("ZHIPUAI_API_KEY", "host-key")
+    monkeypatch.delenv("LITFLOW_PAIRED_EXECUTE_RUN_ID", raising=False)
+    monkeypatch.setattr(paired_cli, "GLMStructuredAdapter", lambda *_args, **_kwargs: pytest.fail("credential path must not be reached"))
+    result = paired_cli.main(["--plan", str(PAIR_DIR / "paired_glm_single_paper_plan.json"), "--dry-run"])
+    assert result == 2
