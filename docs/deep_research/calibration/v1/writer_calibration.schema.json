@@ -61,7 +61,7 @@
           "type": "string"
         },
         "monetary_budget_limit_micros": {
-          "default": 10000,
+          "default": 20000,
           "maximum": 20000,
           "minimum": 10000,
           "title": "Monetary Budget Limit Micros",
@@ -93,8 +93,9 @@
           "type": "integer"
         },
         "planner_max_output_tokens": {
-          "const": 4096,
           "default": 4096,
+          "maximum": 32768,
+          "minimum": 256,
           "title": "Planner Max Output Tokens",
           "type": "integer"
         },
@@ -174,8 +175,9 @@
           "type": "integer"
         },
         "writer_max_output_tokens": {
-          "const": 4096,
           "default": 4096,
+          "maximum": 32768,
+          "minimum": 256,
           "title": "Writer Max Output Tokens",
           "type": "integer"
         },
@@ -241,7 +243,7 @@
         "max_output_tokens": 1024,
         "max_retries": 0,
         "model_id": "glm-5.3-flash",
-        "monetary_budget_limit_micros": 10000,
+        "monetary_budget_limit_micros": 20000,
         "operation_timeout_seconds": 60,
         "output_price_per_million_micros": 1400000,
         "parallel_enabled": false,

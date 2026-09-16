@@ -41,6 +41,7 @@ from .e2e import DeepResearchRunner, GLME2EPilotPlan, GLMSingleWriter, GLMStruct
 from .e2e import E2ETerminalError, GLME2EPilotAttemptPlan, parse_e2e_pilot_plan
 from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekStructuredReply, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner, DeepSeekSingleWriter
 from .paired_e2e import PairedSinglePaperPlan, parse_paired_plan, preflight_paired_plan
+from .provider_profiles import ProviderCapabilityProfile, capability_profile, classify_provider_error, retryable
 from .writer_calibration import WriterCalibrationPlan, WriterCalibrationRunner, preflight_writer_calibration
 
 __all__ = [
@@ -138,6 +139,10 @@ __all__ = [
     "PairedSinglePaperPlan",
     "parse_paired_plan",
     "preflight_paired_plan",
+    "ProviderCapabilityProfile",
+    "capability_profile",
+    "classify_provider_error",
+    "retryable",
     "WriterCalibrationPlan",
     "WriterCalibrationRunner",
     "preflight_writer_calibration",

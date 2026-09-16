@@ -186,8 +186,9 @@
       "type": "integer"
     },
     "planner_max_output_tokens": {
-      "const": 4096,
-      "default": 4096,
+      "default": 8192,
+      "maximum": 32768,
+      "minimum": 256,
       "title": "Planner Max Output Tokens",
       "type": "integer"
     },
@@ -279,8 +280,9 @@
       "type": "integer"
     },
     "writer_max_output_tokens": {
-      "const": 4096,
-      "default": 4096,
+      "default": 16384,
+      "maximum": 32768,
+      "minimum": 256,
       "title": "Writer Max Output Tokens",
       "type": "integer"
     },

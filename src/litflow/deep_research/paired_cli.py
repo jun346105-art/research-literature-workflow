@@ -5,10 +5,8 @@ import argparse
 import asyncio
 import json
 import os
-from decimal import Decimal
 from pathlib import Path
 
-from .budgets import BudgetSpec
 from .deepseek_e2e import DeepSeekInvocationPolicy, DeepSeekSingleWriter, DeepSeekStructuredAdapter, DeepSeekStructuredPlanner
 from .e2e import GLMInvocationPolicy, GLMSingleWriter, GLMStructuredAdapter, GLMStructuredPlanner, parse_e2e_pilot_plan
 from .e2e import E2ETerminalError
@@ -39,6 +37,12 @@ def _write_telemetry(artifact_dir: Path | None, plan, adapter) -> None:
     telemetry = {
         "provider": plan.provider,
         "run_id": plan.run_id,
+        "planner_max_input_tokens": plan.planner_max_input_tokens,
+        "planner_max_output_tokens": plan.planner_max_output_tokens,
+        "writer_max_input_tokens": plan.writer_max_input_tokens,
+        "writer_max_output_tokens": plan.writer_max_output_tokens,
+        "planner_reasoning_effort": plan.planner_reasoning_effort,
+        "writer_reasoning_effort": plan.writer_reasoning_effort,
         "provider_calls": len(provider_dispatches),
         "planner_calls": sum(event.payload.get("operation_name") == "structured_planner" for event in provider_dispatches),
         "writer_calls": sum(event.payload.get("operation_name") == "single_writer" for event in provider_dispatches),
@@ -80,19 +84,19 @@ def main(argv: list[str] | None = None) -> int:
             task_contract, brief, approval = task.materialize()
             passages = [json.loads(line) for line in (Path.cwd() / plan.corpus_path).read_text(encoding="utf-8").splitlines() if line]
             if plan.provider == "deepseek":
-                policy = DeepSeekInvocationPolicy()
+                policy = DeepSeekInvocationPolicy(planner_max_input_tokens=plan.planner_max_input_tokens, writer_max_input_tokens=plan.writer_max_input_tokens, planner_max_output_tokens=plan.planner_max_output_tokens, writer_max_output_tokens=plan.writer_max_output_tokens)
                 adapter = DeepSeekStructuredAdapter(policy)
                 adapter.require_credential_for_execute()
                 planner = DeepSeekStructuredPlanner(adapter, reservation_usage=policy.reservation("planner"))
                 writer = DeepSeekSingleWriter(adapter, reservation_usage=policy.reservation("writer"))
                 budget = policy.budget_spec()
             else:
-                policy = GLMInvocationPolicy()
+                policy = GLMInvocationPolicy(planner_max_input_tokens=plan.planner_max_input_tokens, writer_max_input_tokens=plan.writer_max_input_tokens, planner_max_output_tokens=plan.planner_max_output_tokens, writer_max_output_tokens=plan.writer_max_output_tokens)
                 adapter = GLMStructuredAdapter(policy)
                 adapter.require_credential_for_execute()
                 planner = GLMStructuredPlanner(adapter, reservation_usage=policy.reservation("planner"))
                 writer = GLMSingleWriter(adapter, reservation_usage=policy.reservation("writer"))
-                budget = BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_input_tokens=6144, max_output_tokens=8192, max_total_tokens=14336, max_retries=0, max_replans=1, max_cost_micros=Decimal("20000"), run_timeout_s=180, operation_timeout_s=60)
+                budget = policy.budget_spec()
             runner = DeepResearchRunner(planner, LocalResearchExecutor(ReadOnlyToolRegistry(passages), budget=budget), writer, budget=budget)
             result = asyncio.run(runner.run(task_contract, brief, approval, event_path=args.artifact_dir / "runtime.jsonl", checkpoint_path=args.artifact_dir / "checkpoint.json", attempt_id=plan.attempt_id))
             _write_telemetry(args.artifact_dir, plan, adapter)

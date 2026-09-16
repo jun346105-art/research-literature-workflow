@@ -28,6 +28,7 @@ from .planner import Planner, PlannerDraft, PlannerError, PlannerSubtaskDraft, V
 from .runtime_v2 import GENESIS_HASH, CoordinatedCheckpointV2, RuntimeEventEnvelope, RuntimeEventType, UnifiedEventStore, create_runtime_event, reduce_runtime_events, replay_runtime_events, write_coordinated_checkpoint
 from .state import RunState, RunStatus, transition
 from .writer import ReportStatus, ReportValidationResult, SingleWriterRunner, Writer, WriterContentDraft, WriterError, model_supplied_owned_fields, writer_validation_error_diagnostics
+from .provider_profiles import classify_provider_error, retryable
 
 
 E2E_PLAN_VERSION = "dr-glm-e2e-pilot-v1"
@@ -118,14 +119,14 @@ class GLMInvocationPolicy(BaseModel):
     max_output_tokens: int = Field(default=1024, ge=256, le=4096)
     planner_max_input_tokens: Literal[2048] = 2048
     writer_max_input_tokens: Literal[4096] = 4096
-    planner_max_output_tokens: Literal[4096] = 4096
-    writer_max_output_tokens: Literal[4096] = 4096
+    planner_max_output_tokens: int = Field(default=4096, ge=256, le=32768)
+    writer_max_output_tokens: int = Field(default=4096, ge=256, le=32768)
     operation_timeout_seconds: int = Field(default=60, ge=30, le=60)
     run_timeout_seconds: int = Field(default=180, ge=90, le=180)
     max_retries: Literal[0] = 0
     input_price_per_million_micros: Literal[400000] = 400000
     output_price_per_million_micros: Literal[1400000] = 1400000
-    monetary_budget_limit_micros: int = Field(default=10000, ge=10000, le=20000)
+    monetary_budget_limit_micros: int = Field(default=20000, ge=10000, le=20000)
     tools_enabled: Literal[False] = False
     vision_enabled: Literal[False] = False
     video_enabled: Literal[False] = False
@@ -145,6 +146,9 @@ class GLMInvocationPolicy(BaseModel):
             + Decimal(output_tokens) * Decimal(self.output_price_per_million_micros)
         ) / Decimal("1000000")
         return TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens, cost_micros=cost)
+
+    def budget_spec(self) -> BudgetSpec:
+        return BudgetSpec(max_provider_attempts=2, max_provider_calls=2, max_tool_attempts=64, max_tool_calls=64, max_input_tokens=self.planner_max_input_tokens + self.writer_max_input_tokens, max_output_tokens=self.planner_max_output_tokens + self.writer_max_output_tokens, max_total_tokens=self.planner_max_input_tokens + self.writer_max_input_tokens + self.planner_max_output_tokens + self.writer_max_output_tokens, max_retries=self.max_retries, max_replans=1, max_cost_micros=Decimal(self.monetary_budget_limit_micros), run_timeout_s=self.run_timeout_seconds, operation_timeout_s=self.operation_timeout_seconds)
 
 
 class GLME2EPilotTask(BaseModel):
@@ -393,6 +397,8 @@ def _provider_diagnostics(*, status: int | None, received: bool, parsed: bool, p
         "content_sha256": sha256_hex(content.encode("utf-8")) if content is not None else None,
         "observed_type": observed_type,
         "observed_keys": list(observed_keys),
+        "provider_error_class": classify_provider_error(status=status, finish_reason=finish_reason, code=error_code),
+        "retryable": retryable(classify_provider_error(status=status, finish_reason=finish_reason, code=error_code)),
     }
 
 
@@ -470,7 +476,7 @@ class GLMStructuredPlanner:
             self.last_usage = reply.usage
             diagnostics = _provider_diagnostics_from_reply(reply)
             if reply.finish_reason in {"length", "max_tokens"}:
-                raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", diagnostics, usage=reply.usage)
+                raise PlannerResponseError("planner_content_truncated", "Planner response ended at the output limit", {**diagnostics, "provider_error_class": "content_truncated", "retryable": False}, usage=reply.usage)
             try:
                 source_refs: dict[tuple[str, str], str] = {}
                 parsed = _parse_planner_object_with_diagnostics(reply.content, diagnostics=diagnostics, task=task, brief=brief, allowed_source_keys=self._selected_source_keys, source_refs=source_refs)
@@ -499,7 +505,7 @@ class GLMSingleWriter:
             self.last_usage = reply.usage
             diagnostics = _provider_diagnostics_from_reply(reply, stage="writer_provider")
             if reply.finish_reason in {"length", "max_tokens"}:
-                raise WriterError("writer_content_truncated", "Writer response ended at the output limit", {**diagnostics, "failure_stage": "writer_content", "contract_error_code": "writer_content_truncated"})
+                raise WriterError("writer_content_truncated", "Writer response ended at the output limit", {**diagnostics, "failure_stage": "writer_content", "contract_error_code": "writer_content_truncated", "provider_error_class": "content_truncated", "retryable": False})
             if not reply.content.strip():
                 raise WriterError("writer_draft_empty", "Writer response content is empty", {**diagnostics, "failure_stage": "writer_content", "contract_error_code": "writer_draft_empty"})
             normalized = reply.content.strip()

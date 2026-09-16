@@ -30,8 +30,8 @@ class PairedSinglePaperPlan(BaseModel):
     writer_reasoning_effort: Literal["high"] = "high"
     planner_max_input_tokens: Literal[2048] = 2048
     writer_max_input_tokens: Literal[4096] = 4096
-    planner_max_output_tokens: Literal[4096] = 4096
-    writer_max_output_tokens: Literal[4096] = 4096
+    planner_max_output_tokens: int = Field(default=8192, ge=256, le=32768)
+    writer_max_output_tokens: int = Field(default=16384, ge=256, le=32768)
     max_provider_calls: Literal[2] = 2
     max_provider_attempts: Literal[2] = 2
     max_retries: Literal[0] = 0
