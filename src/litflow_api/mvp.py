@@ -347,14 +347,27 @@ class MvpService:
         """Expose bounded closure facts, never raw Provider responses or private paths."""
         root = self.assets.corpus_path.parents[2]
         artifact = root / "outputs" / "deep_research" / "e2e" / "v1.2" / run_id
+        supported_examples = {
+            "What components does the cited paper state that WT-C3k2 combines?",
+            "How does WT-C3k2 process high- and low-frequency features?",
+            "What defect characteristics does Merge-YOLO address?",
+            "Explain the frozen demo result",
+            "What does the frozen demo show?",
+        }
+        if query not in supported_examples:
+            return {"job_id": job_id, "run_id": run_id, "provider": "local-corpus", "model": "offline-retrieval-only", "phase": "retrieval", "status": "partial", "terminal": "partial", "reason": "offline_demo_supports_frozen_examples_only", "query": query, "planner": {"status": "not_run", "calls": 0}, "tools": {"status": "not_run", "calls": 0}, "writer": {"status": "not_run", "calls": 0}, "evidence": {"count": 0}, "claims": {"count": 0}, "citations": {"count": 0}, "grounding": None, "author_review_required": True, "publication_ready": False, "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}, "cost_micros": "0", "elapsed_s": 0, "artifact": None, "replay": {"full_replay_matches": True, "external_calls": 0}, "supported_examples_only": True, "findings": [], "sources": []}
         evidence_count = claim_count = citation_count = 0
         grounding = None
         terminal = "complete"
         reason = "offline_demo_replay"
+        findings: list[dict[str, Any]] = []
+        sources: list[dict[str, Any]] = []
         if artifact.is_dir():
             try:
                 graph = _load_json(artifact / "evidence_graph.json")
                 evidence_count = len(graph.get("evidence_units", []))
+                evidence_by_id = {item.get("evidence_id"): item for item in graph.get("evidence_units", [])}
+                sources = [{"source_id": item.get("source_id"), "paper_key": item.get("bibliographic_metadata", {}).get("paper_key"), "title": item.get("bibliographic_metadata", {}).get("title"), "year": item.get("bibliographic_metadata", {}).get("year")} for item in graph.get("sources", [])]
                 event_lines = (artifact / "runtime.jsonl").read_text(encoding="utf-8").splitlines()
                 for line in event_lines:
                     event = json.loads(line)
@@ -364,6 +377,12 @@ class MvpService:
                         report = validation.get("report") or {}
                         claim_count = len(report.get("claims", []))
                         citation_count = len(report.get("citations", []))
+                        by_claim: dict[str, list[dict[str, Any]]] = {}
+                        for citation in report.get("citations", []):
+                            evidence = evidence_by_id.get(citation.get("evidence_id"), {})
+                            locator = evidence.get("locator", {})
+                            by_claim.setdefault(citation.get("claim_id"), []).append({"evidence_id": citation.get("evidence_id"), "quote": str(citation.get("quote", ""))[:500], "source_id": evidence.get("source_id"), "passage_id": locator.get("passage_id"), "page_number": locator.get("page_number")})
+                        findings = [{"claim_id": claim.get("claim_id"), "text": claim.get("text"), "citations": by_claim.get(claim.get("claim_id"), [])} for claim in report.get("claims", [])]
             except (OSError, ValueError, json.JSONDecodeError):
                 terminal = "partial"
                 reason = "demo_artifact_unavailable"
@@ -391,6 +410,9 @@ class MvpService:
             "elapsed_s": 7.8830546,
             "artifact": "outputs/deep_research/e2e/v1.2/dr-run-809f6d9fc01be667dceb6019",
             "replay": {"full_replay_matches": True, "external_calls": 0},
+            "supported_examples_only": True,
+            "findings": findings,
+            "sources": sources,
         }
 
     def _run_job(self, job_id: str) -> None:

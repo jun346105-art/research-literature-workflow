@@ -1,123 +1,34 @@
 const byId = (id) => document.getElementById(id);
-const state = { jobId: null, originalQuery: "", lastFocus: null, mode: "offline_demo" };
+const state = { language: localStorage.getItem("litflow-language") || "zh", currentJob: null, currentResult: null, progress: null };
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[char]);
-const quotePreview = (value) => value.length > 220 ? `${value.slice(0, 220)}...` : value;
 
-async function api(path, options) {
-  const response = await fetch(path, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || "请求失败");
-  return data;
-}
-
-function setPanel(id, visible) { byId(id).classList.toggle("is-hidden", !visible); }
-function setStatus(text, kind = "neutral") { const target = byId("result-status"); target.innerHTML = `<span class="status status-${kind}">${escapeHtml(text)}</span>`; }
-function showQueryView() { setPanel("query-view", true); setPanel("data-view", false); document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("is-active", item.dataset.view === "query")); }
-
-function modeLabel(mode) { return mode === "online_qa" ? "Online QA / 在线问答" : "Offline demo / 离线演示"; }
-function setMode(mode) { state.mode = mode; byId("mode-badge").textContent = modeLabel(mode); byId("mode-badge").className = `status ${mode === "online_qa" ? "status-neutral" : "status-insufficient"}`; }
-
-function renderRoute(data) {
-  setPanel("route-panel", true);
-  byId("route").innerHTML = `<strong>${escapeHtml(data.route || "未执行检索")}</strong><br><span class="metadata">language: ${escapeHtml(data.query_language || "unknown")} · translation: ${escapeHtml(data.translation_status || "not_requested")}</span>`;
-}
-
-function renderProgress(text) { setPanel("progress-panel", true); byId("progress").textContent = text; }
-
-function renderPassages(passages) {
-  setPanel("passages-panel", true); byId("passage-count").textContent = `${passages.length} passages`;
-  byId("passages").innerHTML = passages.map((item) => `<article class="passage-card"><h3>${escapeHtml(item.title)}</h3><div class="metadata">${escapeHtml(item.citation_key)} · ${escapeHtml(item.passage_id)} · pp.${item.page_start}-${item.page_end} · rank ${item.rank}</div><p>${escapeHtml(item.snippet)}</p><button class="button button-secondary passage-open" data-passage="${escapeHtml(item.passage_id)}" type="button">Inspect passage</button></article>`).join("");
-  document.querySelectorAll(".passage-open").forEach((button) => button.addEventListener("click", () => openInspector({ passage_id: button.dataset.passage })));
-}
-
-function renderCoverage(ledger) {
-  if (!ledger || ledger.coverage_status !== "partial") return "";
-  const covered = (ledger.covered_entities || []).map((item) => item.entity_name).join("、") || "无";
-  const uncovered = (ledger.uncovered_entities || []).map((item) => item.entity_name).join("、") || "无";
-  return `<div class="coverage-list"><strong>Coverage / 覆盖范围</strong><ul><li>已覆盖：${escapeHtml(covered)}</li><li>未覆盖：${escapeHtml(uncovered)}</li></ul></div>`;
-}
-
-function renderResult(result) {
-  setPanel("result-panel", true); const panel = byId("result-panel"); panel.className = "result-panel";
-  const claims = result.claims || [];
-  if (result.execution_status !== "success") {
-    panel.classList.add("failure"); setStatus("Technical failure / 技术执行失败", "failure");
-    byId("answer").innerHTML = `<p class="answer-copy">系统未展示未经验证的模型回答。请检查执行状态后重试，不将此状态计为证据不足拒答。</p>`;
-    byId("claims").innerHTML = ""; byId("limitations").innerHTML = ""; return;
+const strings = {
+  zh: {
+    navResearch: "研究", navSources: "文献", navRuns: "记录", navAbout: "关于", offlineBadge: "离线验证 Demo",
+    eyebrow: "LOCAL LITERATURE RESEARCH", heroTitle: "基于你的文献，生成可核验的研究回答", heroCopy: "从本地论文中查找证据、整理结论，并将每条关键发现追溯到原文。", trustNote: "回答基于本地文献，可点击核查原文证据。当前为离线验证 Demo。", queryLabel: "你想研究什么？", queryPlaceholder: "例如：WT-C3k2 结合了哪些组件？", startButton: "开始研究", inputHint: "先输入一个完整问题，或选择下面的已验证示例。", examplesEyebrow: "START WITH AN EXAMPLE", examplesTitle: "查看已验证的离线研究示例", exampleOne: "WT-C3k2 结合了哪些组件？", exampleTwo: "WT-C3k2 如何处理高频与低频特征？", exampleThree: "Merge-YOLO 针对哪些包装缺陷特征？", progressEyebrow: "RESEARCH IN PROGRESS", progressTitle: "正在整理本地证据", stepOne: "分析问题", stepTwo: "查找相关文献", stepThree: "整理证据", stepFour: "生成并核验回答", sourcesEyebrow: "FROZEN LOCAL CORPUS", sourcesTitle: "你的文献", sourcesCopy: "这些论文构成当前离线研究范围。", runsEyebrow: "LOCAL RUN HISTORY", runsTitle: "研究记录", runsCopy: "每次离线示例都会保留可审计的运行摘要。", aboutEyebrow: "ABOUT LITFLOW", aboutTitle: "让研究结论回到原文", aboutCopy: "LitFlow 是本地优先的科研文献 Copilot。它把检索、证据、引用和验证连接起来，同时保留人工复核边界。", aboutCardOneTitle: "可信", aboutCardOneCopy: "每条关键发现都能展开查看论文、页码与原文引用。", aboutCardTwoTitle: "可复现", aboutCardTwoCopy: "冻结语料、不可变 artifact、checkpoint 与 replay 让结果可追踪。", aboutCardThreeTitle: "诚实", aboutCardThreeCopy: "证据不足、语义正确性和人工审核状态都会明确显示。", footer: "Local-first research copilot · Evidence is reviewable, publication is not automatic.", apiDocs: "API 文档"
+  },
+  en: {
+    navResearch: "Research", navSources: "Sources", navRuns: "Runs", navAbout: "About", offlineBadge: "Offline verified demo",
+    eyebrow: "LOCAL LITERATURE RESEARCH", heroTitle: "Turn your papers into research you can verify", heroCopy: "Find evidence in local papers, shape a conclusion, and trace every key finding back to its source.", trustNote: "Answers use local literature. Open each citation to inspect the source. Offline verified demo.", queryLabel: "What are you researching?", queryPlaceholder: "Example: What components does WT-C3k2 combine?", startButton: "Start research", inputHint: "Enter a complete question, or choose a verified example below.", examplesEyebrow: "START WITH AN EXAMPLE", examplesTitle: "Explore verified offline research examples", exampleOne: "What components does WT-C3k2 combine?", exampleTwo: "How does WT-C3k2 process high- and low-frequency features?", exampleThree: "What defect characteristics does Merge-YOLO address?", progressEyebrow: "RESEARCH IN PROGRESS", progressTitle: "Organizing local evidence", stepOne: "Analyze the question", stepTwo: "Find relevant papers", stepThree: "Organize evidence", stepFour: "Write and verify the answer", sourcesEyebrow: "FROZEN LOCAL CORPUS", sourcesTitle: "Your sources", sourcesCopy: "These papers define the current offline research scope.", runsEyebrow: "LOCAL RUN HISTORY", runsTitle: "Research runs", runsCopy: "Each offline example keeps an auditable run summary.", aboutEyebrow: "ABOUT LITFLOW", aboutTitle: "Bring research claims back to the source", aboutCopy: "LitFlow is a local-first research copilot for scientific literature. It connects retrieval, evidence, citations and validation while keeping human review explicit.", aboutCardOneTitle: "Traceable", aboutCardOneCopy: "Open each finding to inspect its paper, page and source quote.", aboutCardTwoTitle: "Reproducible", aboutCardTwoCopy: "Frozen corpus, immutable artifacts, checkpoints and replay keep runs inspectable.", aboutCardThreeTitle: "Honest", aboutCardThreeCopy: "Evidence gaps, semantic correctness and review status stay visible.", footer: "Local-first research copilot · Evidence is reviewable, publication is not automatic.", apiDocs: "API docs"
   }
-  if (result.final_answer_status === "partial_answer") { panel.classList.add("partial"); setStatus("Partial answer / 部分回答", "partial"); }
-  else if (result.final_answer_status === "insufficient_evidence") { panel.classList.add("insufficient"); setStatus("Insufficient evidence / 证据不足", "insufficient"); }
-  else { panel.classList.add("verified"); setStatus("Verified answer / 已验证回答", "verified"); }
-  byId("answer").innerHTML = `<div class="answer-copy">${escapeHtml(result.answer_zh || "基于当前检索到的文献片段，证据不足，无法给出可验证回答。")}</div>${renderCoverage(result.coverage_ledger)}`;
-  byId("claims").innerHTML = claims.map((claim, index) => `<article class="claim-card"><h3>${index + 1}. ${escapeHtml(claim.claim_text_zh)}</h3>${claim.citations.map((citation) => `<blockquote class="quote-preview">${escapeHtml(quotePreview(citation.evidence_quote))}</blockquote>`).join("")}<div class="citation-list">${claim.citations.map((citation) => `<button class="citation-chip" data-passage="${escapeHtml(citation.passage_id)}" data-quote="${escapeHtml(citation.evidence_quote)}" type="button">${escapeHtml(citation.passage_id)} · pp.${citation.page_start}-${citation.page_end}</button>`).join("")}</div></article>`).join("");
-  byId("limitations").innerHTML = result.limitations_zh ? `<div class="limitations"><strong>Limitations / 局限：</strong>${escapeHtml(result.limitations_zh)}</div>` : "";
-  document.querySelectorAll(".citation-chip").forEach((button) => button.addEventListener("click", () => openInspector({ passage_id: button.dataset.passage, evidence_quote: button.dataset.quote }, button)));
-}
+};
 
-async function openInspector(citation, trigger) {
-  const suffix = citation.evidence_quote ? `?evidence_quote=${encodeURIComponent(citation.evidence_quote)}` : "";
-  const passage = await api(`/api/v1/passages/${encodeURIComponent(citation.passage_id)}${suffix}`);
-  state.lastFocus = trigger || document.activeElement; byId("inspector-empty").classList.add("is-hidden");
-  byId("citation-drawer").innerHTML = `<dl class="inspector-metadata"><div><dt>Paper title</dt><dd>${escapeHtml(passage.title)}</dd></div><div><dt>Citation key</dt><dd>${escapeHtml(passage.citation_key)}</dd></div><div><dt>Page range</dt><dd>pp.${passage.page_start}-${passage.page_end}</dd></div><div><dt>Passage ID</dt><dd>${escapeHtml(passage.passage_id)}</dd></div><div><dt>Paper key</dt><dd>${escapeHtml(passage.paper_key)}</dd></div><div><dt>Anchor status</dt><dd>${escapeHtml(passage.anchor_status)}</dd></div></dl>${passage.evidence_quote ? `<h3>Evidence quote</h3><div class="quote-block">${escapeHtml(passage.evidence_quote)}</div>` : ""}<h3>Full source passage</h3><div class="passage-block">${escapeHtml(passage.passage_text)}</div><div class="inspector-actions"><button id="copy-citation" class="button button-secondary" type="button">Copy citation</button></div>`;
-  byId("copy-citation")?.addEventListener("click", async () => { await navigator.clipboard?.writeText(`${passage.citation_key} · ${passage.passage_id} · pp.${passage.page_start}-${passage.page_end}`); });
-  if (window.matchMedia("(max-width: 1279px)").matches) { byId("evidence-inspector").classList.add("is-open"); byId("evidence-inspector").setAttribute("aria-hidden", "false"); byId("drawer-backdrop").classList.remove("is-hidden"); byId("inspector-close").focus(); }
-}
-
-function closeInspector() { byId("evidence-inspector").classList.remove("is-open"); byId("drawer-backdrop").classList.add("is-hidden"); state.lastFocus?.focus?.(); }
-function closeNav() { byId("primary-nav").classList.remove("is-open"); byId("nav-toggle").setAttribute("aria-expanded", "false"); byId("drawer-backdrop").classList.add("is-hidden"); }
-
-async function retrieve() {
-  const query = byId("query").value.trim(); if (!query) return;
-  state.originalQuery = query; renderProgress("Retrieving passages / 正在检索文献片段");
-  const data = await api("/api/v1/retrieve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, query_language: "auto", top_k: 10 }) });
-  renderRoute(data); renderPassages(data.passages); renderProgress(`Retrieval completed / 已检索 ${data.passages.length} 个 passages`);
-}
-
-function consumeEvent(event) { const labels = { job_created: "Job created / 已创建任务", translation_started: "Resolving language route / 正在解析语言路由", translation_completed: "Language route resolved / 语言路由已确定", translation_skipped: "Translation skipped / 未执行翻译", retrieval_completed: "Retrieval completed / 检索完成", generation_started: "Generating verified response / 正在生成", generation_completed: "Generation completed / 生成完成", validation_completed: "Validating citations and quotes / 正在验证引用", job_completed: "Job completed / 任务完成", job_failed: "Job failed / 任务失败" }; renderProgress(labels[event] || event); }
-
-async function loadJob(jobId, recovered = false) {
-  const status = await api(`/api/v1/jobs/${jobId}`); const result = await api(`/api/v1/jobs/${jobId}/result`);
-  state.jobId = jobId; renderProgress(`Job ${jobId}: ${status.status}`); renderResult(result);
-  if (recovered) { byId("recovery-badge").classList.remove("is-hidden"); byId("recovered-job-nav").classList.remove("is-hidden"); byId("recovered-job-nav").dataset.jobId = jobId; }
-}
-
-async function watchJob(jobId) {
-  const source = new EventSource(`/api/v1/jobs/${jobId}/events`); source.onmessage = () => {};
-  ["job_created", "translation_started", "translation_completed", "translation_skipped", "retrieval_completed", "generation_started", "generation_completed", "validation_completed", "job_completed", "job_failed"].forEach((name) => source.addEventListener(name, () => consumeEvent(name)));
-  source.onerror = async () => { source.close(); await loadJob(jobId); };
-}
-
-async function ask() {
-  const query = byId("query").value.trim(); if (!query) return;
-  try {
-    state.originalQuery = query; renderProgress("Creating online QA job / 正在创建在线任务");
-    const created = await api("/api/v1/qa/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, query_language: "auto" }) });
-    state.jobId = created.job_id; sessionStorage.setItem(`litflow-job-${created.job_id}`, query); const url = new URL(window.location.href); url.searchParams.set("job_id", created.job_id); url.searchParams.set("query", query); history.replaceState({}, "", url); await watchJob(created.job_id);
-  } catch (error) { renderResult({ execution_status: "technical_failure", final_answer_status: null, limitations_zh: "" }); renderProgress(error.message); }
-}
-
-function activateNav(view) { document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("is-active", item.dataset.view === view)); closeNav(); }
-async function loadDataView(view) {
-  setPanel("query-view", false); setPanel("data-view", true); const target = byId("data-view"); target.innerHTML = `<div class="empty-message">Loading / 加载中...</div>`;
-  if (view === "papers") { const data = await api("/api/v1/papers"); target.innerHTML = `<div class="view-heading"><div><span class="eyebrow">Frozen corpus</span><h1>Corpus / Papers</h1></div></div><div class="table-wrap"><table class="matrix-table"><thead><tr><th>Paper</th><th>Citation</th><th>Language</th><th>Passages</th></tr></thead><tbody>${data.papers.map((paper) => `<tr><td>${escapeHtml(paper.title)}</td><td>${escapeHtml(paper.citation_key)}</td><td>${escapeHtml(paper.language)}</td><td>${paper.passage_count}</td></tr>`).join("")}</tbody></table></div>`; }
-  else if (view === "matrix") { const data = await api("/api/v1/evidence-matrix/demo"); const rows = data.matrix.papers.flatMap((paper) => Object.entries(paper.fields).flatMap(([field, records]) => records.length ? records.map((record) => `<tr><td>${escapeHtml(paper.title)}</td><td>${escapeHtml(paper.citation_key)}</td><td>${escapeHtml(field)}</td><td>${escapeHtml(record.claim_text)}</td><td>Reviewed evidence</td></tr>`) : [`<tr><td>${escapeHtml(paper.title)}</td><td>${escapeHtml(paper.citation_key)}</td><td>${escapeHtml(field)}</td><td>尚无已审核证据</td><td>Sparse field</td></tr>`])); target.innerHTML = `<div class="view-heading"><div><span class="eyebrow">Read-only demo artifact</span><h1>Evidence Matrix</h1></div></div><div class="table-wrap"><table class="matrix-table"><thead><tr><th>Paper</th><th>Citation</th><th>Category</th><th>Claim</th><th>Coverage</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`; }
-  else if (view === "writing") { const data = await api("/api/v1/writing/demo"); target.innerHTML = `<div class="view-heading"><div><span class="eyebrow">Author-reviewed / read-only demo artifact</span><h1>Bilingual Writing Draft</h1></div><span class="status status-partial">Author-editable · not publication-ready</span></div><div class="writing-layout"><article class="data-card"><h3>Outline and limitations</h3><p>${escapeHtml(data.partial_coverage_limitations || data.outline.limitations_zh)}</p></article><article class="data-card draft-block"><h3>中文草稿</h3>${escapeHtml(data.draft_zh)}</article><article class="data-card draft-block"><h3>English draft</h3>${escapeHtml(data.draft_en)}</article><article class="data-card draft-block"><h3>Sentence Evidence Ledger</h3>${escapeHtml(data.sentence_evidence_ledger)}</article></div>`; }
-  else if (view === "deepresearch") {
-    const created = await api("/api/deep-research/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query: "Explain the frozen DeepResearch demo result", mode: "offline_demo" }) });
-    const result = await api(`/api/deep-research/jobs/${created.job_id}/result`);
-    target.innerHTML = `<div class="view-heading"><div><span class="eyebrow">Offline closure replay</span><h1>DeepResearch Demo</h1></div><span class="status status-verified">${escapeHtml(result.status)}</span></div><div class="data-card"><p>run: ${escapeHtml(result.run_id)} · provider: ${escapeHtml(result.provider)} · model: ${escapeHtml(result.model)}</p><p>phase: ${escapeHtml(result.phase)} · grounding: ${escapeHtml(result.grounding)} · terminal: ${escapeHtml(result.terminal)}</p><p>Planner ${result.planner.calls} · Tool ${result.tools.calls} · Writer ${result.writer.calls}</p><p>Evidence ${result.evidence.count} · Claims ${result.claims.count} · Citations ${result.citations.count}</p><p>tokens ${result.usage.total_tokens} · cost ${escapeHtml(result.cost_micros)} micros · elapsed ${result.elapsed_s}s</p><p>replay external calls: ${result.replay.external_calls} · author review required: ${result.author_review_required} · publication ready: ${result.publication_ready}</p></div>`;
-  }
-  else if (view === "route") { showQueryView(); byId("route-panel").classList.remove("is-hidden"); byId("route").innerHTML = "使用当前输入查询后，显示真实 language/translation/retrieval route。"; }
-  else { showQueryView(); }
-}
-
-async function bootstrap() {
-  const health = await api("/api/v1/health"); setMode(health.mode); byId("ask").disabled = health.mode !== "online_qa"; byId("ask").title = health.mode === "online_qa" ? "" : "Offline demo mode does not construct an LLM client";
-  byId("retrieve").addEventListener("click", retrieve); byId("ask").addEventListener("click", ask); byId("new-query").addEventListener("click", () => { showQueryView(); byId("query").focus(); });
-  document.querySelectorAll(".nav-item").forEach((button) => button.addEventListener("click", async () => { activateNav(button.dataset.view); if (button.dataset.view === "recovered") await loadJob(button.dataset.jobId, true); else if (button.dataset.view === "query") showQueryView(); else await loadDataView(button.dataset.view); }));
-  byId("inspector-close").addEventListener("click", closeInspector); byId("drawer-backdrop").addEventListener("click", () => { closeInspector(); closeNav(); }); byId("nav-toggle").addEventListener("click", () => { const open = byId("primary-nav").classList.toggle("is-open"); byId("nav-toggle").setAttribute("aria-expanded", String(open)); byId("drawer-backdrop").classList.toggle("is-hidden", !open); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeInspector(); closeNav(); } });
-  const params = new URLSearchParams(window.location.search); const jobId = params.get("job_id"); const query = params.get("query") || (jobId && sessionStorage.getItem(`litflow-job-${jobId}`)); if (query) { state.originalQuery = query; byId("query").value = query; }
-  if (jobId) await loadJob(jobId, true);
-}
-bootstrap().catch((error) => { renderProgress(`Technical failure / ${error.message}`); });
+async function api(path, options) { const response = await fetch(path, options); const data = await response.json(); if (!response.ok) throw new Error(data.detail || "Request failed"); return data; }
+function applyLanguage() { const dict = strings[state.language]; document.documentElement.lang = state.language === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((element) => { const value = dict[element.dataset.i18n]; if (value) element.textContent = value; }); document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => { element.placeholder = dict[element.dataset.i18nPlaceholder]; }); byId("lang-zh").classList.toggle("is-active", state.language === "zh"); byId("lang-en").classList.toggle("is-active", state.language === "en"); }
+function setLanguage(language) { state.language = language; localStorage.setItem("litflow-language", language); applyLanguage(); }
+function showView(name) { ["research", "sources", "runs", "about"].forEach((view) => byId(`${view}-view`).hidden = view !== name); document.querySelectorAll(".nav-link").forEach((item) => item.classList.toggle("is-active", item.dataset.view === name)); if (name === "sources") loadSources(); if (name === "runs") loadRuns(); }
+function setProgress(step, status = "running") { byId("progress-view").hidden = false; document.querySelectorAll("#progress-steps li").forEach((item) => { const index = Number(item.dataset.step); item.classList.toggle("is-active", status === "running" && index === step); item.classList.toggle("is-done", index < step || status === "complete" ); }); byId("progress-status").textContent = status === "complete" ? (state.language === "zh" ? "完成" : "Complete") : (state.language === "zh" ? "处理中" : "Working"); }
+function validateQuery(value) { const query = value.trim(); if (query.length < 8 || !/[A-Za-z\u4e00-\u9fff]/u.test(query) || /^[\d\p{P}\s]+$/u.test(query)) return state.language === "zh" ? "请输入一个完整的研究问题，例如：哪些方法可以提高包装缺陷检测的准确率？" : "Enter a complete research question, for example: Which methods improve packaging defect detection?"; return ""; }
+function isExample(query) { return ["What components does the cited paper state that WT-C3k2 combines?", "How does WT-C3k2 process high- and low-frequency features?", "What defect characteristics does Merge-YOLO address?", "Explain the frozen demo result", "What does the frozen demo show?"].includes(query); }
+function renderLocalRetrieval(data, query) { byId("result-view").hidden = false; byId("result-view").innerHTML = `<article class="result-card"><header class="result-header"><div><p class="eyebrow">${state.language === "zh" ? "LOCAL EVIDENCE CHECK" : "LOCAL EVIDENCE CHECK"}</p><h2>${state.language === "zh" ? "本地证据检索" : "Local evidence retrieval"}</h2><p class="result-question">${escapeHtml(query)}</p></div><span class="badge badge-partial">${state.language === "zh" ? "仅检索" : "Retrieval only"}</span></header><div class="conclusion">${state.language === "zh" ? "这个问题不是固定离线示例，因此本页只展示本地语料检索，不会套用示例报告。" : "This question is not a frozen offline example, so this view shows local retrieval only and never reuses a fixed report."}</div><div class="source-list">${(data.passages || []).map((item) => `<article class="source-item"><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.citation_key)} · ${escapeHtml(item.passage_id)} · pp.${item.page_start}-${item.page_end}</p><p>${escapeHtml(item.snippet)}</p></article>`).join("") || `<div class="empty">${state.language === "zh" ? "当前语料没有返回可展示片段。" : "No displayable passage was returned from the local corpus."}</div>`}</div></article>`; }
+function renderDeepResult(result) { byId("result-view").hidden = false; const complete = result.terminal === "complete"; const conclusion = complete ? (state.language === "zh" ? "已完成一份基于本地论文的可核验研究示例。" : "A verifiable research example was completed from local papers.") : (state.language === "zh" ? "当前离线示例未形成完整报告。" : "This offline example did not produce a complete report."); const findings = (result.findings || []).map((finding) => `<article class="finding"><h3>${escapeHtml(finding.text)}</h3><div class="citation-list">${(finding.citations || []).map((citation) => `<details class="evidence-detail"><summary>${escapeHtml(citation.passage_id || citation.evidence_id || "Evidence")}${citation.page_number ? ` · p.${citation.page_number}` : ""}</summary><blockquote>${escapeHtml(citation.quote)}</blockquote></details>`).join("")}</div></article>`).join(""); const sources = (result.sources || []).map((source) => `<article class="source-item"><h3>${escapeHtml(source.title || source.paper_key)}</h3><p>${escapeHtml(source.paper_key || "Local source")}${source.year ? ` · ${source.year}` : ""}</p></article>`).join(""); byId("result-view").innerHTML = `<article class="result-card"><header class="result-header"><div><p class="eyebrow">${state.language === "zh" ? "VERIFIED OFFLINE EXAMPLE" : "VERIFIED OFFLINE EXAMPLE"}</p><h2>${state.language === "zh" ? "研究结果" : "Research result"}</h2><p class="result-question">${escapeHtml(result.query)}</p></div><span class="badge ${complete ? "badge-success" : "badge-partial"}">${escapeHtml(result.terminal)}</span></header><div class="conclusion">${conclusion}</div><section><h3>${state.language === "zh" ? "关键发现" : "Key findings"}</h3>${findings || `<div class="empty">${state.language === "zh" ? "没有可安全展示的 Claim。" : "No claims are safe to display."}</div>`}</section><section><h3>${state.language === "zh" ? "使用的论文" : "Sources used"}</h3><div class="source-list">${sources}</div></section><details class="advanced"><summary>${state.language === "zh" ? "运行详情" : "Run details"}</summary><div class="advanced-content"><span>run_id: ${escapeHtml(result.run_id)}</span><span>provider: ${escapeHtml(result.provider)}</span><span>phase: ${escapeHtml(result.phase)}</span><span>grounding: ${escapeHtml(result.grounding)}</span><span>tokens: ${result.usage.total_tokens}</span><span>cost_micros: ${escapeHtml(result.cost_micros)}</span><span>elapsed_s: ${result.elapsed_s}</span><span>replay_external_calls: ${result.replay.external_calls}</span><span>artifact: ${escapeHtml(result.artifact || "none")}</span></div></details></article>`; }
+async function startResearch(queryOverride = null) { const query = (queryOverride || byId("query").value).trim(); const error = validateQuery(query); byId("query-error").textContent = error; byId("query-error").hidden = !error; if (error) return; byId("start-research").disabled = true; setProgress(0); try { if (isExample(query)) { setProgress(1); const created = await api("/api/deep-research/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, mode: "offline_demo" }) }); state.currentJob = { jobId: created.job_id, query }; watchDeepResearchEvents(created.job_id); setProgress(2); const result = await api(`/api/deep-research/jobs/${created.job_id}/result`); setProgress(3, "complete"); renderDeepResult(result); } else { setProgress(1); const retrieved = await api("/api/v1/retrieve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, query_language: "auto", top_k: 10 }) }); setProgress(3, "complete"); renderLocalRetrieval(retrieved, query); } showView("research"); } catch (err) { byId("result-view").hidden = false; byId("result-view").innerHTML = `<article class="result-card"><div class="conclusion">${escapeHtml(err.message)}</div></article>`; } finally { byId("start-research").disabled = false; } }
+async function loadSources() { const target = byId("sources-list"); target.innerHTML = `<div class="empty">${state.language === "zh" ? "正在加载…" : "Loading…"}</div>`; try { const data = await api("/api/v1/papers"); target.innerHTML = data.papers.map((paper) => `<article class="source-item"><h3>${escapeHtml(paper.title)}</h3><p>${escapeHtml(paper.citation_key)} · ${paper.year || ""} · ${paper.passage_count} passages</p></article>`).join(""); } catch (err) { target.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`; } }
+function loadRuns() { const target = byId("runs-list"); target.innerHTML = state.currentJob ? `<article class="run-item"><strong>${escapeHtml(state.currentJob.jobId)}</strong><p>${escapeHtml(state.currentJob.query)} · ${state.language === "zh" ? "离线示例" : "Offline example"}</p></article>` : `<div class="empty">${state.language === "zh" ? "尚未开始研究。" : "No research run yet."}</div>`; }
+document.addEventListener("DOMContentLoaded", () => { applyLanguage(); byId("lang-zh").addEventListener("click", () => setLanguage("zh")); byId("lang-en").addEventListener("click", () => setLanguage("en")); byId("start-research").addEventListener("click", () => startResearch()); document.querySelectorAll(".example-card").forEach((button) => button.addEventListener("click", () => { byId("query").value = button.dataset.query; startResearch(button.dataset.query); })); document.querySelectorAll(".nav-link").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view))); });
+function watchDeepResearchEvents(jobId) { const source = new EventSource(`/api/deep-research/jobs/${encodeURIComponent(jobId)}/events`); source.onerror = () => source.close(); return source; }
+const _renderDeepResult = renderDeepResult; renderDeepResult = (result) => { state.currentResult = { kind: "deep", data: result }; _renderDeepResult(result); };
+const _renderLocalRetrieval = renderLocalRetrieval; renderLocalRetrieval = (data, query) => { state.currentResult = { kind: "local", data, query }; _renderLocalRetrieval(data, query); };
+const _setProgress = setProgress; setProgress = (step, status = "running") => { state.progress = { step, status }; _setProgress(step, status); };
+const _setLanguage = setLanguage; setLanguage = (language) => { _setLanguage(language); if (state.progress) _setProgress(state.progress.step, state.progress.status); if (state.currentResult) state.currentResult.kind === "deep" ? _renderDeepResult(state.currentResult.data) : _renderLocalRetrieval(state.currentResult.data, state.currentResult.query); };
+function openInspector(citation) { const target = citation && citation.evidence_id ? document.querySelector(`[data-evidence-id="${citation.evidence_id}"]`) : null; target?.scrollIntoView({ behavior: "smooth", block: "center" }); target?.setAttribute("open", ""); }

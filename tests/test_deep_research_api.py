@@ -28,6 +28,15 @@ def test_deep_research_online_mode_is_explicitly_rejected(tmp_path):
     assert response.status_code == 409
 
 
+def test_deep_research_arbitrary_question_never_reuses_fixed_report(tmp_path):
+    client = TestClient(create_mvp_app(MvpService(_assets(tmp_path))))
+    created = client.post("/api/deep-research/jobs", json={"query": "Which unrelated method is best for climate forecasting?"})
+    result = client.get(f"/api/deep-research/jobs/{created.json()['job_id']}/result").json()
+    assert result["terminal"] == "partial"
+    assert result["planner"]["calls"] == result["writer"]["calls"] == 0
+    assert result["findings"] == []
+
+
 def test_deep_research_job_id_path_is_safe(tmp_path):
     client = TestClient(create_mvp_app(MvpService(_assets(tmp_path))))
     assert client.get("/api/deep-research/jobs/../../etc").status_code in {404, 307}
