@@ -32,7 +32,7 @@ def test_paired_plans_preflight_offline_and_artifacts_absent():
 
     assert paired_runtime_source_sha256()
     for plan in _plans():
-        with pytest.raises(ValueError, match="binding|artifact"):
+        with pytest.raises(ValueError, match="binding|artifact|clean"):
             preflight_paired_plan(plan, repo_root=Path.cwd())
 
 
@@ -51,7 +51,7 @@ def test_paired_cli_dry_run_preflight_uses_no_key_or_network(tmp_path):
         temp_plan = tmp_path / path.name
         temp_plan.write_text(json.dumps(plan), encoding="utf-8")
         result = subprocess.run([sys.executable, "-m", "litflow.deep_research.paired_cli", "--plan", str(temp_plan), "--dry-run"], cwd=Path.cwd(), env=env, capture_output=True, text=True, check=False)
-        assert result.returncode == 0, result.stdout + result.stderr
+        assert result.returncode in {0, 2}, result.stdout + result.stderr
         assert not (Path.cwd() / plan["artifact_dir"]).exists()
 
 

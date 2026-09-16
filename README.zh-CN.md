@@ -85,6 +85,7 @@ flowchart LR
 - [Demo Checklist](docs/DEMO_CHECKLIST.md)
 - [Evidence Matrix 截图](docs/screenshots/litflow-mvp-evidence-matrix.png)
 - [双语 Writing Draft 截图](docs/screenshots/litflow-mvp-writing-draft.png)
+- [DeepResearch API Demo](docs/DEEPRESEARCH_DEMO.md)
 
 首图展示的是**持久化已验证 Q01 job 的恢复**，不宣称它是新的实时调用。
 
@@ -97,6 +98,7 @@ flowchart LR
 - QA availability 有限：17 条 answerable pilot query 只有 9 条产生 grounded answer。
 - 中文原生语料支持仍是 smoke-test 级，不是广泛多语言 benchmark。
 - Writing 输出为作者可编辑、人工审核门控的草稿，不默认视为可发表稿件。
+- DeepResearch API 默认提供离线 closure replay Demo；真实 Provider 仍是受控、可选路径。
 
 ## 文档
 
@@ -106,7 +108,7 @@ flowchart LR
 - [证据锚定](docs/EVIDENCE_GROUNDING.zh-CN.md)
 - [面试讲解指南](docs/INTERVIEW_GUIDE.zh-CN.md)
 - [简历项目描述](docs/RESUME_PROJECT.zh-CN.md) 与 [English version](docs/RESUME_PROJECT.en.md)
-- [Release Notes](RELEASE_NOTES_v1.0.0.md)
+- [Release Notes](RELEASE_NOTES_v1.1.0.md)
 
 ## 开发检查
 
@@ -115,4 +117,4 @@ $env:PYTHONPATH = "src"
 python -m pytest -q -p no:cacheprovider
 ```
 
-当前测试：`238 passed`。
+当前测试记录：`587 passed, 1 warning`。

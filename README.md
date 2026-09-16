@@ -83,6 +83,7 @@ flowchart LR
 - [Docker demo instructions](docs/DOCKER_DEMO.md)
 - [3-5 minute demo script](docs/DEMO_SCRIPT.md)
 - [Demo checklist](docs/DEMO_CHECKLIST.md)
+- [DeepResearch API Demo](docs/DEEPRESEARCH_DEMO.md)
 - [Evidence Matrix screenshot](docs/screenshots/litflow-mvp-evidence-matrix.png)
 - [Bilingual Writing Draft screenshot](docs/screenshots/litflow-mvp-writing-draft.png)
 
@@ -97,6 +98,7 @@ The workbench screenshot above restores a **persisted verified Q01 job**. It is 
 - QA availability is limited: `9/17` answerable pilot queries produced grounded answers.
 - Chinese source support is smoke-test level, not a broad multilingual benchmark.
 - Writing output is author-editable and review-gated, never publication-ready by default.
+- DeepResearch API 默认提供离线 closure replay Demo；真实 Provider 仍是受控、可选路径。
 
 ## Documentation
 
@@ -106,7 +108,7 @@ The workbench screenshot above restores a **persisted verified Q01 job**. It is 
 - [Evidence grounding](docs/EVIDENCE_GROUNDING.md)
 - [Interview guide](docs/INTERVIEW_GUIDE.zh-CN.md)
 - [Resume project descriptions](docs/RESUME_PROJECT.en.md) and [中文版本](docs/RESUME_PROJECT.zh-CN.md)
-- [Release notes](RELEASE_NOTES_v1.0.0.md)
+- [Release notes](RELEASE_NOTES_v1.1.0.md)
 
 ## Development Check
 
@@ -115,4 +117,4 @@ $env:PYTHONPATH = "src"
 python -m pytest -q -p no:cacheprovider
 ```
 
-Most recently recorded full validation at commit `1a47f8bc3c6b5534154d291a844f81b0721e01eb`: `508 passed, 1 warning`. This documentation-only status synchronization does not rerun the suite.
+Most recently recorded full validation: `587 passed, 1 warning`. The default DeepResearch API Demo is offline and does not require a Provider key.

@@ -6,7 +6,7 @@
 
 Set `LITFLOW_DEMO_INPUT_DIR` to a local directory containing the existing LitFlow demo artifacts, including the frozen corpus, Evidence Matrix, author-reviewed writing draft, translation cache, and any historical jobs to browse. The container mounts it read-only at `/app/outputs`.
 
-Offline mode does not create jobs and needs no writable volume. The explicit online profile overlays `/app/outputs/m5_fastapi_v1/jobs` with the named `litflow_jobs` volume so new jobs survive container restarts. It does not copy API keys into the image.
+Offline mode does not create online QA jobs and needs no writable volume. The DeepResearch offline demo writes only a small local job record under the existing job root; it still performs no network call. The explicit online profile overlays `/app/outputs/m5_fastapi_v1/jobs` with the named `litflow_jobs` volume so new jobs survive container restarts. It does not copy API keys into the image.
 
 The online profile first runs a one-shot volume initializer that assigns the named job volume to the image's non-root runtime UID/GID `10001`. The actual API container continues to run as `litflow`.
 

@@ -96,6 +96,22 @@ class QaJobRequest(BaseModel):
         return value
 
 
+class DeepResearchJobRequest(BaseModel):
+    """Small product-facing facade; live Provider execution stays opt-in elsewhere."""
+
+    model_config = ConfigDict(extra="forbid")
+    query: str = Field(min_length=1, max_length=MAX_QUERY_LENGTH)
+    mode: Literal["offline_demo", "online"] = "offline_demo"
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("query must not be empty")
+        return value
+
+
 class MvpService:
     def __init__(
         self,
@@ -279,6 +295,98 @@ class MvpService:
             "sentence_evidence_ledger": (self.assets.writing_dir / "sentence_evidence_ledger_author_reviewed.md").read_text(encoding="utf-8"),
             "m4_status": review.get("m4_status"),
             "partial_coverage_limitations": review.get("limitations_zh"),
+        }
+
+    def create_deep_research_job(self, request: DeepResearchJobRequest) -> str:
+        if request.mode == "online":
+            raise PermissionError("live DeepResearch Provider execution requires the controlled CLI; API demo is offline-only")
+        job_id = "dr-demo-" + secrets.token_urlsafe(12)
+        run_id = "dr-run-8b30915e93a6e6b5ee8137c5"
+        result = self._deep_research_demo_result(job_id, run_id, request.query)
+        with self._lock:
+            self._jobs[job_id] = {
+                "job_id": job_id,
+                "status": result["status"],
+                "events": [
+                    {"event": "job_created", "status": "queued"},
+                    {"event": "offline_demo_loaded", "status": result["status"]},
+                    {"event": "replay_completed", "status": result["status"]},
+                ],
+                "request": request.model_dump(),
+                "result": result,
+            }
+            self._persist_job(job_id)
+        return job_id
+
+    def deep_research_job(self, job_id: str) -> dict[str, Any]:
+        self._require_job_id(job_id)
+        return self.job(job_id)
+
+    def deep_research_result(self, job_id: str) -> dict[str, Any]:
+        self._require_job_id(job_id)
+        with self._lock:
+            self._load_persisted_job(job_id)
+            if job_id not in self._jobs:
+                raise KeyError(job_id)
+            result = self._jobs[job_id]["result"]
+            return result if result is not None else {"job_id": job_id, "status": self._jobs[job_id]["status"]}
+
+    def deep_research_events(self, job_id: str) -> list[dict[str, Any]]:
+        self._require_job_id(job_id)
+        return self.job_events(job_id)
+
+    def _require_job_id(self, job_id: str) -> None:
+        if not re.fullmatch(r"dr-demo-[A-Za-z0-9_-]{8,64}", job_id):
+            raise KeyError(job_id)
+
+    def _deep_research_demo_result(self, job_id: str, run_id: str, query: str) -> dict[str, Any]:
+        """Expose bounded closure facts, never raw Provider responses or private paths."""
+        root = self.assets.corpus_path.parents[2]
+        artifact = root / "outputs" / "deep_research" / "e2e" / "v1.2" / run_id
+        evidence_count = claim_count = citation_count = 0
+        grounding = None
+        terminal = "complete"
+        reason = "offline_demo_replay"
+        if artifact.is_dir():
+            try:
+                graph = _load_json(artifact / "evidence_graph.json")
+                evidence_count = len(graph.get("evidence_units", []))
+                event_lines = (artifact / "runtime.jsonl").read_text(encoding="utf-8").splitlines()
+                for line in event_lines:
+                    event = json.loads(line)
+                    validation = event.get("payload", {}).get("validation")
+                    if isinstance(validation, dict):
+                        grounding = validation.get("deterministic_grounding_verified")
+                        report = validation.get("report") or {}
+                        claim_count = len(report.get("claims", []))
+                        citation_count = len(report.get("citations", []))
+            except (OSError, ValueError, json.JSONDecodeError):
+                terminal = "partial"
+                reason = "demo_artifact_unavailable"
+        return {
+            "job_id": job_id,
+            "run_id": run_id,
+            "provider": "zhipu-bigmodel",
+            "model": "glm-5.3-flash",
+            "phase": "replay",
+            "status": terminal,
+            "terminal": terminal,
+            "reason": reason,
+            "query": query,
+            "planner": {"status": "succeeded", "calls": 1},
+            "tools": {"status": "succeeded", "calls": 4},
+            "writer": {"status": "succeeded", "calls": 1},
+            "evidence": {"count": evidence_count},
+            "claims": {"count": claim_count},
+            "citations": {"count": citation_count},
+            "grounding": grounding,
+            "author_review_required": True,
+            "publication_ready": False,
+            "usage": {"input_tokens": 4042, "output_tokens": 1153, "total_tokens": 5195},
+            "cost_micros": "3231.0",
+            "elapsed_s": 7.8830546,
+            "artifact": "outputs/deep_research/e2e/v1.2/dr-run-809f6d9fc01be667dceb6019",
+            "replay": {"full_replay_matches": True, "external_calls": 0},
         }
 
     def _run_job(self, job_id: str) -> None:
@@ -477,6 +585,38 @@ def create_mvp_app(service: MvpService | None = None) -> FastAPI:
     @app.get("/api/v1/writing/demo")
     def writing_demo() -> dict[str, Any]:
         return service.writing_demo()
+
+    @app.post("/api/deep-research/jobs", status_code=202)
+    def create_deep_research_job(request: DeepResearchJobRequest) -> dict[str, str]:
+        try:
+            return {"job_id": service.create_deep_research_job(request)}
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/deep-research/jobs/{job_id}")
+    def deep_research_job(job_id: str) -> dict[str, Any]:
+        try:
+            return service.deep_research_job(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+
+    @app.get("/api/deep-research/jobs/{job_id}/result")
+    def deep_research_result(job_id: str) -> dict[str, Any]:
+        try:
+            return service.deep_research_result(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+
+    @app.get("/api/deep-research/jobs/{job_id}/events")
+    def deep_research_events(job_id: str) -> StreamingResponse:
+        try:
+            items = service.deep_research_events(job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="job not found") from exc
+        def stream() -> Any:
+            for item in items:
+                yield f"event: {item['event']}\ndata: {json.dumps({'status': item['status']})}\n\n"
+        return StreamingResponse(stream(), media_type="text/event-stream")
 
     return app
 
