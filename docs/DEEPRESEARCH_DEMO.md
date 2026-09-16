@@ -14,6 +14,14 @@ flowchart LR
 
 ## 启动
 
+Windows 最短路径（使用项目 `.venv`）：
+
+```powershell
+.\scripts\start-demo.ps1
+```
+
+脚本会检查项目解释器与端口；若 8015 已有 LitFlow 服务，则直接打开现有地址。手动排障方式如下：
+
 ```powershell
 $env:PYTHONPATH = "src"
 python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
@@ -34,9 +42,22 @@ curl.exe "http://127.0.0.1:8015/api/deep-research/jobs/$jobId/events"
 ## 入口与边界
 
 - API：`POST /api/deep-research/jobs`、`GET /api/deep-research/jobs/{job_id}`、`GET .../result`、`GET .../events`。
+- Windows 启动脚本：`scripts/start-demo.ps1`。
 - `/api/v1/*` 保留原有 MVP QA job；DeepResearch Demo 不创建第二套 Runtime。
 - `mode=online` 会被明确拒绝；真实 Provider 仍只能通过已有受控 CLI、run 授权和环境变量完成。
 - 浏览器和 API 不接受 Key；不返回 Authorization、原始 Provider 响应、reasoning、私人路径或论文全文。
+
+## Windows 排障
+
+| 现象 | 处理 |
+|---|---|
+| 页面无法连接 | 确认脚本仍在运行，并访问 `http://127.0.0.1:8015/`；用 `Get-NetTCPConnection -LocalPort 8015` 检查监听。 |
+| 端口被占用 | 关闭占用 8015 的旧服务，或运行 `.\scripts\start-demo.ps1 -Port 8016`。 |
+| `.venv` 不存在 | 在仓库根目录创建项目环境并安装 `requirements.runtime.lock`。 |
+| Uvicorn 未安装 | 使用项目 `.venv`，不要调用系统 Python。 |
+| `/` 返回 404 | 确认命令使用 `litflow_api.app:app`，且当前目录是仓库根目录。 |
+| 静态资源失败 | 检查 `/static/app.js` 与 `/static/style.css` 是否均返回 200。 |
+| 浏览器代理影响 localhost | 将 `127.0.0.1` 加入代理 bypass，或使用 `curl.exe` 复核本地服务。 |
 
 ## 讲解顺序
 

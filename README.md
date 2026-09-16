@@ -98,8 +98,7 @@ This is not a model-quality ranking. DeepSeek's official maximum output is not 4
 Windows PowerShell:
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
+.\scripts\start-demo.ps1
 ```
 
 Linux/macOS:
@@ -116,6 +115,8 @@ Invoke-RestMethod "http://127.0.0.1:8015/api/deep-research/jobs/$($job.job_id)/r
 ```
 
 Docker alternative: see [Docker Demo](docs/DOCKER_DEMO.md).
+
+Manual troubleshooting command: `$env:PYTHONPATH = "src"; .\.venv\Scripts\python.exe -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015`.
 
 ## 10. API
 

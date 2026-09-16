@@ -98,8 +98,7 @@ R1 使用 10 篇论文、185 个 passages：32 条 development query，以及一
 Windows PowerShell：
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
+.\scripts\start-demo.ps1
 ```
 
 Linux/macOS：
@@ -116,6 +115,8 @@ Invoke-RestMethod "http://127.0.0.1:8015/api/deep-research/jobs/$($job.job_id)/r
 ```
 
 Docker 方式见 [Docker 演示说明](docs/DOCKER_DEMO.md)。
+
+手动排障命令：`$env:PYTHONPATH = "src"; .\.venv\Scripts\python.exe -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015`。
 
 ## 10. API
 
