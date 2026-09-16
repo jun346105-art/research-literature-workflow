@@ -7,7 +7,7 @@
 - 两者均 text-only、thinking enabled、Planner `low`、Writer `high`、2 calls、2 attempts、0 retries、1 replan、60s operation、180s run；
 - 每一方先单独执行一次，terminal、grounding、claims/citations、replay zero calls、tokens、provider-native actual cost、client elapsed 和 author review 均预注册；不自动判定语义优胜。
 
-两份 plan 当前均为 dry-run/preflight design freeze，artifact 目录必须不存在。`paired_cli --execute` 已接入现有 DeepResearchRunner，但真实执行仍须单独授权；本轮不读取任何 credential、不发 Provider 请求。非零 known/unknown 结果保留 durable artifact，unknown 映射 exit 3。
+两份 Attempt-004 plan 当前均为 dry-run/preflight design freeze，artifact 目录必须不存在。`paired_cli --execute` 已接入现有 DeepResearchRunner，但真实执行仍须单独授权；本轮不读取任何 credential、不发 Provider 请求。非零 known/unknown 结果保留 durable artifact，unknown 映射 exit 3。旧 Attempt-001/002/003 plans 与 artifacts 永久保留。
 
 安全执行模板（仅在分别授权后使用；每个 provider 只在当前 PowerShell 进程设置对应环境变量，退出前清除）：
 
@@ -17,8 +17,8 @@ if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-e5303a3ece54
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
   try {
     $env:ZHIPUAI_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-a33941e22e6880abd6ac1c7e"
-  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.attempt-003.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-a33941e22e6880abd6ac1c7e --execute
+  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-809f6d9fc01be667dceb6019"
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_glm_single_paper_plan.attempt-004.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-809f6d9fc01be667dceb6019 --execute
   } finally {
     $env:ZHIPUAI_API_KEY = $null
     $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
@@ -35,8 +35,8 @@ if (!(Test-Path -LiteralPath "outputs/deep_research/e2e/v1.2/dr-run-9ac7f2076d6f
   $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
   try {
     $env:DEEPSEEK_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-b0470b864fa67481ce6e6df9"
-  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.attempt-003.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-b0470b864fa67481ce6e6df9 --execute
+  $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = "dr-run-5b45d452661bd2204c0dfef1"
+  .venv/Scripts/python.exe -m litflow.deep_research.paired_cli --plan docs/deep_research/paired_e2e/paired_deepseek_single_paper_plan.attempt-004.json --artifact-dir outputs/deep_research/e2e/v1.2/dr-run-5b45d452661bd2204c0dfef1 --execute
   } finally {
     $env:DEEPSEEK_API_KEY = $null
     $env:LITFLOW_PAIRED_EXECUTE_RUN_ID = $null
