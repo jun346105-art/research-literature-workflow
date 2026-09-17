@@ -1,118 +1,157 @@
-# LitFlow
+# LitFlow Research Copilot
 
-[中文 README](README.zh-CN.md) | English
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-> **LitFlow is a local-first, evidence-grounded bilingual research writing copilot for engineering literature.**
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](pyproject.toml) [![FastAPI](https://img.shields.io/badge/FastAPI-local%20API-009688.svg)](docs/API.md)
 
-It turns local literature artifacts into reviewable research material with passage-level provenance. It is not an automatic whole-paper generator or a hosted SaaS product.
+> **Turn a local scientific-literature corpus into research answers whose claims, citations and source passages can be inspected.**
 
-![LitFlow persisted verified job with Evidence Inspector](docs/screenshots/litflow-mvp-workbench.png)
+![LitFlow Research Copilot Tabler interface](docs/screenshots/litflow-v1.3-home-en.png)
 
-## Why LitFlow
+## 1. Overview
 
-A general AI answer can sound plausible while losing the paper, page, passage, and quote that justify it. LitFlow keeps the researcher's local corpus in control:
+LitFlow is a local-first research copilot for scientific literature. Unlike a generic document chat, it keeps retrieval, evidence, citations, validation and safe partial results visible to the researcher.
 
-- the model sees only retrieved passages for a question;
-- every displayed claim carries a retrieved citation;
-- citation membership, quote anchoring, and claim-citation coverage are validated before display;
-- insufficient evidence and partial coverage remain visible instead of becoming unsupported prose;
-- human review, raw response, usage, manifest, SHA, and failure artifacts remain auditable.
+## 2. Demo
 
-## Core Capabilities
+The key-free offline Demo shows one frozen, complete research report and local evidence retrieval for other questions. It never reuses the frozen report for an arbitrary query.
 
-1. **Local ingestion and clean context**: Zotero metadata and local PDFs become quality-gated, page-provenanced chunks.
-2. **Language-aware retrieval**: Chinese queries use machine translation for English BM25 retrieval; English queries use their original wording.
-3. **Evidence-grounded QA**: answers expose verified claims, citations, continuous English quotes, pages, passage IDs, partial coverage, and safe failure states.
-4. **Evidence and writing views**: a review-ready Evidence Matrix feeds an author-editable bilingual method-comparison draft.
-5. **Local delivery boundary**: FastAPI, SSE job status, a native browser workbench, persisted jobs, and a localhost-only Docker demo.
+### A verifiable example
 
-```text
-Zotero / local PDF
--> Clean Context
--> Provenance Passage Corpus
--> Language-aware Retrieval
--> Evidence-grounded QA
--> Claim / Citation / Quote Validation
--> Evidence Matrix
--> Bilingual Author-editable Draft
--> FastAPI / SSE / UI
--> Docker Demo
-```
+**Question:** What components does the cited paper state that WT-C3k2 combines?
 
-## Docker Quick Start
+**Conclusion:** WT-C3k2 combines WTConv frequency processing with the C3k2 path and retains a 1 × 1-convolution bottleneck after feature fusion.
 
-The default command starts an **Offline Demo** on `127.0.0.1`. It mounts local demo artifacts read-only and does not need or read an API key.
+**Citation:** *Merge-YOLO: An accurate detection model for book packaging defects in intelligent logistics scenarios*, page 6, passage `DZ6TYBIQ_chunk_0008`.
+
+> “The bottleneck layer is implemented through 1 × 1 convolution, reducing the dimension of the feature map...”
+
+The quote passed deterministic anchor validation. That proves traceability, not semantic correctness or publication quality.
+
+![Evidence-backed LitFlow result](docs/screenshots/litflow-v1.3-result-en.png)
+
+The language switch changes the interface only; it does not translate frozen paper text. See the [Demo guide](docs/DEEPRESEARCH_DEMO.md).
+
+## 3. Why LitFlow
+
+- **Inspect the evidence:** open a citation to see its paper, page, passage ID and supporting quote.
+- **Keep failures honest:** partial and insufficient-evidence states remain visible instead of becoming unsupported prose.
+- **Reproduce the run:** immutable artifacts, checkpoints and zero-provider-call replay preserve how a result was produced.
+
+## 4. Key Features
+
+- Page-provenanced Zotero/PDF ingestion and BM25/Dense/Hybrid retrieval evaluation.
+- Planner → local tools → EvidenceGraph → Writer → deterministic Validator.
+- FastAPI jobs, SSE progress, persisted results and a responsive bilingual Tabler interface.
+
+## 5. Five-Minute Offline Quickstart
+
+Windows PowerShell:
 
 ```powershell
-$env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
-docker compose up --build
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\scripts\start-demo.ps1
 ```
 
-Open `http://127.0.0.1:8015/`.
+Linux/macOS:
 
-Online QA is an explicit opt-in profile and may incur provider charges. It is never enabled by the default command. See [Docker Demo](docs/DOCKER_DEMO.md).
+```bash
+python3.13 -m venv .venv
+.venv/bin/python -m pip install -e .
+PYTHONPATH=src .venv/bin/python -m uvicorn litflow_api.app:app --host 127.0.0.1 --port 8015
+```
 
-## Human-Reviewed Pilot Results
+Open `http://127.0.0.1:8015/`. The default path needs no API key and makes no Provider request. For troubleshooting and the offline job API, use the [Demo guide](docs/DEEPRESEARCH_DEMO.md).
 
-These are **small human-reviewed pilot results, not a large-scale benchmark**.
-
-| Area | Conservative result | Boundary |
-| --- | --- | --- |
-| Retrieval | 20 pilot queries, 17 answerable | `query_en` is an oracle-style reference only |
-| Chinese retrieval | machine translation -> BM25-EN Recall@10 `0.7157` | BM25-ZH-raw Recall@10 `0.6275`; absolute improvement `+0.0882` |
-| Mixed-language smoke | expected-paper Hit@10 `5/6` | one known Chinese-to-Chinese miss; not a broad benchmark |
-| QA availability | grounded answer success `9/17` (`52.9%`) | retrieval and execution availability remain limited |
-| Displayed QA safety | author-reviewed usability `9/9`; citation validity, strict quote grounding, and claim coverage `100%` | automatic grounding is not semantic correctness |
-| No-answer handling | abstention `3/3` | limited pilot only |
-| Writing | bilingual method-comparison draft `pass_with_moderate_human_revision` | `publication_ready=false` |
-| Docker | image about `54.54 MB`; health in `1.20s`; health latency `142.04ms` | local Docker demonstration only |
-
-## Architecture
+## 6. How It Works
 
 ```mermaid
 flowchart LR
-  A[Input / Ingestion<br/>Zotero and local PDFs] --> B[Clean Context<br/>page-provenanced chunks]
-  B --> C[Retrieval<br/>language-aware BM25]
-  C --> D[Grounded QA<br/>claims and citations]
-  D --> E[Evidence / Writing<br/>Matrix and bilingual draft]
-  E --> F[API / UI / Docker<br/>local demo]
+  A[Local PDFs] --> B[Retrieval]
+  B --> C[Plan and local tools]
+  C --> D[EvidenceGraph]
+  D --> E[Cited report]
+  E --> F[Grounding validator]
+  F --> G[FastAPI / SSE / UI]
 ```
 
-## Demo Materials
+## 7. Architecture
 
-- [Docker demo instructions](docs/DOCKER_DEMO.md)
-- [3-5 minute demo script](docs/DEMO_SCRIPT.md)
-- [Demo checklist](docs/DEMO_CHECKLIST.md)
-- [Evidence Matrix screenshot](docs/screenshots/litflow-mvp-evidence-matrix.png)
-- [Bilingual Writing Draft screenshot](docs/screenshots/litflow-mvp-writing-draft.png)
+The program owns IDs, evidence membership, quote anchoring, terminal state and artifact paths. Models can propose plans and prose, but cannot mark their own output grounded or publication-ready.
 
-The workbench screenshot above restores a **persisted verified Q01 job**. It is not presented as a new real-time call.
+## 8. Evaluation
 
-## Known Limitations
+R1 uses a frozen corpus of 10 papers and 185 passages. BM25-EN was selected on 32 development queries; the 16-query held-out split was then run once and was not used for tuning.
 
-- Local-first MVP only. No cloud deployment, user accounts, database, or multi-user workflow.
-- No OCR for scanned PDFs and no automatic PDF download.
-- `v0.3A` deep-reading object ingestion is an `experimental_fail`, not a production feature.
-- Dense and Hybrid did not exceed the selected BM25 baseline in this bounded pilot.
-- QA availability is limited: `9/17` answerable pilot queries produced grounded answers.
-- Chinese source support is smoke-test level, not a broad multilingual benchmark.
-- Writing output is author-editable and review-gated, never publication-ready by default.
+| Metric | Result |
+|---|---:|
+| Development BM25-EN Recall@10 | 0.735294 |
+| Held-out Recall@5 / @10 / @20 | 0.715278 / 0.840278 / 0.861111 |
+| Held-out MRR@10 / nDCG@10 | 0.680556 / 0.688869 |
+| Held-out answerable success@10 | 1.000000 |
+| Held-out no-answer FP@10 | 1.000000 |
+| Development no-answer FP@10 after threshold | 1.000000 → 0.800000 |
 
-## Documentation
+These are bounded-corpus retrieval results. The development-only threshold improved one negative case but was not independently validated on held-out data.
 
-- [Architecture](ARCHITECTURE.md)
-- [API and local MVP](docs/API.md)
-- [Evaluation Run 002](docs/EVALUATION_RUN_002.md)
-- [Evidence grounding](docs/EVIDENCE_GROUNDING.md)
-- [Interview guide](docs/INTERVIEW_GUIDE.zh-CN.md)
-- [Resume project descriptions](docs/RESUME_PROJECT.en.md) and [中文版本](docs/RESUME_PROJECT.zh-CN.md)
-- [Release notes](RELEASE_NOTES_v1.0.0.md)
+## 9. Provider Compatibility
 
-## Development Check
+| Provider | Recorded result | Boundary |
+|---|---|---|
+| GLM-5.3-Flash | Complete | Frozen workflow completed with grounded citations |
+| DeepSeek | Writer truncated | Fixed 4096-token project budget conflicted with high-reasoning token usage |
 
-```powershell
-$env:PYTHONPATH = "src"
-python -m pytest -q -p no:cacheprovider
+This is not a model-quality ranking. The project now records explicit Planner/Writer budgets, capability profiles, normalized errors and bounded retries, but no selective successful rerun was used.
+
+## 10. Reproducibility and Safety
+
+- Browser/API clients cannot submit or read Provider keys.
+- Replay performs zero Provider calls; existing artifacts are read-only by run identity.
+- Real Provider execution is optional and requires a server-side environment key plus explicit run authorization.
+- Public API responses use relative artifact locators and omit raw Provider responses and private absolute paths.
+
+## 11. API
+
+```text
+POST /api/deep-research/jobs
+GET  /api/deep-research/jobs/{job_id}
+GET  /api/deep-research/jobs/{job_id}/result
+GET  /api/deep-research/jobs/{job_id}/events   (SSE)
 ```
 
-Current suite: `238 passed`.
+The Demo rejects `mode=online`. Real Provider execution remains behind the controlled CLI.
+
+## 12. Project Structure
+
+```text
+src/litflow/deep_research/   contracts, runtime and grounding
+src/litflow_api/             FastAPI, jobs, SSE and UI
+docs/deep_research/          evaluation and engineering details
+tests/                       offline contracts and regressions
+```
+
+## 13. Known Limitations
+
+- Only exact frozen examples display complete reports; other questions currently return local retrieval evidence only.
+- The language switch does not translate frozen paper passages.
+- Traceable citations do not prove that a conclusion is correct or ready to publish; human review remains required.
+- No account system, multi-tenant security, hosted cloud service or production deployment is included.
+- No-answer handling remains incomplete, and the small frozen R1 corpus does not establish open-domain quality.
+- The DeepSeek Writer truncation is a reliability result, not evidence that one model is better than another.
+
+## 14. Documentation
+
+**For users:** [Install and run the Demo](docs/DEEPRESEARCH_DEMO.md) · [Inspect evidence](docs/EVIDENCE_GROUNDING.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Privacy and safety](docs/DEEPRESEARCH_DEMO.md)
+
+**For developers:** [System architecture](docs/deep_research/ARCHITECTURE.md) · [API](docs/API.md) · [Retrieval evaluation](docs/deep_research/retrieval_quality_r1/README.md) · [Provider adapter details](docs/deep_research/paired_e2e/README.md)
+
+Detailed Evaluation / Reproducibility / Engineering records remain under [`docs/deep_research`](docs/deep_research/) and are intentionally not part of the user quick path.
+
+## 15. Roadmap
+
+Web retrieval, multimodal evidence, multi-agent orchestration, hosted deployment and broader benchmarks are future possibilities, not current capabilities.
+
+## 16. License
+
+No repository-level license is currently declared. Review licensing before redistribution; bundled Tabler assets retain their own MIT license.

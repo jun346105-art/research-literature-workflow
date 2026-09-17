@@ -1,0 +1,64 @@
+{
+  "$defs": {
+    "ErrorCode": {
+      "enum": [
+        "transient_provider",
+        "rate_limited",
+        "operation_timeout",
+        "run_deadline_exceeded",
+        "budget_exhausted",
+        "cancelled",
+        "contract_invalid",
+        "grounding_rejected",
+        "permanent_provider",
+        "tool_failure",
+        "unknown_outcome",
+        "internal_invariant_violation"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "backoff_seconds": {
+      "default": [],
+      "items": {
+        "type": "number"
+      },
+      "title": "Backoff Seconds",
+      "type": "array"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "max_attempts": {
+      "default": 1,
+      "title": "Max Attempts",
+      "type": "integer"
+    },
+    "policy_version": {
+      "default": "dr-policies-v1",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "retryable_errors": {
+      "default": [
+        "transient_provider",
+        "rate_limited",
+        "operation_timeout"
+      ],
+      "items": {
+        "$ref": "#/$defs/ErrorCode"
+      },
+      "title": "Retryable Errors",
+      "type": "array"
+    }
+  },
+  "title": "RetryPolicy",
+  "type": "object"
+}

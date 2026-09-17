@@ -1,0 +1,5 @@
+# Controlled GLM DeepResearch E2E pilot v1
+
+`glm_e2e_pilot_plan.json` freezes three controlled pilot tasks against the existing immutable `outputs/rag_bm25_v1/passages.jsonl` corpus: one single-paper answerable task, one conservative cross-paper comparison, and one required abstention. The questions and Briefs are frozen but contain no qrels gold answer text.
+
+Each task fixes task/brief/run identity, corpus SHA-256, implementation/source binding, Planner/Writer prompt hashes, one Planner call, one Writer call, `max_replans=1`, no retry, a 0.01-CNY two-call budget cap, a separate nonexistent artifact target, and these acceptance metrics: terminal state; evidence/citation/quote grounding; unsupported-claim count; abstention correctness; provider attempts/responses; tokens/cost; latency; zero-call replay; and secret scan. They are controlled real-E2E pilot candidates, not a benchmark. The schema is canonical UTF-8/LF and `preflight_e2e_pilot()` checks plan, corpus, prompt and artifact identity without credential or HTTP access.

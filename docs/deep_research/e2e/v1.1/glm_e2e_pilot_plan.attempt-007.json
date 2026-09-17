@@ -1,0 +1,172 @@
+{
+  "schema_version": "dr-glm-e2e-pilot-v1.1",
+  "provider": "zhipu-bigmodel",
+  "channel": "ordinary_model_api",
+  "policy": {
+    "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    "model_id": "glm-5.3-flash",
+    "credential_environment_variable": "ZHIPUAI_API_KEY",
+    "temperature": 1,
+    "top_p": 0.95,
+    "thinking_type": "enabled",
+    "reasoning_effort": "low",
+    "max_input_tokens": 1024,
+    "max_output_tokens": 1024,
+    "operation_timeout_seconds": 60,
+    "max_retries": 0,
+    "input_price_per_million_micros": 400000,
+    "output_price_per_million_micros": 1400000,
+    "monetary_budget_limit_micros": 20000,
+    "tools_enabled": false,
+    "vision_enabled": false,
+    "video_enabled": false,
+    "files_enabled": false,
+    "web_enabled": false,
+    "parallel_enabled": false,
+    "fallback_enabled": false,
+    "planner_max_output_tokens": 4096,
+    "writer_max_output_tokens": 4096,
+    "planner_max_input_tokens": 2048,
+    "writer_max_input_tokens": 4096,
+    "planner_reasoning_effort": "low",
+    "writer_reasoning_effort": "high",
+    "run_timeout_seconds": 180
+  },
+  "tasks": [
+    {
+      "task_key": "single_paper",
+      "task_id": "dr-task-45549b8a9e84b6eb6f63d07f",
+      "brief_id": "dr-brief-86d7f913eda276ef07a8fd57",
+      "original_question": "What components does the cited paper state that WT-C3k2 combines?",
+      "locale": "en",
+      "constraints": [
+        "local-only",
+        "single-paper"
+      ],
+      "deliverable_type": "grounded_report",
+      "created_at": "2026-09-08T00:00:00Z",
+      "brief_objective": "Summarize the cited paper statement about WT-C3k2 components.",
+      "scope_inclusions": [
+        "WT-C3k2"
+      ],
+      "scope_exclusions": [],
+      "brief_deliverable": "grounded report",
+      "success_criteria": [
+        "exact citation"
+      ],
+      "approval_actor": "human",
+      "approval_decided_at": "2026-09-08T00:00:00Z",
+      "implementation_commit_sha": "3389ba47ed4c8945418c8e5ec145be76b2cea851",
+      "runtime_source_sha256": "17308e76cd7ca5b3466c49660df8b1453fee2111d7af1f8402b9298013393016",
+      "expected_terminal": "complete",
+      "acceptance_metrics": [
+        "terminal_status",
+        "evidence_citation_quote_grounding",
+        "unsupported_claim_count",
+        "abstention_correctness",
+        "provider_attempts_responses",
+        "tokens_cost",
+        "latency",
+        "replay_zero_calls",
+        "secret_scan"
+      ],
+      "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
+      "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+      "planner_prompt_sha256": "e25418b8538f85b083aa9307eec998a6902cc062314d060ccab21b8b2a2fe0c4",
+      "writer_prompt_sha256": "21c0eeb1b593408a50c88223091aa5040318f52d1bb19cd2be57b925caf2f64b",
+      "artifact_dir": "outputs/deep_research/e2e/v1/dr-run-f0357940cdcc28c42a2ed283",
+      "run_id": "dr-run-f0357940cdcc28c42a2ed283",
+      "attempt_id": "glm-5.3-flash-deepresearch-e2e-007"
+    },
+    {
+      "task_key": "cross_paper_comparison",
+      "task_id": "dr-task-ee0fc936d6efdaf45c2d6566",
+      "brief_id": "dr-brief-0784ae0da15d3261fc5ca8f6",
+      "original_question": "How do the selected local papers describe their approaches to multi-scale feature handling?",
+      "locale": "en",
+      "constraints": [
+        "local-only",
+        "cross-paper"
+      ],
+      "deliverable_type": "grounded_report",
+      "created_at": "2026-09-08T00:00:00Z",
+      "brief_objective": "Compare only explicitly grounded method descriptions from selected local papers.",
+      "scope_inclusions": [
+        "method comparison"
+      ],
+      "scope_exclusions": [],
+      "brief_deliverable": "grounded report",
+      "success_criteria": [
+        "exact citation"
+      ],
+      "approval_actor": "human",
+      "approval_decided_at": "2026-09-08T00:00:00Z",
+      "implementation_commit_sha": "3389ba47ed4c8945418c8e5ec145be76b2cea851",
+      "runtime_source_sha256": "17308e76cd7ca5b3466c49660df8b1453fee2111d7af1f8402b9298013393016",
+      "expected_terminal": "partial",
+      "acceptance_metrics": [
+        "terminal_status",
+        "evidence_citation_quote_grounding",
+        "unsupported_claim_count",
+        "abstention_correctness",
+        "provider_attempts_responses",
+        "tokens_cost",
+        "latency",
+        "replay_zero_calls",
+        "secret_scan"
+      ],
+      "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
+      "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+      "planner_prompt_sha256": "e25418b8538f85b083aa9307eec998a6902cc062314d060ccab21b8b2a2fe0c4",
+      "writer_prompt_sha256": "21c0eeb1b593408a50c88223091aa5040318f52d1bb19cd2be57b925caf2f64b",
+      "artifact_dir": "outputs/deep_research/e2e/v1/dr-run-df3979e6d39a655dbbeab8d7",
+      "run_id": "dr-run-df3979e6d39a655dbbeab8d7",
+      "attempt_id": "glm-5.3-flash-deepresearch-e2e-007"
+    },
+    {
+      "task_key": "insufficient_evidence",
+      "task_id": "dr-task-4e78911df9ce081d08aacf6a",
+      "brief_id": "dr-brief-84aad028176f94da6be6aef7",
+      "original_question": "Does the frozen local corpus establish a causal effect for a method not represented in the selected literature?",
+      "locale": "en",
+      "constraints": [
+        "local-only",
+        "abstain"
+      ],
+      "deliverable_type": "grounded_report",
+      "created_at": "2026-09-08T00:00:00Z",
+      "brief_objective": "Abstain when the local evidence cannot ground the requested causal claim.",
+      "scope_inclusions": [
+        "safe abstention"
+      ],
+      "scope_exclusions": [],
+      "brief_deliverable": "grounded report",
+      "success_criteria": [
+        "exact citation"
+      ],
+      "approval_actor": "human",
+      "approval_decided_at": "2026-09-08T00:00:00Z",
+      "implementation_commit_sha": "3389ba47ed4c8945418c8e5ec145be76b2cea851",
+      "runtime_source_sha256": "17308e76cd7ca5b3466c49660df8b1453fee2111d7af1f8402b9298013393016",
+      "expected_terminal": "insufficient_evidence",
+      "acceptance_metrics": [
+        "terminal_status",
+        "evidence_citation_quote_grounding",
+        "unsupported_claim_count",
+        "abstention_correctness",
+        "provider_attempts_responses",
+        "tokens_cost",
+        "latency",
+        "replay_zero_calls",
+        "secret_scan"
+      ],
+      "corpus_path": "outputs/rag_bm25_v1/passages.jsonl",
+      "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+      "planner_prompt_sha256": "e25418b8538f85b083aa9307eec998a6902cc062314d060ccab21b8b2a2fe0c4",
+      "writer_prompt_sha256": "21c0eeb1b593408a50c88223091aa5040318f52d1bb19cd2be57b925caf2f64b",
+      "artifact_dir": "outputs/deep_research/e2e/v1/dr-run-5c6b6fde30653ea768deff16",
+      "run_id": "dr-run-5c6b6fde30653ea768deff16",
+      "attempt_id": "glm-5.3-flash-deepresearch-e2e-007"
+    }
+  ]
+}

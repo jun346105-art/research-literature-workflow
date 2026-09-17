@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "RuntimeEventType": {
+      "enum": [
+        "run_started",
+        "lifecycle_transition",
+        "operation_reserved",
+        "operation_dispatched",
+        "operation_succeeded",
+        "operation_failed",
+        "operation_unknown",
+        "operation_cancelled",
+        "retry_scheduled",
+        "replan_decided",
+        "elapsed_recorded"
+      ],
+      "title": "RuntimeEventType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Attempt Id"
+    },
+    "causal_parent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Causal Parent Id"
+    },
+    "contract_version": {
+      "const": "dr-contracts-v1",
+      "default": "dr-contracts-v1",
+      "description": "Stable DeepResearch contract version.",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "event_hash": {
+      "title": "Event Hash",
+      "type": "string"
+    },
+    "event_id": {
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "$ref": "#/$defs/RuntimeEventType"
+    },
+    "operation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Operation Id"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "previous_event_hash": {
+      "title": "Previous Event Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "dr-runtime-v2",
+      "default": "dr-runtime-v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stream_sequence": {
+      "minimum": 1,
+      "title": "Stream Sequence",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "event_id",
+    "run_id",
+    "stream_sequence",
+    "event_type",
+    "previous_event_hash",
+    "event_hash"
+  ],
+  "title": "RuntimeEventEnvelope",
+  "type": "object"
+}

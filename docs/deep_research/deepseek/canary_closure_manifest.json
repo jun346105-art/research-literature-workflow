@@ -1,0 +1,30 @@
+{
+  "schema_version": "dr-deepseek-canary-closure-v1",
+  "artifact_dir": "outputs/deep_research/canary/v1/dr-run-0381179dd264e4f8324c3214",
+  "artifact_mutated": false,
+  "terminal": "complete",
+  "http_status": 200,
+  "model_identity_verified": true,
+  "application_contract_valid": true,
+  "usage": {"input_tokens": 70, "output_tokens": 69, "total_tokens": 139, "cost_micros_usd": "103.8000000"},
+  "provider_calls": 1,
+  "retries": 0,
+  "replay_provider_calls": 0,
+  "cache_split_persisted": false,
+  "client_observed_elapsed_s": 0.0,
+  "comparison_eligibility": "not_for_cache_cost_or_latency_comparison",
+  "checks": {"event_hash_chain": "passed", "checkpoint_hashes": "passed", "full_replay_matches": true, "secret_scan": "passed", "private_path_scan": "passed"},
+  "sha256": {
+    "adapter_diagnostics.json": "612d7c2068fe6104b1fcee098bb7f565cfae016953f2e5977bd76a4798bbf312",
+    "immutable_plan.json": "8e2d5e0c19aee22346102b5b517827ea8670d2ccf3777c684f6c676b7a600f2a",
+    "plan_sha256.json": "e68df54e2c637183f0db388134b0779ccf59c687a982d451407e9906ff160237",
+    "redacted_request.json": "d5f1826d19b1bfa9830ff1cfa699ed34ccb7d7bfed9ac89c649653d019b70689",
+    "replay_verification.json": "1ae76d738dd099aec9804ca21c88e091c0af361c9b2a2932f462e32f8fed45a2",
+    "response_metadata.json": "e715f8b55513d722d3c4e2563cd13a16dd54d6160ae719a8772934b43cb0ba03",
+    "runtime.checkpoint.json": "2a9035077cb11633020a891f649fcc63076e1fc9cc6ea213949bc6a421fe46bb",
+    "runtime.jsonl": "03a2d6528d7bc598790ce6ab0fe666b1d5ae588a62bb0fcb6c06fba1bc9fb798",
+    "secret_scan.json": "b2c55092b6d5aab41f64f72739c0a1d9d532f89885a7641b6c96fe90d4ccc97a",
+    "structured_result.json": "61b77fb074689887eda8d74b081073c8a053be92e8928550ffdb1c4d5064ff86",
+    "usage.json": "1b2e8db3f7bfec74db1b2992d4daabf9dfd031998ce1a3b4acbb2dfc31135dac"
+  }
+}

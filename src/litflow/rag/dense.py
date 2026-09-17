@@ -109,8 +109,8 @@ class _Encoder:
 
         self.torch = torch
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
-        self.model = AutoModel.from_pretrained(model_name, revision=revision).to(self.device).eval()
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision, local_files_only=True)
+        self.model = AutoModel.from_pretrained(model_name, revision=revision, local_files_only=True).to(self.device).eval()
 
     def encode(self, texts: list[str], batch_size: int = 16) -> np.ndarray:
         vectors = []

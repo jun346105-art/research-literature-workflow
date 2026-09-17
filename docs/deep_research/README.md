@@ -1,0 +1,40 @@
+# LitFlow DeepResearch Track
+
+此目录承载 LitFlow DeepResearch 长期演进路线的治理记录。v2 runtime 仅表示离线、脚本化的可靠性测试边界，不代表真实 Agent、Web、Multimodal 或 UI 功能已实现。
+
+## 版本与使用
+
+- 路线版本：`LitFlow DeepResearch 长期演进路线图 v1`
+- 当前 Session：`B08E2E-R11 Cross-paper closure / insufficient-evidence result`（`completed / real_insufficient_evidence_abstention_pass_on_obvious_out_of_domain_query`）
+- 当前组件状态：`real_insufficient_evidence_abstention_pass_on_obvious_out_of_domain_query`
+- 当前简历状态：`ready_with_scope_limitations`
+
+按以下顺序使用这些文件：
+
+1. [路线图](ROADMAP.md)：冻结长期方向、阶段 Gate、止损规则和条件实验原则。
+2. [DR-S00 执行单](sessions/DR-S00.md)：已完成的治理初始化授权与验收记录。
+3. [DR-S01 执行单](sessions/DR-S01.md)：已完成的只读资产审计授权与验收规则。
+4. [DR-S02 执行单](sessions/DR-S02.md)：依赖边界与 fresh-environment 验收规则。
+5. [DR-S03/S04 执行单](sessions/DR-S03-S04.md)：架构与实验治理冻结规则。
+6. [目标架构](ARCHITECTURE.md)、[参考模式取舍](REFERENCE_PATTERN_DECISIONS.md)、[实验治理](EXPERIMENT_GOVERNANCE.md) 和 [实施节奏](IMPLEMENTATION_CADENCE.md)：S05 前的可实施合同。
+7. [B01 执行单](sessions/B01-DR-S05-S06.md)、[Contracts v1](CONTRACTS_V1.md) 与 [Schema](contracts/v1/README.md)：离线领域合同与稳定导出。
+8. [B02 执行单](sessions/B02-DR-S07-S08.md)、[Runtime Kernel v1](RUNTIME_KERNEL_V1.md) 与 [runtime schema](runtime/v1/README.md)：离线状态、事件、checkpoint 和 replay 合同。
+9. [B03 执行单](sessions/B03-DR-S09-S10.md)、[Execution Policies v1](EXECUTION_POLICIES_V1.md)、[Fake E2E v1](FAKE_E2E_V1.md) 与 [policy schema](policies/v1/README.md)：预算、deadline、取消、retry、replan、journal 和离线确定性测试台。
+10. [B03R Unified Runtime v2](B03R_UNIFIED_RUNTIME_V2.md) 与 [runtime schema v2](runtime/v2/README.md)：单一 ordered event stream、crash-safe dispatch、canonical hash、coordinated checkpoint 和 fail-closed unknown outcome。
+11. [B03R2 Replay Boundaries](B03R2_REPLAY_BOUNDARIES.md)：事实 reducer、流尾 unknown finalization、retry/replan 恢复、checkpoint trust 和受控入口。
+12. [Gate A Canary Design](GATE_A_CANARY_DESIGN_V1.md)、[Gate A Canary Result](GATE_A_CANARY_RESULT_V1.md)、[GLM Adapter 合同](GLM_PROVIDER_CANARY_ADAPTER_V1.md)、[v1.1 execution-plan](canary/v1.1/README.md)、[v1.2 execution-plan](canary/v1.2/README.md)、[B08/S19 记录](sessions/B08-DR-S19-CANARY-DESIGN.md)、[B08R1 事故硬化](sessions/B08R1-GLM-CANARY-INCIDENT-HARDENING.md)、[B08R2 兼容修复](sessions/B08R2-GLM-CANARY-V12-COMPATIBILITY.md) 与 [B08R3 Application Contract](sessions/B08R3-GLM-CANARY-APPLICATION-CONTRACT.md)：受控单次 Canary 的设计、结果与失败硬化边界；真实结果仅覆盖 GLM-5.3-Flash text-only 单调用，不代表完整 Agent、Web、工具或多模态能力。
+13. [B04 Brief Planner](RESEARCH_BRIEF_PLANNER_V1.md) 与 [执行记录](sessions/B04-DR-S11-S12.md)：离线 approval gate 与结构化 Planner 边界。
+14. [B05 Local Executor and Evidence Graph](LOCAL_RESEARCH_EXECUTOR_V1.md) 与 [执行记录](sessions/B05-DR-S13-S14.md)：离线、只读本地检索、严格 Evidence 构建和最小图边界。
+15. [B06 Gap/Conflict/Replan](EVIDENCE_GAP_CONFLICT_V1.md) 与 [执行记录](sessions/B06-DR-S15-S16.md)：确定性结构缺口、潜在冲突候选与一次有界重规划。
+16. [B07 Single Writer](SINGLE_WRITER_V1.md)、[Report Validator](REPORT_VALIDATOR_V1.md)、[offline E2E](OFFLINE_SINGLE_AGENT_E2E_V1.md)、[Schema](writer/v1/README.md) 与 [执行记录](sessions/B07-DR-S17-S18.md)：单一 FakeWriter、程序拥有的 Claim/Citation 与安全展示边界。
+17. [GLM E2E Preparation](GLM_DEEP_RESEARCH_E2E_PREP_V1.md)、[v1 pilot](e2e/v1/README.md)、[v1.1 attempts](e2e/v1.1/README.md)、[v1.2 single-paper Attempt-008](e2e/v1.2/README.md)、[Follow-up Pilot Designs](e2e/v1.2/FOLLOWUP_PILOTS.md)、[Cross-paper Attempt-001](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-001.json)、[Cross-paper Attempt-002](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json)、[Cross-paper Attempt-003](e2e/v1.2/glm_e2e_cross_paper_plan.attempt-003.json)、[Cross-paper Closure](CROSS_PAPER_COMPARISON_RESULT_V1.md)、[insufficient-evidence Closure](INSUFFICIENT_EVIDENCE_RESULT_V1.md)、[insufficient-evidence plan](e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json)、[Writer Calibration Result](WRITER_CALIBRATION_RESULT_V1.md)、[Attempt-008 Result](REAL_SINGLE_PAPER_E2E_RESULT_V1.md)、[R8 Session](sessions/B08E2E-R8-ATTEMPT-008-CLOSURE.md)、[R9 Session](sessions/B08E2E-R9-CROSS-PAPER-PLAN.md)、[R10 Session](sessions/B08E2E-R10-CROSS-PAPER-REPAIR.md)、[R11 Session](sessions/B08E2E-R11-CROSS-PAPER-CLOSURE-INSUFFICIENT-EVIDENCE.md)、[执行记录](sessions/B08E2E-PREP.md)、[exit semantics repair](sessions/B08E2E-EXIT-SEMANTICS.md)、[Planner incident repair](sessions/B08E2E-R1-PLANNER-CONTRACT.md)、[budget calibration](sessions/B08E2E-R2-BUDGET-CALIBRATION.md)、[stage budgets](sessions/B08E2E-R3-STAGE-BUDGETS.md)、[scope calibration](sessions/B08E2E-R4-SCOPE-CONTRACT.md)、[Planner output contract](sessions/B08E2E-R5-PLANNER-OUTPUT-CONTRACT.md)、[Writer calibration](sessions/B08E2E-R6-WRITER-CALIBRATION.md)、[CLI wiring](sessions/B08E2E-R6C-WRITER-CALIBRATION-CLI.md) 与 [Writer identity ownership](sessions/B08E2E-R7-WRITER-IDENTITY-OWNERSHIP.md)：单 Agent GLM Planner/Writer 的受控 E2E 结果与后续 Pilot 设计；Attempt-008 单篇、Cross-paper Attempt-003 和 obvious out-of-domain abstention 均在限定本地语料口径下通过。
+18. [Round 5 Provider closure](paired_e2e/ROUND5_PROVIDER_CLOSURE.md) 与 [机器清单](paired_e2e/round5_provider_closure.manifest.json)：GLM 完成、DeepSeek 在固定 4096 Writer 预算下已知截断；兼容性加固保持显式预算、能力画像、错误分类和离线 doctor。该结果不是模型质量排名。
+19. [资产图](ASSET_MAP.md)、[Traceability Matrix](TRACEABILITY_MATRIX.md) 和 [资产清单](asset_inventory.json)：现有代码、Schema、artifact 和指标的可追溯地图。
+20. [依赖可复现性](DEPENDENCY_REPRODUCIBILITY.md)：Runtime、test extra 与 Dense-only 依赖边界。
+21. [基线](BASELINE.md)：当前仓库身份和历史证据的分级记录。
+22. [冻结边界](FROZEN_BOUNDARIES.md)：不得触碰对象、允许命名空间和外部调用审批边界。
+23. [Session Log](SESSION_LOG.md)：S00–S63 状态索引。
+24. [Baseline manifest](baseline_manifest.json)：机器可读的基线身份和冻结 artifact 清单。
+25. [ADR-000](adr/ADR-000-deepresearch-track.md)、[ADR-001](adr/ADR-001-runtime-and-evidence-boundaries.md) 与 [ADR-002](adr/ADR-002-experiment-and-data-governance.md)：演进、架构和实验治理决策。
+
+后续 Session 必须先以本目录的边界和 manifest 做只读预检；不得用路线图的长期目标提前扩张当前 Session 范围。

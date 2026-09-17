@@ -1,0 +1,77 @@
+{
+  "schema_version": "dr-insufficient-evidence-result-v1",
+  "result": "real_insufficient_evidence_abstention_pass_on_obvious_out_of_domain_query",
+  "attempt_id": "glm-5.3-flash-deepresearch-insufficient-evidence-002",
+  "run_id": "dr-run-97bad8fbd966fcc8c1f049f3",
+  "plan_path": "docs/deep_research/e2e/v1.2/glm_e2e_insufficient_evidence_plan.attempt-002.json",
+  "implementation_commit_sha": "72388ea5570ac5955c3e8dcf02e74f774835ecb5",
+  "runtime_source_sha256": "dc5b5d631ff1379decf98fed19007606c06d0343f3e152f8731191813f4fc767",
+  "planner_prompt_sha256": "cfd418a50d2c9a91230994a24bf0605f4db336fd557f0f2a13135112dee1bd3b",
+  "writer_prompt_sha256": "a0a3ead0fccac18ffb0d92e6e150b56e5943ad29971259b34b45431f176257e1",
+  "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+  "terminal": "insufficient_evidence",
+  "cli_exit_code": 2,
+  "run_state": "insufficient_evidence",
+  "terminal_reason": "insufficient_evidence",
+  "calls": {
+    "planner": 1,
+    "writer": 1,
+    "provider": 2,
+    "tool": 2,
+    "retries": 0,
+    "replans": 0
+  },
+  "retrieval": {
+    "false_positive": true,
+    "source_id": "dr-source-c82227e5b40e464045457dd3",
+    "paper_key": "3NLKTSIP",
+    "passage_id": "3NLKTSIP:3NLKTSIP_chunk_0008",
+    "topic_supported": false,
+    "no_answer_recognized_by_retriever": false,
+    "abstention_stage": "writer_validator"
+  },
+  "graph": {
+    "source_count": 1,
+    "evidence_count": 1,
+    "claim_count": 0,
+    "citation_count": 0,
+    "unsupported_claim_count": 0,
+    "fabricated_citation_count": 0
+  },
+  "validation": {
+    "report_status": "insufficient_evidence",
+    "deterministic_grounding_verified": false,
+    "author_review_required": true,
+    "publication_ready": false,
+    "issues": []
+  },
+  "usage": {
+    "input_tokens": 2518,
+    "output_tokens": 234,
+    "total_tokens": 2752,
+    "cost_micros": "1334.8",
+    "elapsed_s": 4.405896
+  },
+  "replay": {
+    "full_replay_matches": true,
+    "checkpoint_tail_replay_matches": true,
+    "provider_calls": 0,
+    "planner_calls": 0,
+    "writer_calls": 0,
+    "tool_calls": 0
+  },
+  "security": {
+    "credential_persisted": false,
+    "authorization_persisted": false,
+    "reasoning_persisted": false,
+    "private_absolute_path_persisted": false,
+    "secret_scan": "pass"
+  },
+  "artifact_files": [
+    {"file": "assessment.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3/assessment.json", "bytes": 200, "sha256": "327eabc9cc92e5f8380c98884d72c91bd354294c8d76464aa6ba4ab3dcb000de"},
+    {"file": "checkpoint.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3/checkpoint.json", "bytes": 4081, "sha256": "9c60c228ac63c0274750f411da595c97b1fd8846c923afd9103eeb58153d0ffe"},
+    {"file": "evidence_graph.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3/evidence_graph.json", "bytes": 6196, "sha256": "a0c485017c746a5882618a32fe15f56668f3336d2130477240dcd5e3c5ae053c"},
+    {"file": "runtime.jsonl", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3/runtime.jsonl", "bytes": 18411, "sha256": "ef472a494b203212a793e02cb35c11d7a63645e3110a4eb7223a939d97392bdf"},
+    {"file": "validated_plan.json", "relative_path": "outputs/deep_research/e2e/v1.2/dr-run-97bad8fbd966fcc8c1f049f3/validated_plan.json", "bytes": 985, "sha256": "72f6a32bcd69d2e18f700f066ab429eebd515817c10a58299805fabad4801d78"}
+  ]
+}

@@ -1,0 +1,15 @@
+# GLM Provider Canary Adapter v1
+
+The B08/S19 adapter is a deliberately narrow, text-only, non-streaming ordinary-model API integration for `glm-5.3-flash` at `https://open.bigmodel.cn/api/paas/v4/chat/completions`. It uses Python standard-library `urllib`, sends one fixed synthetic JSON probe, and has no tools, Web, vision, video, files, parallel calls, fallback, retry, status lookup, Planner, Writer, Multi-Agent or Critic behavior.
+
+`GLMCanaryRunner` is the only public live-capable entry. Its internal adapter is not exported by `litflow.deep_research`. At execute time only, the runner checks the named `ZHIPUAI_API_KEY` environment variable before creating any artifact or durable dispatch. It then preserves the B03R2 ordering: journal, budget reservation, durable `operation_reserved`, durable `operation_dispatched`, invocation, durable terminal event, checkpoint and deterministic replay. Missing configuration and reservation/dispatch fsync failure invoke no transport. Timeout or connection ambiguity yields `outcome_unknown`, retains the reservation and returns `ManualInterventionRequired`; it never retries or re-dispatches.
+
+The active user-confirmed promotional pricing snapshot is 0.4 CNY per million input tokens and 1.4 CNY per million output tokens. The reservation uses the fixed 512/256 ceiling and the hard 0.01 CNY ceiling. Terminal accounting derives actual cost only from provider `usage`; it does not estimate usage from text length. The adapter redacts credentials and authorization headers from runtime events, checkpoints and artifacts.
+
+This is an offline-verified transport boundary, not a completed provider Canary, DeepResearch Agent E2E result, or exactly-once remote-execution guarantee.
+
+## B08R1 response classification
+
+The adapter keeps three independent redacted facts: transport (HTTP response/status/body JSON), provider adapter (error envelope, text normalization, exact model identity and usage), and application (the fixed internal JSON response). A non-2xx response is a known transport/provider failure; timeout or connection ambiguity is `outcome_unknown`. A received 2xx text response can remain recorded when application JSON is invalid, usage is unavailable/inconsistent, or the model identity is unverified. Those conditions cannot complete this no-fallback Canary. `adapter_diagnostics.json` and the terminal event contain only field names, observed types, allowlisted top-level keys, status and boolean audit facts—never raw response bodies or credentials.
+
+The legacy `contract_invalid` runtime code is retained only as the existing non-retryable terminal taxonomy. The safe `contract_error_code` identifies the actual layer (`response_body_not_json`, `content_missing`, `model_identity_unverified`, `application_json_invalid`, `usage_missing`, or `usage_inconsistent`). CLI exit code is `0` only for `terminal=complete`, `2` for known failures and `3` for unknown outcome/manual intervention. The first failure is documented in [B08R1](sessions/B08R1-GLM-CANARY-INCIDENT-HARDENING.md); it is not overwritten or reused.

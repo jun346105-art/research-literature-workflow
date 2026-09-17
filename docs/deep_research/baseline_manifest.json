@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "track": "LitFlow DeepResearch",
+  "roadmap_version": "v1",
+  "session": "DR-S00",
+  "repository": {
+    "remote": "https://github.com/jun346105-art/research-literature-workflow.git",
+    "verified_main_commit": "a5a01a41165822d668fac3e607d45c7be6b6b93b",
+    "branch_created_from": "main",
+    "current_branch": "milestone/litflow-deepresearch-v1"
+  },
+  "frozen_tag": {
+    "name": "v1.0.0-mvp",
+    "annotated_tag_object": "7806fffbb426835211fde0dd9d1c3536173c9868",
+    "peeled_commit": "36ae717adf02fe1c6c097f0a10eb9ad61faa22fc"
+  },
+  "formal_test": {
+    "command": ".\\.venv\\Scripts\\python.exe -m pytest -q .\\tests",
+    "expected_summary": "268 passed, 1 warning",
+    "result": "268 passed, 1 warning in 11.90s",
+    "result_source": "DR-S00 local reproduction"
+  },
+  "frozen_artifact_paths": [
+    "outputs/rag_bm25_v1",
+    "outputs/evidence_qa_v1_2",
+    "outputs/evidence_matrix_v1",
+    "outputs/m4_writing_v1",
+    "outputs/m5_fastapi_v1",
+    "outputs/m6_docker_runtime",
+    "outputs/m8_agent"
+  ],
+  "historical_agent_status": "experimental_partial_pass",
+  "external_calls_in_dr_s00": false
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "plan_id": "retrieval-quality-r1-formal-v1",
+  "dataset_manifest_sha256": "db1c58c19339e9f46d6d5f6addf4ecd4da8df1ac21d9154b81bd982ff385770c",
+  "model_asset_manifest_sha256": "582fc7558ce61c9c9cb628d77618d52a949ba6491a209b7f947487ba049cbbbb",
+  "development_splits": ["development", "dev_hard_negative"],
+  "held_out_split": "held_out",
+  "modes": ["bm25_zh_raw", "bm25_en", "dense_zh_windowed", "hybrid_zh_windowed"],
+  "top_k": 20,
+  "selection_rule": [
+    "maximize answerable_retrieval_success_at_10",
+    "maximize recall_at_10",
+    "maximize ndcg_at_10",
+    "maximize mrr_at_10",
+    "minimize no_answer_false_positive_rate_at_10",
+    "minimize latency_ms.mean",
+    "break an exact tie by modes array order"
+  ],
+  "held_out_execution_limit": 1,
+  "held_out_no_tuning": true,
+  "network_policy": "offline_only",
+  "model_local_files_only": true,
+  "h007_limitation": "query/claim-held-out only; passage_overlap=true; answer_claim_overlap=false"
+}

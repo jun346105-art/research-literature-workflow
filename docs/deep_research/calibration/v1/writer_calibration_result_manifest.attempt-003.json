@@ -1,0 +1,66 @@
+{
+  "schema_version": "dr-writer-calibration-result-v1",
+  "calibration_id": "writer-calibration-003",
+  "run_id": "dr-run-ea36f934bb751fb5a0d4885a",
+  "provider": "zhipu-bigmodel",
+  "model_id": "glm-5.3-flash",
+  "implementation_commit_sha": "90262da09c4b23857ca7ad6aa3b87d0a0f3be199",
+  "runtime_source_sha256": "ced52128187176fd7e8f59b41e20df215df183525054aa2749f25d0cf12865e1",
+  "status": "pass_writer_contract_and_deterministic_grounding",
+  "terminal": "complete",
+  "error_code": null,
+  "provider_calls": 1,
+  "provider_succeeded": 1,
+  "planner_calls": 0,
+  "tool_calls": 0,
+  "retries": 0,
+  "usage": {
+    "input_tokens": 1231,
+    "output_tokens": 72,
+    "total_tokens": 1303,
+    "cost_micros": "593.2"
+  },
+  "elapsed_s": 2.3090693,
+  "model_supplied_owned_fields": [],
+  "sections": 1,
+  "claims": 1,
+  "citations": 1,
+  "deterministic_grounding_verified": true,
+  "validation_issues": [],
+  "semantic_correctness_verified": false,
+  "author_review_required": true,
+  "publication_ready": false,
+  "replay": {
+    "full_replay_matches": true,
+    "checkpoint_replay_matches": true,
+    "external_provider_calls": 0,
+    "external_planner_calls": 0,
+    "external_tool_calls": 0
+  },
+  "secret_scan": {
+    "credential_persisted": false,
+    "authorization_persisted": false,
+    "private_absolute_path_persisted": false
+  },
+  "artifact_root": "outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a",
+  "artifacts": [
+    {
+      "file": "runtime.jsonl",
+      "relative_path": "outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a/runtime.jsonl",
+      "bytes": 9477,
+      "sha256": "8277050c10d7770762db99d6b89f753711e1c47a25789492854af7982d4c8e94"
+    },
+    {
+      "file": "checkpoint.json",
+      "relative_path": "outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a/checkpoint.json",
+      "bytes": 1983,
+      "sha256": "bee891d53421e0f21be1c43d6b709373fbbfa43c74fba13bb058043becc143bb"
+    },
+    {
+      "file": "calibration_result.json",
+      "relative_path": "outputs/deep_research/writer_calibration/v1/dr-calibration-ea36f934bb751fb5a0d4885a/calibration_result.json",
+      "bytes": 2587,
+      "sha256": "eac0dedff2aa7861c1d72ff00fca5a18bcce94c49818d77fc496a3aa7e783de0"
+    }
+  ]
+}

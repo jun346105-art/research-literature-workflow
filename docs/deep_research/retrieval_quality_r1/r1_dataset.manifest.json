@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "dataset_id": "retrieval-quality-r1-v1",
+  "tracked_text_hash_mode": "json=sorted-compact-utf8; csv=lf-utf8-no-bom",
+  "corpus": {
+    "path": "outputs/rag_bm25_v1/passages.jsonl",
+    "manifest_path": "outputs/rag_bm25_v1/corpus_manifest.json",
+    "corpus_sha256": "d099dc9ef22678af17ffbb12fc5198c9a6fce71d56576dde6f2b62984b8a7de6",
+    "manifest_sha256": "fa34f43dbe64f605efdda94cfe37bf76faa87c59573cfde5f9d244d5b5bc60ff",
+    "passage_hashes_path": "docs/deep_research/retrieval_quality_r1/passage_hashes.json",
+    "passage_hashes_sha256": "d535064fdfbf270057ce7d4c096f7648f7167ef06efded506038b9424d1f0bb9",
+    "paper_count": 10,
+    "passage_count": 185
+  },
+  "development_reviewed": {
+    "path": "docs/deep_research/retrieval_quality_r1/reviewed_records.json",
+    "sha256": "3d0f24ebeb5965102a8325943388e5627d950aec516f4e279552086547962dc8",
+    "source_path": "outputs/rag_bm25_v1/human_reviewed_pilot_qrels_v1_1/queries_human_reviewed_pilot_qrels_v1_1.json",
+    "source_sha256": "bd11e7c156eea4930fc8449dc196c97b3693583f6b207421758a7bb42671ac6e",
+    "count": 20,
+    "review_status": "reviewed"
+  },
+  "pending_candidates": {
+    "path": "docs/deep_research/retrieval_quality_r1/pending_candidates.json",
+    "review_csv": "docs/deep_research/retrieval_quality_r1/pending_candidates.review.csv",
+    "review_csv_sha256": "f672179ea49af110037c8dd26d624090a01fe0acf6e04c24d13ff638b135b62a",
+    "sha256": "37427f41df20a9995d1464efa42cef5d48b67f90f42bcaca4aca6986b0c7de76",
+    "count": 28,
+    "review_status": "pending_review"
+  },
+  "reviewed_candidates": {
+    "path": "docs/deep_research/retrieval_quality_r1/reviewed_candidates.json",
+    "sha256": "0384eee4f9a1c5f5c6335ae2c916719cd0bf855aeec8a28057166c93267be883",
+    "source_path": "docs/deep_research/retrieval_quality_r1/pending_candidates.json",
+    "source_sha256": "37427f41df20a9995d1464efa42cef5d48b67f90f42bcaca4aca6986b0c7de76",
+    "count": 28,
+    "review_status": "reviewed",
+    "reviewer": "project_owner",
+    "reviewed_at": "2026-09-15T06:56:24Z"
+  },
+  "splits": {
+    "development": 20,
+    "dev_hard_negative": 12,
+    "held_out": 16,
+    "held_out_composition": {
+      "single_paper_answerable": 8,
+      "cross_paper_answerable": 4,
+      "in_domain_no_answer": 2,
+      "near_miss_hard_negative": 2
+    }
+  },
+  "retriever_modes": [
+    "bm25_zh_raw",
+    "bm25_en",
+    "dense_zh_windowed",
+    "hybrid_zh_windowed"
+  ],
+  "tuning_policy": "development_only; held_out_is_never_a_tuning_input",
+  "formal_evaluation": "reviewed_and_frozen"
+}

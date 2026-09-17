@@ -1,0 +1,28 @@
+{
+  "schema_version": "dr-glm-e2e-success-closure-v1",
+  "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-a33941e22e6880abd6ac1c7e",
+  "artifact_file_count": 6,
+  "artifact_mutated": false,
+  "status": "complete",
+  "telemetry_issue": "telemetry_provider_count_miscalculated",
+  "provider_calls_actual": 2,
+  "provider_calls_recorded": 6,
+  "planner_calls": 1,
+  "writer_calls": 1,
+  "tool_calls": 4,
+  "retries": 0,
+  "grounding_verified": true,
+  "claims": 4,
+  "citations": 6,
+  "author_review_required": true,
+  "publication_ready": false,
+  "replay_external_calls": 0,
+  "sha256": {
+    "assessment.json": "5770f0660cdd4f62685941b045f8cdcdbe124de7f7f30c6461e518682c2716c5",
+    "checkpoint.json": "424ee4ebd9a6ac694356185c765624eb959dee2c2e59892cc33abd3cbf693503",
+    "evidence_graph.json": "cc79f1a17b0cd59b5d8c7b992df7064ecfee595fc767a53aa7d7cc48420fd87e",
+    "provider_telemetry.json": "6135e85914338f64b23fabb85dacfa5d6416b24562ea2f1e0866f9ffe757079e",
+    "runtime.jsonl": "15ddf833216b19efcdbbb18e39032523b0b2916ad074ddfc5cef7373bbe6e35e",
+    "validated_plan.json": "b9a6f6ea29f4461ce020ba8d30ef8288750cf5d8f49acaef52b94385ca0e97f0"
+  }
+}
