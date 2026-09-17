@@ -23,17 +23,38 @@ NOW = datetime(2026, 9, 10, tzinfo=UTC)
 
 
 def _corpus() -> list[dict[str, object]]:
-    rows = [json.loads(line) for line in Path("outputs/rag_bm25_v1/passages.jsonl").read_text(encoding="utf-8").splitlines() if line]
-    selected = []
-    for paper, passage in (("L4DLHQUZ", "L4DLHQUZ:L4DLHQUZ_chunk_0007"), ("3NLKTSIP", "3NLKTSIP:3NLKTSIP_chunk_0005")):
-        row = next(item for item in rows if item["passage_id"] == passage)
-        assert row["paper_key"] == paper
-        selected.append(row)
-    return selected
+    return [
+        _passage("L4DLHQUZ", "L4DLHQUZ_chunk_0007", "TPMN method uses multi-level feature fusion through separate feature pathways."),
+        _passage("3NLKTSIP", "3NLKTSIP_chunk_0005", "The convolutional model combines features at multiple scales."),
+    ]
 
 
 def _full_corpus() -> list[dict[str, object]]:
-    return [json.loads(line) for line in Path("outputs/rag_bm25_v1/passages.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    # Synthetic CI corpus: decoys rank ahead of the selected passage, while all
+    # identities and quote text remain small, deterministic, and non-sensitive.
+    query_terms = "retrieve explicitly grounded method descriptions from local source L4DLHQUZ"
+    rows = [_passage("L4DLHQUZ", f"L4DLHQUZ_fixture_decoy_{index:02d}", query_terms) for index in range(10)]
+    rows.append(_corpus()[0])
+    rows.extend(_passage("L4DLHQUZ", f"L4DLHQUZ_fixture_other_{index:02d}", "A local passage about packaging geometry.") for index in range(5))
+    rows.extend(_corpus()[1:])
+    rows.append(_passage("Q55RU9N6", "Q55RU9N6_chunk_0008", "An unselected paper about a different method."))
+    return rows
+
+
+def _passage(paper_key: str, chunk_id: str, text: str) -> dict[str, object]:
+    context = hashlib.sha256(f"fixture:{paper_key}".encode()).hexdigest()
+    return {
+        "passage_id": f"{paper_key}:{chunk_id}",
+        "paper_key": paper_key,
+        "citation_key": f"fixture-{paper_key}",
+        "title": f"Synthetic {paper_key} fixture",
+        "chunk_id": chunk_id,
+        "page_start": 1,
+        "page_end": 1,
+        "text": text,
+        "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "source_context_sha256": context,
+    }
 
 
 def _inputs(tmp_path: Path):
@@ -62,7 +83,7 @@ def _draft(task, brief, plan, graph, *, both: bool = True):
     return ReportDraft.model_validate({"schema_version": "dr-report-draft-v1", "task_id": task.task_id, "brief_id": brief.brief_id, "plan_id": plan.plan_id, "run_id": graph.run_id, "sections": [{"heading": "Comparison", "claims": [{"text": "The two papers use distinct multi-scale feature handling strategies.", "language": "en", "citations": citations}]}]})
 
 
-def test_frozen_corpus_has_two_distinct_sources_and_real_passages(tmp_path: Path):
+def test_source_scoped_executor_builds_two_distinct_sources_from_fixture(tmp_path: Path):
     task, brief, approval, plan, graph, assessment, spec, registry = _inputs(tmp_path)
     assert len(graph.sources) == 2 and len({item.source_id for item in graph.sources}) == 2
     assert len(graph.evidence_units) == 2 and {item.source_id for item in graph.evidence_units} == {item.source_id for item in graph.sources}
@@ -180,13 +201,17 @@ def test_executor_unknown_failure_is_terminalized_without_writer(tmp_path: Path)
     assert checkpoint["stream_head"] == events[-1].event_hash and writer.calls == 0
 
 
-def test_cross_plan_preflight_binds_selected_sources_and_task_input():
+def test_cross_plan_preflight_binds_selected_sources_and_task_input(tmp_path: Path):
     plan = parse_e2e_pilot_plan(json.loads(Path("docs/deep_research/e2e/v1.2/glm_e2e_cross_paper_plan.attempt-002.json").read_text(encoding="utf-8")))
     assert isinstance(plan, GLME2ECrossPaperAttemptPlan)
-    current_item = plan.tasks[0].model_copy(update={"implementation_commit_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), "runtime_source_sha256": runtime_source_sha256(), "planner_prompt_sha256": prompt_hashes(comparison_required=True)["planner"], "writer_prompt_sha256": prompt_hashes(comparison_required=True)["writer"], "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-111111111111111111111111"})
+    corpus_path = tmp_path / "outputs" / "rag_bm25_v1" / "passages.jsonl"
+    corpus_path.parent.mkdir(parents=True)
+    corpus_bytes = "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in _full_corpus()).encode("utf-8")
+    corpus_path.write_bytes(corpus_bytes)
+    current_item = plan.tasks[0].model_copy(update={"implementation_commit_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), "runtime_source_sha256": runtime_source_sha256(), "planner_prompt_sha256": prompt_hashes(comparison_required=True)["planner"], "writer_prompt_sha256": prompt_hashes(comparison_required=True)["writer"], "corpus_path": "outputs/rag_bm25_v1/passages.jsonl", "corpus_sha256": hashlib.sha256(corpus_bytes).hexdigest(), "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-111111111111111111111111"})
     current_item = current_item.model_copy(update={"task_input_sha256": task_input_sha256(current_item)})
     current_plan = plan.model_copy(update={"tasks": [current_item]})
-    assert len(preflight_e2e_pilot(current_plan, repo_root=Path.cwd())) == 1
+    assert len(preflight_e2e_pilot(current_plan, repo_root=tmp_path)) == 1
     bad = current_plan.model_copy(update={"tasks": [current_item.model_copy(update={"selected_source_keys": ["Q55RU9N6", "3NLKTSIP"]})]})
     with pytest.raises(ValueError, match="task input"):
-        preflight_e2e_pilot(bad, repo_root=Path.cwd())
+        preflight_e2e_pilot(bad, repo_root=tmp_path)

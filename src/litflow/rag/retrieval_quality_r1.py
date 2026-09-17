@@ -343,7 +343,10 @@ def _raise_schema_errors(validator: Any, instance: Any, label: str) -> None:
 
 
 def _repository_root(path: Path) -> Path:
-    for candidate in (Path.cwd(), *path.resolve().parents):
+    # Resolve relative manifest paths from the manifest's own repository first;
+    # this also permits isolated tmp_path fixtures when tests run in a repo that
+    # happens to have a local-only outputs/ corpus.
+    for candidate in (*path.resolve().parents, Path.cwd()):
         if (candidate / "outputs" / "rag_bm25_v1" / "passages.jsonl").is_file():
             return candidate
     raise R1EvaluationError("repository root with frozen R1 corpus not found")

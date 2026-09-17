@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
+import shutil
 import subprocess
+import sys
 from decimal import Decimal
 from datetime import UTC, datetime
 from pathlib import Path
@@ -253,8 +256,7 @@ def test_committed_writer_calibration_cli_preflight_is_network_denied(tmp_path: 
 
 
 def test_writer_calibration_cli_requires_explicit_mutually_exclusive_mode():
-    import subprocess
-    command = [".venv\\Scripts\\python.exe", "-m", "litflow.deep_research.writer_calibration_cli", "--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730"]
+    command = [sys.executable, "-m", "litflow.deep_research.writer_calibration_cli", "--plan", "docs/deep_research/calibration/v1/writer_calibration_plan.json", "--artifact-dir", "outputs/deep_research/writer_calibration/v1/dr-calibration-76017a7df7b64fc2dcad8730"]
     result = subprocess.run(command, capture_output=True, text=True)
     assert result.returncode == 2
     help_result = subprocess.run(command[:3] + ["--help"], capture_output=True, text=True)
@@ -262,11 +264,14 @@ def test_writer_calibration_cli_requires_explicit_mutually_exclusive_mode():
 
 
 def test_writer_calibration_subprocess_enters_execute_branch_without_credential(tmp_path: Path):
-    import sys
-    import shutil
     plan = WriterCalibrationPlan(calibration_id="writer-calibration-subprocess", implementation_commit_sha=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), runtime_source_sha256=runtime_source_sha256(), artifact_dir="outputs/deep_research/writer_calibration/v1/dr-calibration-" + "a" * 24)
     plan_path = tmp_path / "plan.json"; plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
-    env = {"PYTHONPATH": str(Path.cwd() / "src"), "PATH": str(Path(shutil.which("git")).parent) + ";" + str(Path.cwd() / ".venv" / "Scripts"), "SystemRoot": "C:\\Windows", "WINDIR": "C:\\Windows", "TEMP": str(tmp_path), "TMP": str(tmp_path)}
+    git_path = shutil.which("git")
+    assert git_path is not None
+    env = {"PYTHONPATH": str(Path.cwd() / "src"), "PATH": os.pathsep.join((str(Path(sys.executable).parent), str(Path(git_path).parent), os.environ.get("PATH", ""))), "TEMP": str(tmp_path), "TMP": str(tmp_path)}
+    for name in ("SystemRoot", "WINDIR", "HOME"):
+        if name in os.environ:
+            env[name] = os.environ[name]
     result = subprocess.run([sys.executable, "-m", "litflow.deep_research.writer_calibration_cli", "--plan", str(plan_path), "--artifact-dir", plan.artifact_dir, "--execute"], cwd=Path.cwd(), env=env, capture_output=True, text=True)
     assert result.returncode == 2 and "configuration_invalid" in result.stdout
 
@@ -340,9 +345,15 @@ def test_single_paper_attempt_008_plan_preflight_and_schema_are_deterministic(tm
     raw = json.loads(Path("docs/deep_research/e2e/v1.1/glm_e2e_pilot_plan.attempt-007.json").read_text(encoding="utf-8"))
     item = dict(raw["tasks"][0])
     item.update({"attempt_id": "glm-5.3-flash-deepresearch-e2e-008", "implementation_commit_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(), "runtime_source_sha256": runtime_source_sha256(), "planner_prompt_sha256": prompt_hashes()["planner"], "writer_prompt_sha256": prompt_hashes()["writer"], "run_id": "dr-run-8b30915e93a6e6b5ee8137c5", "artifact_dir": "outputs/deep_research/e2e/v1.2/dr-run-8b30915e93a6e6b5ee8137c5"})
+    corpus_path = tmp_path / "outputs" / "rag_bm25_v1" / "passages.jsonl"
+    corpus_path.parent.mkdir(parents=True)
+    corpus_bytes = json.dumps(_corpus()[0], ensure_ascii=False).encode("utf-8") + b"\n"
+    corpus_path.write_bytes(corpus_bytes)
+    item.update({"corpus_path": "outputs/rag_bm25_v1/passages.jsonl", "corpus_sha256": hashlib.sha256(corpus_bytes).hexdigest()})
     plan = GLME2ESinglePaperAttemptPlan.model_validate({"schema_version": "dr-glm-e2e-pilot-v1.2", "provider": raw["provider"], "channel": raw["channel"], "policy": raw["policy"], "tasks": [item]})
+    (tmp_path / item["artifact_dir"]).mkdir(parents=True)
     with pytest.raises(E2EConfigurationError, match="binding|artifact"):
-        preflight_e2e_pilot(plan, repo_root=Path.cwd())
+        preflight_e2e_pilot(plan, repo_root=tmp_path)
     committed = Path("docs/deep_research/e2e/v1.2/glm_e2e_pilot.schema.json").read_bytes()
     assert write_e2e_single_paper_schema(tmp_path).read_bytes() == committed
 
@@ -613,8 +624,13 @@ def test_committed_pilot_cli_preflight_is_network_denied(tmp_path: Path, monkeyp
 
 
 @pytest.mark.parametrize(("terminal", "expected_exit"), (("complete", 0), ("partial", 2), ("manual_review_required", 3)))
-def test_execute_cli_maps_only_complete_to_zero_without_real_transport(monkeypatch, terminal, expected_exit):
+def test_execute_cli_maps_only_complete_to_zero_without_real_transport(monkeypatch, tmp_path: Path, terminal, expected_exit):
     from litflow.deep_research import e2e_cli
+    plan_path = Path("docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json").resolve()
+    task = parse_e2e_pilot_plan(json.loads(plan_path.read_text(encoding="utf-8"))).tasks[0]
+    corpus_path = tmp_path / "outputs" / "rag_bm25_v1" / "passages.jsonl"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    corpus_path.write_text(json.dumps(_corpus()[0], ensure_ascii=False) + "\n", encoding="utf-8")
 
     class OfflineAdapter:
         def __init__(self, *_args, **_kwargs):
@@ -633,12 +649,18 @@ def test_execute_cli_maps_only_complete_to_zero_without_real_transport(monkeypat
     monkeypatch.setattr(e2e_cli, "GLMStructuredAdapter", OfflineAdapter)
     monkeypatch.setattr(e2e_cli, "DeepResearchRunner", OfflineRunner)
     monkeypatch.setattr(e2e_cli, "preflight_e2e_pilot", lambda plan, repo_root: tuple(plan.tasks))
-    assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--execute"]) == expected_exit
+    monkeypatch.chdir(tmp_path)
+    assert e2e_cli.main(["--plan", str(plan_path), "--task", "single_paper", "--artifact-dir", task.artifact_dir, "--execute"]) == expected_exit
 
 
 @pytest.mark.parametrize(("error", "expected_exit"), ((E2ETerminalError("planner_contract_invalid"), 2), (E2ETerminalError("outcome_unknown", outcome_unknown=True), 3)))
-def test_execute_cli_maps_structured_planner_errors_without_text_matching(monkeypatch, error, expected_exit):
+def test_execute_cli_maps_structured_planner_errors_without_text_matching(monkeypatch, tmp_path: Path, error, expected_exit):
     from litflow.deep_research import e2e_cli
+    plan_path = Path("docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json").resolve()
+    task = parse_e2e_pilot_plan(json.loads(plan_path.read_text(encoding="utf-8"))).tasks[0]
+    corpus_path = tmp_path / "outputs" / "rag_bm25_v1" / "passages.jsonl"
+    corpus_path.parent.mkdir(parents=True, exist_ok=True)
+    corpus_path.write_text(json.dumps(_corpus()[0], ensure_ascii=False) + "\n", encoding="utf-8")
 
     class OfflineAdapter:
         def __init__(self, *_args, **_kwargs):
@@ -657,7 +679,8 @@ def test_execute_cli_maps_structured_planner_errors_without_text_matching(monkey
     monkeypatch.setattr(e2e_cli, "GLMStructuredAdapter", OfflineAdapter)
     monkeypatch.setattr(e2e_cli, "DeepResearchRunner", OfflineRunner)
     monkeypatch.setattr(e2e_cli, "preflight_e2e_pilot", lambda plan, repo_root: tuple(plan.tasks))
-    assert e2e_cli.main(["--plan", "docs/deep_research/e2e/v1/glm_e2e_pilot_plan.json", "--task", "single_paper", "--artifact-dir", "outputs/deep_research/e2e/v1/dr-run-30a882141ca5a7b2093d8fd2", "--execute"]) == expected_exit
+    monkeypatch.chdir(tmp_path)
+    assert e2e_cli.main(["--plan", str(plan_path), "--task", "single_paper", "--artifact-dir", task.artifact_dir, "--execute"]) == expected_exit
 
 
 def test_execute_cli_invalid_configuration_remains_known_failure(monkeypatch):

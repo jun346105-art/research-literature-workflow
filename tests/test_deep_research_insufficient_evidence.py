@@ -93,6 +93,9 @@ def test_writer_abstention_is_durable_and_replay_is_zero_call(tmp_path: Path):
 
 
 def test_frozen_corpus_has_no_direct_mars_mission_terms():
-    corpus = Path("outputs/rag_bm25_v1/passages.jsonl").read_text(encoding="utf-8").lower()
+    corpus_path = Path("outputs/rag_bm25_v1/passages.jsonl")
+    if not corpus_path.is_file():
+        pytest.skip("requires_local_artifact: frozen 185-passage R1 corpus is intentionally not tracked in Git")
+    corpus = corpus_path.read_text(encoding="utf-8").lower()
     assert all(term not in corpus for term in ("mars", "orbital", "propellant", "orbiter"))
     assert sha256_hex(corpus.encode("utf-8"))

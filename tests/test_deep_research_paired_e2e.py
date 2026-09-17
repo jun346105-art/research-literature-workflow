@@ -61,6 +61,15 @@ def test_paired_cli_execute_enters_shared_runner_without_transport(monkeypatch, 
 
     plan_path = PAIR_DIR / ("paired_deepseek_single_paper_plan.json" if provider == "deepseek" else "paired_glm_single_paper_plan.json")
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    trusted_path = Path("docs/deep_research/e2e/v1.2/glm_e2e_pilot_plan.attempt-008.json").resolve()
+    trusted_bytes = trusted_path.read_bytes()
+    trusted_task = json.loads(trusted_bytes)["tasks"][0]
+    trusted_target = tmp_path / "docs" / "deep_research" / "e2e" / "v1.2" / trusted_path.name
+    trusted_target.parent.mkdir(parents=True)
+    trusted_target.write_bytes(trusted_bytes)
+    corpus_path = tmp_path / trusted_task["corpus_path"]
+    corpus_path.parent.mkdir(parents=True)
+    corpus_path.write_text(json.dumps({"passage_id": "P1:P1_chunk_0001", "paper_key": "P1", "citation_key": "fixture", "title": "Synthetic fixture", "chunk_id": "P1_chunk_0001", "page_start": 1, "page_end": 1, "text": "Synthetic local evidence.", "source_context_sha256": "a" * 64}) + "\n", encoding="utf-8")
     artifact = tmp_path / "artifact"
     from litflow.deep_research.paired_e2e import parse_paired_plan
     parsed_plan = parse_paired_plan(plan).model_copy(update={"artifact_dir": artifact.as_posix().replace("\\", "/")})
@@ -110,6 +119,7 @@ def test_paired_cli_execute_enters_shared_runner_without_transport(monkeypatch, 
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.delenv("ZHIPUAI_API_KEY", raising=False)
     monkeypatch.setenv("LITFLOW_PAIRED_EXECUTE_RUN_ID", parsed_plan.run_id)
+    monkeypatch.chdir(tmp_path)
     assert paired_cli.main(["--plan", str(plan_file), "--artifact-dir", str(artifact), "--execute"]) == expected
     if expected == 0:
         assert (artifact / "provider_telemetry.json").is_file()
