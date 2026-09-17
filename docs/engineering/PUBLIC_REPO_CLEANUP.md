@@ -37,7 +37,7 @@ All names below are exact; each group shares its stated source and destination d
 - Archive the old CLI Quickstarts and API Demo because their structured-note sample is absent from the public tree; preserve the commands as historical documentation. The archive index explains that precondition. Do not fabricate the missing sample or alter the product.
 - Archive previously published resume/interview text without rewriting it or starting resume work. It contains project narratives, not personal contact details.
 - Keep existing generated schemas, result manifests, sample expected outputs and Tabler source maps. They serve contract, provenance, example or licensed-distribution purposes.
-- Credential/private-path review distinguishes task identifiers containing `sk-`, generic container home directories, placeholder paths and runtime path-discovery code from secrets. No credential or personal absolute path is added. No outputs, PDFs, private corpus or new large binary is added.
+- Credential/private-path review distinguishes task identifiers containing `sk-`, generic container home directories, placeholder paths and Zotero `/api/users/...` routes from secrets. No credential or personal absolute path is added. No outputs, PDFs, private corpus or new large binary is added.
 - Historic root-path literals in the immutable baseline/session records remain historical references at their recorded commit; this table resolves their new locations. Active Markdown links are repaired. These deliberate historical literals are not live broken links.
 - No project-level license exists. The bundled Tabler MIT notice remains intact; a project license awaits the maintainer's choice.
 
@@ -57,5 +57,6 @@ Full no-answer rates, development-only threshold limitations, Recall@5/@20, H007
 - Targeted tests: 8 passed, 3 optional local-artifact tests skipped. `pip check`: no broken requirements. `git diff --check`: clean.
 - Offline smoke: public-checkout UI/static and SSE succeed; missing assets produce the documented failure. With existing local assets, two complete frozen reports and one insufficient-evidence result replay with zero external calls; custom queries stay retrieval-only and online mode is rejected. All 17 original local corpus/artifact files remain byte-identical. External network connections were blocked during smoke.
 - Initial full-suite execution on the Windows CRLF checkout: 557 passed, 36 failed, 5 skipped. Byte-stability/source-fingerprint failures came from system `core.autocrlf=true`; a preflight also requires a clean worktree. Final full-suite verification uses a clean detached copy with Git's original LF bytes, without changing any contract or relaxing a test.
+- Clean LF full suite: **593 passed, 5 skipped**, with one existing Starlette/httpx deprecation warning. Skips require optional local artifacts; the separate offline smoke checks the installed frozen examples without committing them.
 
 The PR records the final full-suite result, candidate commit, CI and rendered-GitHub evidence.
