@@ -28,7 +28,7 @@ The key-free offline Demo shows one frozen, complete research report and local e
 
 The quote passed deterministic anchor validation. That proves traceability, not semantic correctness or publication quality.
 
-![Evidence-backed LitFlow result](docs/screenshots/litflow-v1.3-result-zh.png)
+![Evidence-backed LitFlow result](docs/screenshots/litflow-v1.3-result-en.png)
 
 The language switch changes the interface only; it does not translate frozen paper text. See the [Demo guide](docs/DEEPRESEARCH_DEMO.md).
 
