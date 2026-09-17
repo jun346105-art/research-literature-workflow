@@ -59,6 +59,6 @@ curl.exe "http://127.0.0.1:8015/api/deep-research/jobs/$jobId/events"
 | 静态资源失败 | 检查 `/static/app.js` 与 `/static/style.css` 是否均返回 200。 |
 | 浏览器代理影响 localhost | 将 `127.0.0.1` 加入代理 bypass，或使用 `curl.exe` 复核本地服务。 |
 
-## 讲解顺序
+## 推荐阅读路径
 
-README → DeepResearch 架构 → 本 Demo → Evidence/Citation grounding → R1 指标 → Round 5 Provider closure。
+README → 本 Demo → Evidence/Citation grounding → 检索评测 → Provider Adapter 工程细节。
