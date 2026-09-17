@@ -34,9 +34,9 @@
 
 For detailed acceptance metrics, see:
 
-- [Evaluation and acceptance metrics](docs/EVALUATION.md)
-- [评估与验收指标](docs/EVALUATION.zh-CN.md)
-- [DOGFOOD_RUN_001](docs/DOGFOOD_RUN_001.md)
+- [Evaluation and acceptance metrics](../EVALUATION.md)
+- [评估与验收指标](../EVALUATION.zh-CN.md)
+- [DOGFOOD_RUN_001](../DOGFOOD_RUN_001.md)
 
 ## Current Technical Level
 

@@ -31,4 +31,4 @@ $env:LITFLOW_DEMO_INPUT_DIR = (Resolve-Path .\outputs)
 docker compose up --build
 ```
 
-See [Docker Demo](docs/DOCKER_DEMO.md), [Demo Checklist](docs/DEMO_CHECKLIST.md), and [Interview Guide](docs/INTERVIEW_GUIDE.zh-CN.md).
+See [Docker Demo](../DOCKER_DEMO.md), [Demo Checklist](../DEMO_CHECKLIST.md), and [Interview Guide](INTERVIEW_GUIDE.zh-CN.md).

@@ -14,6 +14,14 @@ flowchart LR
 
 ## 启动
 
+### Local demo assets
+
+公开 checkout 可启动 UI，但不分发论文全文、`outputs/` 语料或完整运行 artifact。仅克隆仓库不会得到可用的完整冻结报告。安装 Python 依赖需要网络；已有本地数据的 Demo 运行与 replay 不调用 Provider。
+
+当前数据加载合同见 [DemoAssets](../src/litflow_api/mvp.py)。本机需保留既有、经授权的本地 `outputs/rag_bm25_v1/passages.jsonl`；冻结报告还依赖 `outputs/deep_research/e2e/v1.2/<run_id>/` 下的原始 artifact，相关身份与摘要见[单篇正式结果](deep_research/REAL_SINGLE_PAPER_E2E_RESULT_V1.md)。这些路径相对仓库根目录。不要将私人语料或运行输出提交到 Git。
+
+若没有这些资产，可查看 README 截图与已提交的结果记录；冻结任务会返回 `demo_artifact_unavailable`，不会生成替代答案。旧 CLI 样例与数据前提见[历史文档](archive/README.md)。
+
 Windows 最短路径（使用项目 `.venv`）：
 
 ```powershell
@@ -61,4 +69,16 @@ curl.exe "http://127.0.0.1:8015/api/deep-research/jobs/$jobId/events"
 
 ## 推荐阅读路径
 
-README → 本 Demo → Evidence/Citation grounding → 检索评测 → Provider Adapter 工程细节。
+README → 本 Demo → [Evidence/Citation grounding](EVIDENCE_GROUNDING.zh-CN.md) → [检索评测与失败分析](evaluation/README.md) → [Provider 工程细节](providers/README.md)。
+
+## Privacy and reproducibility
+
+默认离线 Demo 与 replay 不构造在线模型 client；可选真实 Provider 执行通过受控 CLI 使用服务端环境凭据和显式 run 授权。DeepResearch 浏览器/API 不接收凭据，公开结果使用相对 artifact 定位与有界引句。不可变运行身份、checkpoint 和零外部调用 replay 保留执行过程。
+
+## Scope and known issues
+
+- 精确匹配且已安装的冻结任务可读取报告；其他问题走本地检索。语言切换只改变 UI，不翻译论文原文。
+- 确定性引用锚定证明引句位置与归属，不替代人工语义审核，也不代表报告可直接发表。
+- R1 的 held-out no-answer FP@10 为 1.0；后续阈值仅在 development 校准。完整数值、H007 重叠与失败分析见[评测文档](evaluation/README.md)。
+- 固定预算下的 DeepSeek Writer 截断属于已记录的可靠性结果，详见 [Provider 文档](providers/README.md)。
+- 当前范围是本地科研语料；不包含生产托管、账号/多租户服务、开放域 Web 研究、多模态或多 Agent 执行。
