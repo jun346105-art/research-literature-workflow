@@ -2,6 +2,8 @@
 
 `litflow_api` exposes a small HTTP wrapper around the existing CLI-safe workflow.
 
+For the current DeepResearch job/result/SSE endpoints and offline setup, start with the [DeepResearch Demo](DEEPRESEARCH_DEMO.md). The earlier preview API and MVP endpoints below remain documented for their respective workflows.
+
 It is intentionally minimal:
 
 - no user system;

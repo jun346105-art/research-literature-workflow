@@ -16,4 +16,4 @@
 
 ## Quick start
 
-See [DeepResearch Demo](docs/DEEPRESEARCH_DEMO.md) for the five-minute local API/UI walkthrough, or run the existing localhost-only Docker Offline Demo in [Docker Demo](docs/DOCKER_DEMO.md).
+See [DeepResearch Demo](../DEEPRESEARCH_DEMO.md) for the five-minute local API/UI walkthrough, or run the existing localhost-only Docker Offline Demo in [Docker Demo](../DOCKER_DEMO.md).
